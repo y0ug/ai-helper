@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/stats"
+	"github.com/y0ug/ai-helper/internal/version"
 )
 
 func main() {
@@ -22,7 +24,18 @@ func main() {
 	showList := flag.Bool("list", false, "List available commands")
 	verbose := flag.Bool("v", false, "Show verbose cost information")
 	genCompletion := flag.String("completion", "", "Generate shell completion script (zsh)")
+	showPrompt := flag.Bool("show-prompt", false, "Show only the generated prompt")
+	attachFiles := flag.String("files", "", "Comma-separated list of files to attach")
+	showVersion := flag.Bool("version", false, "Show version information")
 	flag.Parse()
+
+	// Handle version display
+	if *showVersion {
+		fmt.Printf("ai-helper version %s\n", version.Version)
+		fmt.Printf("Commit: %s\n", version.CommitHash)
+		fmt.Printf("Built: %s\n", version.BuildDate)
+		os.Exit(0)
+	}
 
 	// Handle completion script generation
 	if *genCompletion != "" {
@@ -148,11 +161,15 @@ func main() {
 		}
 	}
 
-	// Read input using configured methods
-	input, err := io.ReadInput(inputArgs, inputTypes, fallbackCmd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-		os.Exit(1)
+	// Read input only if command requires it
+	var input string
+	if cmd.Input {
+		var err error
+		input, err = io.ReadInput(inputArgs, inputTypes, fallbackCmd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	// Create AI client
@@ -173,6 +190,7 @@ func main() {
 	templateData := map[string]interface{}{
 		"Input": input,
 		"env":   make(map[string]string),
+		"Files": make(map[string]string),
 	}
 	// Add environment variables
 	for _, env := range os.Environ() {
@@ -181,13 +199,62 @@ func main() {
 			templateData["env"].(map[string]string)[pair[0]] = pair[1]
 		}
 	}
+	// Load file contents from both config and command line
+	filesToLoad := make(map[string]bool)
+
+	// Add files from config
+	for _, filepath := range cmd.Files {
+		filesToLoad[filepath] = true
+	}
+
+	// Add files from command line flag
+	if *attachFiles != "" {
+		for _, filepath := range strings.Split(*attachFiles, ",") {
+			filesToLoad[strings.TrimSpace(filepath)] = true
+		}
+	}
+
 	// Add any variables from command config
 	for k, v := range vars {
 		templateData[k] = v
 	}
 
+	// Create template functions
+	funcMap := template.FuncMap{
+		"fileContent": func(path string) string {
+			content, ok := templateData["Files"].(map[string]string)[path]
+			if !ok {
+				return fmt.Sprintf("Error: file %s not found", path)
+			}
+			return content
+		},
+		"fileExt": filepath.Ext,
+		"fileName": func(path string) string {
+			return filepath.Base(path)
+		},
+		"formatFile": func(path string) string {
+			content, ok := templateData["Files"].(map[string]string)[path]
+			if !ok {
+				return fmt.Sprintf("Error: file %s not found", path)
+			}
+			ext := filepath.Ext(path)
+			return fmt.Sprintf("```%s\n%s\n```", ext[1:], content)
+		},
+	}
+
+	// Load all unique files
+	for filepath := range filesToLoad {
+		content, err := os.ReadFile(filepath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filepath, err)
+			os.Exit(1)
+		}
+		templateData["Files"].(map[string]string)[filepath] = string(content)
+
+	}
+
 	// Parse and execute the prompt template
-	tmpl, err := template.New("prompt").Parse(promptContent)
+	tmpl, err := template.New("prompt").Funcs(funcMap).Parse(promptContent)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing prompt template: %v\n", err)
 		os.Exit(1)
@@ -199,7 +266,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// fmt.Println("promptBuf: ", promptBuf.String())
+	// If show-prompt flag is set, print the prompt and exit
+	if *showPrompt {
+		fmt.Println(promptBuf.String())
+		os.Exit(0)
+	}
+
 	resp, err := client.Generate(promptBuf.String(), command)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)

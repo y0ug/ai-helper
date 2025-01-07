@@ -1,6 +1,6 @@
 on:
   release:
-    types: [published, created, edited]
+    types: created
 
 
 permissions:
@@ -29,3 +29,5 @@ jobs:
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
         project_path: ./cmd/ai-helper
+        ldflags: -X github.com/y0ug/ai-helper/internal/version.Version=${{ github.ref_name }} -X github.com/y0ug/ai-helper/internal/version.CommitHash=${{ github.sha }} -X github.com/y0ug/ai-helper/internal/version.BuildDate=${{ env.BUILD_DATE }}
+        pre_command: echo "BUILD_DATE=$(date -u '+%Y-%m-%d_%H:%M:%S')" >> $GITHUB_ENV

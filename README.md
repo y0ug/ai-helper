@@ -7,6 +7,7 @@ A powerful command-line tool for seamless interaction with AI providers (OpenAI,
 - 🤖 Multiple AI Provider Support
   - OpenAI (GPT-3.5, GPT-4)
   - Anthropic (Claude)
+  - Google (Gemini)
   - OpenRouter (unified access to multiple models)
 - ⚙️ Rich Configuration
   - YAML and JSON support
@@ -26,9 +27,19 @@ A powerful command-line tool for seamless interaction with AI providers (OpenAI,
 
 ### Installation
 
+#### Using Go
+
 ```bash
 go install github.com/y0ug/ai-helper/cmd/ai-helper@latest
 ```
+
+#### Using Install Script (Linux/macOS)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/y0ug/ai-helper/main/install.sh | bash
+```
+
+This will install the binary to `~/.local/bin`. Make sure this directory is in your PATH.
 
 ### Basic Usage
 
@@ -49,6 +60,7 @@ ai-helper --stats
 ## Configuration
 
 The tool searches for configuration in:
+
 1. Current directory (`ai-helper.yaml` or `ai-helper.json`)
 2. `$XDG_CONFIG_HOME/ai-helper/` or `~/.config/ai-helper/`
 
@@ -57,6 +69,7 @@ The tool searches for configuration in:
 ```yaml
 commands:
   ask:
+    input: true
     variables:
       - name: Input
         type: stdin|arg
@@ -85,57 +98,28 @@ commands:
 
       {{ .Input }}
 
-  summarize:
-    description: Summarize a text
+  whoami:
+    description: Demo whoami
     variables:
-      - name: Input
-        type: stdin|arg
-    prompt: |
-      Please summarize the following text:
-      {{ .Input }}
-
-  git-commit:
-    variables:
-      - name: RecentCommits
+      - name: WhoAmi
         type: exec
-        exec: git log -3 --pretty=format:"%s"
-      - name: Input
-        type: stdin|arg|exec
-        exec: git diff --cached
+        exec: whoami
     prompt: |
-      Generate a git commit message following this structure:
+      **Return ONLY** with my name on json format.
+      I'm {{ .WhoAmi }}. Can you say who I'm?
 
-      1. First line: conventional commit format (type: concise description) (remember to use semantic
-      types like feat, fix, docs, style, refactor, perf, test, chore, etc.)
-      2. Optional bullet points if more context helps:
-        - Keep the second line blank
-        - Keep them short and direct
-        - Focus on what changed
-        - Always be terse
-        - Don't overly explain
-        - Drop any fluffy or formal language
+  analyze:
+    description: "Analyze code files"
+    prompt: |
+      Please analyze these code files:
 
-      **Important:** Before generating the commit message, analyze the git diff for sensitive information.
-      If the diff contains any secrets (e.g., API keys, passwords, tokens, private keys, or anything resembling credentials),
-      return the following exact response and nothing else: 
+      {{range $filePath, $content := .Files}}
+      File: {{$filePath}}
+      ```
+      {{$content}}
+      ```
 
-      "#ERROR# 🚨 Potential secret detected in the git diff. Commit aborted!"
-
-      Return **ONLY** the commit message if no secret are detected - no introduction, no explanation, no quotes around it.
-
-      **Patterns to watch for include (but are not limited to):**
-      - Any variable containing words like `token`, `password`, `secret`, `apikey`, `private_key`
-      - Any base64-encoded or hex-encoded long strings
-      - Any obvious credentials in JSON, YAML, ENV files, or config changes
-
-      If no secrets are detected, proceed with generating the commit message.
-
-      Recent commits from this repo (for style reference):
-      {{ .RecentCommits }}
-
-      Here's the diff:
-
-      {{ .Input }}
+      {{end}}
 ```
 
 ## Advanced Usage
@@ -152,6 +136,12 @@ ai-helper ask "Write a poem" --output poem.txt
 
 # Show token usage and cost
 ai-helper -v ask "What is Docker?"
+
+# Analyze multiple files
+ai-helper analyze file1.go file2.go file3.go
+
+# Get system information
+ai-helper whoami
 ```
 
 ## Environment Setup
@@ -160,11 +150,14 @@ Required environment variables:
 
 ```bash
 # Choose your AI provider/model
-export AI_MODEL="openai/gpt-3.5-turbo"  # or "anthropic/claude-2", "openrouter/anthropic/claude-2"
+export AI_MODEL="openai/gpt-3.5-turbo"  # or "openai/gpt-4", "anthropic/claude-3-sonnet-20241022", 
+                                       # "google/gemini-pro", "google/gemini-exp-1206",
+                                       # "openrouter/anthropic/claude-2"
 
 # Set API keys for your chosen provider
 export OPENAI_API_KEY="your-key"        # For OpenAI
 export ANTHROPIC_API_KEY="your-key"     # For Anthropic
+export GOOGLE_API_KEY="your-key"        # For Google Gemini
 export OPENROUTER_API_KEY="your-key"    # For OpenRouter
 ```
 

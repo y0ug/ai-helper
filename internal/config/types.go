@@ -14,6 +14,7 @@ type Command struct {
 	Variables    []Variable `yaml:"variables,omitempty"     json:"variables,omitempty"`
 	Input        bool       `yaml:"input,omitempty"         json:"input,omitempty"`
 	InputCommand string     `yaml:"input_command,omitempty" json:"input_command,omitempty"`
+	Files        []string   `yaml:"files,omitempty"         json:"files,omitempty"`
 }
 
 // Config represents the root configuration structure
