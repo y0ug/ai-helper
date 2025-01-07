@@ -1,0 +1,92 @@
+commands:
+  ask:
+    variables:
+      - name: Input
+        type: stdin|arg
+    description: Ask a computer expert
+    prompt: |
+      I want you to act as a computer expert. 
+      I will ask you questions about Linux/Windows shell commands, scripting, 
+      and system administration tasks, vim. For each question:
+
+      1. If it's a command request:
+        - Provide the exact command without explanation
+        - Add only critical flags/options
+        - Include a single-line comment explaining the command (if needed)
+        - Format as a code block
+
+      2. If it's a scripting question:
+        - Give the shortest working solution
+        - Include only essential error handling
+        - Format as a code block
+
+      3. If it's a conceptual question:
+        - Provide a max 2-sentence answer
+        - Include a command example if relevant
+
+      Don't explain basic concepts unless asked. Don't provide alternatives unless requested. Focus on the most direct solution.
+
+      {{ .Input }}
+
+  summarize:
+    description: Summarize a text
+    variables:
+      - name: Input
+        type: stdin|arg
+    prompt: |
+      Please summarize the following text:
+      {{ .Input }}
+
+  whoami:
+    description: Demo whoami
+    variables:
+      - name: WhoAmi
+        type: exec
+        exec: whoami
+    prompt: |
+      **Return ONLY** with my name on json format.
+
+      I'm {{ .WhoAmi }}. Can you say who I'm?
+
+  git-commit:
+    variables:
+      - name: RecentCommits
+        type: exec
+        exec: git log -3 --pretty=format:"%s"
+      - name: Input
+        type: stdin|arg|exec
+        exec: git diff --cached
+    prompt: |
+      Generate a git commit message following this structure:
+
+      1. First line: conventional commit format (type: concise description) (remember to use semantic
+      types like feat, fix, docs, style, refactor, perf, test, chore, etc.)
+      2. Optional bullet points if more context helps:
+        - Keep the second line blank
+        - Keep them short and direct
+        - Focus on what changed
+        - Always be terse
+        - Don't overly explain
+        - Drop any fluffy or formal language
+
+      **Important:** Before generating the commit message, analyze the git diff for sensitive information.
+      If the diff contains any secrets (e.g., API keys, passwords, tokens, private keys, or anything resembling credentials),
+      return the following exact response and nothing else: 
+
+      "#ERROR# 🚨 Potential secret detected in the git diff. Commit aborted!"
+
+      Return **ONLY** the commit message if no secret are detected - no introduction, no explanation, no quotes around it.
+
+      **Patterns to watch for include (but are not limited to):**
+      - Any variable containing words like `token`, `password`, `secret`, `apikey`, `private_key`
+      - Any base64-encoded or hex-encoded long strings
+      - Any obvious credentials in JSON, YAML, ENV files, or config changes
+
+      If no secrets are detected, proceed with generating the commit message.
+
+      Recent commits from this repo (for style reference):
+      {{ .RecentCommits }}
+
+      Here's the diff:
+
+      {{ .Input }}
