@@ -10,6 +10,7 @@ ARCH=$(uname -m)
 case ${ARCH} in
 x86_64) ARCH="amd64" ;;
 aarch64) ARCH="arm64" ;;
+arm64) ARCH="arm64" ;;
 i386) ARCH="386" ;;
 i686) ARCH="386" ;;
 *)
