@@ -12,11 +12,110 @@ const (
 	anthropicAPIURL  = "https://api.anthropic.com/v1/messages"
 	openRouterAPIURL = "https://openrouter.ai/api/v1/chat/completions"
 	openAIAPIURL     = "https://api.openai.com/v1/chat/completions"
+	geminiAPIURL     = "https://generativelanguage.googleapis.com/v1beta/models"
 )
 
 // Provider represents an AI service provider
 type Provider interface {
 	GenerateResponse(prompt string) (Response, error)
+}
+
+// GeminiProvider implements the Provider interface for Google's Gemini API
+type GeminiProvider struct {
+	model  string
+	apiKey string
+	client *http.Client
+}
+
+func NewGeminiProvider(model, apiKey string) (*GeminiProvider, error) {
+	return &GeminiProvider{
+		model:  model,
+		apiKey: apiKey,
+		client: &http.Client{},
+	}, nil
+}
+
+func (p *GeminiProvider) GenerateResponse(prompt string) (Response, error) {
+	url := fmt.Sprintf("%s/%s:generateContent?key=%s", geminiAPIURL, p.model, p.apiKey)
+	
+	req := struct {
+		Contents []struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"contents"`
+	}{
+		Contents: []struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		}{
+			{
+				Parts: []struct {
+					Text string `json:"text"`
+				}{
+					{Text: prompt},
+				},
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return Response{Error: fmt.Errorf("failed to marshal request: %w", err)}, nil
+	}
+
+	httpReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return Response{Error: fmt.Errorf("failed to create request: %w", err)}, nil
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return Response{Error: fmt.Errorf("failed to send request: %w", err)}, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return Response{
+			Error: fmt.Errorf(
+				"API request failed with status %d: %s",
+				resp.StatusCode,
+				string(body),
+			),
+		}, nil
+	}
+
+	var response struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+		UsageMetadata struct {
+			PromptTokenCount     int `json:"promptTokenCount"`
+			CandidatesTokenCount int `json:"candidatesTokenCount"`
+		} `json:"usageMetadata"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return Response{Error: fmt.Errorf("failed to decode response: %w", err)}, nil
+	}
+
+	if len(response.Candidates) == 0 {
+		return Response{Error: fmt.Errorf("empty response from API")}, nil
+	}
+
+	return Response{
+		Content:      response.Candidates[0].Content.Parts[0].Text,
+		InputTokens:  response.UsageMetadata.PromptTokenCount,
+		OutputTokens: response.UsageMetadata.CandidatesTokenCount,
+	}, nil
 }
 
 // OpenAIProvider implements the Provider interface for OpenAI's API
@@ -102,6 +201,8 @@ func NewProvider(model *Model, apiKey string) (Provider, error) {
 		return NewOpenRouterProvider(model.Name, apiKey)
 	case "openai":
 		return NewOpenAIProvider(model.Name, apiKey)
+	case "gemini":
+		return NewGeminiProvider(model.Name, apiKey)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", model.Provider)
 	}

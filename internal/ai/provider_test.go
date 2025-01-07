@@ -35,6 +35,13 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 			provider: "openai",
 		},
 		{
+			name:     "Gemini Provider",
+			model:    "gemini/gemini-pro",
+			apiKey:   "test-gemini-key",
+			wantErr:  false,
+			provider: "gemini",
+		},
+		{
 			name:     "Invalid Provider",
 			model:    "invalid/model",
 			apiKey:   "test-key",
@@ -68,6 +75,8 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 				os.Setenv(EnvOpenAIAPIKey, tt.apiKey)
 			case "openrouter":
 				os.Setenv(EnvOpenRouterAPIKey, tt.apiKey)
+			case "gemini":
+				os.Setenv(EnvGeminiAPIKey, tt.apiKey)
 			}
 
 			// Create new client

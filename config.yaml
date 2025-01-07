@@ -1,5 +1,6 @@
 commands:
   ask:
+    input: true
     variables:
       - name: Input
         type: stdin|arg
@@ -29,6 +30,7 @@ commands:
       {{ .Input }}
 
   summarize:
+    input: true
     description: Summarize a text
     variables:
       - name: Input
@@ -49,6 +51,7 @@ commands:
       I'm {{ .WhoAmi }}. Can you say who I'm?
 
   git-commit:
+    input: true
     variables:
       - name: RecentCommits
         type: exec
@@ -68,6 +71,10 @@ commands:
         - Always be terse
         - Don't overly explain
         - Drop any fluffy or formal language
+
+      **Important:** if the diff is empty return
+
+      "#ERROR# empty diff. Commit aborted!"
 
       **Important:** Before generating the commit message, analyze the git diff for sensitive information.
       If the diff contains any secrets (e.g., API keys, passwords, tokens, private keys, or anything resembling credentials),
@@ -89,4 +96,19 @@ commands:
 
       Here's the diff:
 
+      ```
       {{ .Input }}
+      ```
+
+  analyze:
+    description: "Analyze code files"
+    prompt: |
+      Please analyze these code files:
+
+      {{range $filePath, $content := .Files}}
+      File: {{$filePath}}
+      ```
+      {{$content}}
+      ```
+
+      {{end}}

@@ -34,6 +34,12 @@ func TestIntegrationRequests(t *testing.T) {
 			provider: "openrouter",
 			prompt:   "Say hello in exactly 5 words.",
 		},
+		{
+			name:     "Gemini Integration",
+			model:    "gemini/gemini-pro",
+			provider: "gemini",
+			prompt:   "Say hello in exactly 5 words.",
+		},
 	}
 
 	for _, tt := range tests {
@@ -47,6 +53,8 @@ func TestIntegrationRequests(t *testing.T) {
 				apiKey = os.Getenv(EnvOpenAIAPIKey)
 			case "openrouter":
 				apiKey = os.Getenv(EnvOpenRouterAPIKey)
+			case "gemini":
+				apiKey = os.Getenv(EnvGeminiAPIKey)
 			}
 			if apiKey == "" {
 				t.Skipf("Skipping %s test: no API key set", tt.provider)
@@ -62,17 +70,17 @@ func TestIntegrationRequests(t *testing.T) {
 			}
 
 			// Send request
-			response, err := client.Generate(tt.prompt)
+			response, err := client.Generate(tt.prompt, "test")
 			if err != nil {
 				t.Fatalf("Failed to generate response: %v", err)
 			}
 
 			// Basic validation
-			if response == "" {
+			if response.Content == "" {
 				t.Error("Received empty response")
 			}
 
-			t.Logf("Response from %s: %s", tt.provider, response)
+			t.Logf("Response from %s: %s", tt.provider, response.Content)
 		})
 	}
 }

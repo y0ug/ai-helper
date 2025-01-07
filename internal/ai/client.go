@@ -13,6 +13,7 @@ const (
 	EnvAnthropicAPIKey  = "ANTHROPIC_API_KEY"
 	EnvOpenAIAPIKey     = "OPENAI_API_KEY"
 	EnvOpenRouterAPIKey = "OPENROUTER_API_KEY"
+	EnvGeminiAPIKey     = "GEMINI_API_KEY"
 )
 
 // Client handles AI model interactions
@@ -50,6 +51,11 @@ func NewClient() (*Client, error) {
 		apiKey = os.Getenv(EnvOpenRouterAPIKey)
 		if apiKey == "" {
 			return nil, fmt.Errorf("OPENROUTER_API_KEY environment variable not set")
+		}
+	case "gemini":
+		apiKey = os.Getenv(EnvGeminiAPIKey)
+		if apiKey == "" {
+			return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
 		}
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", model.Provider)
