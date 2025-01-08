@@ -36,6 +36,7 @@ type Chat struct {
 	historyCache []ChatHistory
 	sessionID    string
 	stats        SessionStats
+	systemPrompt string
 }
 
 func generateSessionID() string {
@@ -79,6 +80,19 @@ func (c *Chat) loadHistory() error {
 	}
 
 	return json.Unmarshal(data, &c.historyCache)
+}
+
+func (c *Chat) SetSystemPrompt(prompt string) {
+	c.systemPrompt = prompt
+}
+
+func (c *Chat) SetInitialPrompt(prompt string) {
+	if prompt != "" {
+		c.messages = append(c.messages, ai.Message{
+			Role:    "user",
+			Content: prompt,
+		})
+	}
 }
 
 func (c *Chat) saveHistory() error {
@@ -154,7 +168,7 @@ func (c *Chat) Start() error {
 		copy(messages, c.messages)
 		
 		// Get response using full conversation history
-		resp, err := c.client.GenerateWithMessages(messages, "chat")
+		resp, err := c.client.GenerateWithMessages(messages, "chat", c.systemPrompt)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			fmt.Print("\n> ")
