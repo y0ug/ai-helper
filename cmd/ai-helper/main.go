@@ -274,95 +274,53 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Prepare template data with input, variables and environment
-	templateData := map[string]interface{}{
-		"Input": input,
-		"env":   make(map[string]string),
-		"Files": make(map[string]string),
-	}
-	// Add environment variables
-	for _, env := range os.Environ() {
-		pair := strings.SplitN(env, "=", 2)
-		if len(pair) == 2 {
-			templateData["env"].(map[string]string)[pair[0]] = pair[1]
-		}
-	}
-	// Load file contents from both config and command line
-	filesToLoad := make(map[string]bool)
+	// Prepare template data
+	templateData := prompt.NewTemplateData(input)
+	templateData.LoadEnvironment()
+
+	// Collect files to load
+	var filesToLoad []string
+	fileSet := make(map[string]bool)
 
 	// Add files from config
 	for _, filepath := range cmd.Files {
-		filesToLoad[filepath] = true
+		fileSet[filepath] = true
 	}
 
 	// Add files from command line flag
 	if *attachFiles != "" {
 		for _, filepath := range strings.Split(*attachFiles, ",") {
-			filesToLoad[strings.TrimSpace(filepath)] = true
+			fileSet[strings.TrimSpace(filepath)] = true
 		}
 	}
 
-	// Add any variables from command config
-	for k, v := range vars {
-		templateData[k] = v
+	// Convert set to slice
+	for filepath := range fileSet {
+		filesToLoad = append(filesToLoad, filepath)
 	}
 
-	// Create template functions
-	funcMap := template.FuncMap{
-		"fileContent": func(path string) string {
-			content, ok := templateData["Files"].(map[string]string)[path]
-			if !ok {
-				return fmt.Sprintf("Error: file %s not found", path)
-			}
-			return content
-		},
-		"fileExt": filepath.Ext,
-		"fileName": func(path string) string {
-			return filepath.Base(path)
-		},
-		"formatFile": func(path string) string {
-			content, ok := templateData["Files"].(map[string]string)[path]
-			if !ok {
-				return fmt.Sprintf("Error: file %s not found", path)
-			}
-			ext := filepath.Ext(path)
-			return fmt.Sprintf("```%s\n%s\n```", ext[1:], content)
-		},
-	}
-
-	// Load all unique files
-	for filepath := range filesToLoad {
-		content, err := os.ReadFile(filepath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filepath, err)
-			os.Exit(1)
-		}
-		templateData["Files"].(map[string]string)[filepath] = string(content)
-
-	}
-
-	// Parse and execute the prompt and system templates
-	tmpl, err := template.New("prompt").Funcs(funcMap).Parse(promptContent)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing prompt template: %v\n", err)
+	// Load files
+	if err := templateData.LoadFiles(filesToLoad); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading files: %v\n", err)
 		os.Exit(1)
 	}
 
-	var promptBuf bytes.Buffer
-	if err := tmpl.Execute(&promptBuf, templateData); err != nil {
+	// Add variables from command config
+	for k, v := range vars {
+		templateData.Vars[k] = v
+	}
+
+	// Execute templates
+	promptResult, err := prompt.Execute(promptContent, templateData)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing prompt template: %v\n", err)
 		os.Exit(1)
 	}
 
-	var systemBuf bytes.Buffer
+	var systemResult string
 	if systemContent != "" {
-		systemTmpl, err := template.New("system").Funcs(funcMap).Parse(systemContent)
+		systemResult, err = prompt.Execute(systemContent, templateData)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing system template: %v\n", err)
-			os.Exit(1)
-		}
-
-		if err := systemTmpl.Execute(&systemBuf, templateData); err != nil {
 			fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
 			os.Exit(1)
 		}
