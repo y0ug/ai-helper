@@ -19,21 +19,21 @@ type Model struct {
 }
 
 type Info struct {
-	MaxTokens                      int     `json:"max_tokens"`
-	MaxInputTokens                 int     `json:"max_input_tokens"`
-	MaxOutputTokens                int     `json:"max_output_tokens"`
-	InputCostPerToken              float64 `json:"input_cost_per_token"`
-	OutputCostPerToken             float64 `json:"output_cost_per_token"`
-	LiteLLMProvider                string  `json:"litellm_provider"`
-	Mode                           string  `json:"mode"`
-	SupportsFunctionCalling        bool    `json:"supports_function_calling"`
-	SupportsParallelFunctionCalling bool   `json:"supports_parallel_function_calling"`
-	SupportsVision                 bool    `json:"supports_vision"`
-	SupportsAudioInput            bool    `json:"supports_audio_input"`
-	SupportsAudioOutput           bool    `json:"supports_audio_output"`
-	SupportsPromptCaching         bool    `json:"supports_prompt_caching"`
-	SupportsResponseSchema        bool    `json:"supports_response_schema"`
-	SupportsSystemMessages        bool    `json:"supports_system_messages"`
+	MaxTokens                       int     `json:"max_tokens"`
+	MaxInputTokens                  int     `json:"max_input_tokens"`
+	MaxOutputTokens                 int     `json:"max_output_tokens"`
+	InputCostPerToken               float64 `json:"input_cost_per_token"`
+	OutputCostPerToken              float64 `json:"output_cost_per_token"`
+	LiteLLMProvider                 string  `json:"litellm_provider"`
+	Mode                            string  `json:"mode"`
+	SupportsFunctionCalling         bool    `json:"supports_function_calling"`
+	SupportsParallelFunctionCalling bool    `json:"supports_parallel_function_calling"`
+	SupportsVision                  bool    `json:"supports_vision"`
+	SupportsAudioInput              bool    `json:"supports_audio_input"`
+	SupportsAudioOutput             bool    `json:"supports_audio_output"`
+	SupportsPromptCaching           bool    `json:"supports_prompt_caching"`
+	SupportsResponseSchema          bool    `json:"supports_response_schema"`
+	SupportsSystemMessages          bool    `json:"supports_system_messages"`
 }
 
 type (
@@ -252,10 +252,11 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 func (m *Model) String() string {
 	return fmt.Sprintf("%s/%s", m.Provider, m.Name)
 }
+
 // inferProvider attempts to determine the provider based on model name patterns
 func inferProvider(modelName string) string {
 	modelName = strings.ToLower(modelName)
-	
+
 	switch {
 	case strings.HasPrefix(modelName, "claude"):
 		return "anthropic"
