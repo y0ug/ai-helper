@@ -139,8 +139,12 @@ func (c *Chat) Start() error {
 			Content: input,
 		})
 
-		// Get response
-		resp, err := c.client.Generate(input, "chat")
+		// Prepare messages for context
+		messages := make([]ai.Message, len(c.messages))
+		copy(messages, c.messages)
+		
+		// Get response using full conversation history
+		resp, err := c.client.GenerateWithMessages(messages, "chat")
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			fmt.Print("\n> ")
