@@ -36,19 +36,22 @@ type Info struct {
 }
 
 type InfoProviders struct {
-	mu         sync.RWMutex
-	infos      map[string]Info
-	infoURL    string
-	infoFile   string
-	cacheFile  string
+	mu            sync.RWMutex
+	infos         map[string]Info
+	infoURL       string
+	infoFile      string
+	cacheFile     string
+	lastUpdate    time.Time
+	cacheDuration time.Duration
 }
 
 func NewInfoProviders(infoFilePath string) *InfoProviders {
 	return &InfoProviders{
-		infos:    make(map[string]Info),
-		infoURL:  "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-		infoFile: "model_prices_and_context_window.json",
-		cacheFile: infoFilePath,
+		infos:         make(map[string]Info),
+		infoURL:       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+		infoFile:      "model_prices_and_context_window.json",
+		cacheFile:     infoFilePath,
+		cacheDuration: 24 * time.Hour,
 	}
 }
 
@@ -80,21 +83,31 @@ func (t *InfoProviders) Load() error {
 		return t.downloadToMemory()
 	}
 
-	// Try to load from cache file first
-	if _, err := os.Stat(t.cacheFile); err == nil {
-		data, err := os.ReadFile(t.cacheFile)
-		if err != nil {
-			return fmt.Errorf("failed to read info file: %w", err)
+	// Check if we need to update the cache file
+	needsUpdate := true
+	if info, err := os.Stat(t.cacheFile); err == nil {
+		t.lastUpdate = info.ModTime()
+		if time.Since(t.lastUpdate) < t.cacheDuration {
+			needsUpdate = false
 		}
-
-		if err := json.Unmarshal(data, &t.infos); err != nil {
-			return fmt.Errorf("failed to parse info data: %w", err)
-		}
-		return nil
 	}
 
-	// If cache file doesn't exist, download and save it
-	return t.downloadInfo(t.cacheFile)
+	if needsUpdate {
+		// Download and save fresh data
+		return t.downloadInfo(t.cacheFile)
+	}
+
+	// Load from cache file
+	data, err := os.ReadFile(t.cacheFile)
+	if err != nil {
+		return fmt.Errorf("failed to read info file: %w", err)
+	}
+
+	if err := json.Unmarshal(data, &t.infos); err != nil {
+		return fmt.Errorf("failed to parse info data: %w", err)
+	}
+
+	return nil
 }
 
 func (t *InfoProviders) downloadToMemory() error {
