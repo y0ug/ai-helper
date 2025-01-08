@@ -208,16 +208,20 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 	parts := strings.Split(modelStr, "/")
 
 	if len(parts) < 2 {
-		// We are using the infoProviders to get the model info and provider name
+		// For models without explicit provider prefix, try to get info
 		info, err := infoProviders.GetModelInfo(modelStr)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"invalid model %s, we didn't find the provider. expected format: provider/model\n%w",
-				modelStr,
-				err,
-			)
+			// If model not found in info, try to infer provider from model name
+			provider := inferProvider(modelStr)
+			if provider != "" {
+				return &Model{
+					Provider: provider,
+					Name:     modelStr,
+					info:     nil,
+				}, nil
+			}
+			return nil, fmt.Errorf("could not determine provider for model: %s", modelStr)
 		}
-		fmt.Println(modelStr)
 		return &Model{
 			Provider: info.LiteLLMProvider,
 			Name:     modelStr,
@@ -247,4 +251,23 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 // String returns the string representation of the model
 func (m *Model) String() string {
 	return fmt.Sprintf("%s/%s", m.Provider, m.Name)
+}
+// inferProvider attempts to determine the provider based on model name patterns
+func inferProvider(modelName string) string {
+	modelName = strings.ToLower(modelName)
+	
+	switch {
+	case strings.HasPrefix(modelName, "claude"):
+		return "anthropic"
+	case strings.HasPrefix(modelName, "gpt"):
+		return "openai"
+	case strings.HasPrefix(modelName, "gemini"):
+		return "google"
+	case strings.HasPrefix(modelName, "mistral"):
+		return "mistral"
+	case strings.HasPrefix(modelName, "llama"):
+		return "meta"
+	default:
+		return ""
+	}
 }
