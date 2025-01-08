@@ -4,46 +4,70 @@ import (
 	"fmt"
 
 	"github.com/y0ug/ai-helper/internal/config"
+	"github.com/y0ug/ai-helper/internal/prompt"
 )
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
-	ID       string           // Unique identifier for this agent/session
-	Model    *Model           // The AI model being used
-	Messages []Message        // Conversation history
-	Command  *config.Command  // Current active command
+	ID           string           // Unique identifier for this agent/session
+	Model        *Model           // The AI model being used
+	Messages     []Message        // Conversation history
+	Command      *config.Command  // Current active command
+	TemplateData *prompt.TemplateData // Data for template processing
 }
 
 // LoadCommand loads a command configuration into the agent
-func (a *Agent) LoadCommand(cmd *config.Command) {
+func (a *Agent) LoadCommand(cmd *config.Command) error {
 	a.Command = cmd
 	
-	// If there's a system message, apply it
-	if cmd.System != "" {
-		a.AddSystemMessage(cmd.System)
+	// Load environment variables
+	a.TemplateData.LoadEnvironment()
+	
+	// Load any required files
+	if len(cmd.Files) > 0 {
+		if err := a.TemplateData.LoadFiles(cmd.Files); err != nil {
+			return fmt.Errorf("failed to load command files: %w", err)
+		}
 	}
+	
+	// Process system message template if present
+	if cmd.System != "" {
+		systemMsg, err := prompt.Execute(cmd.System, a.TemplateData)
+		if err != nil {
+			return fmt.Errorf("failed to process system template: %w", err)
+		}
+		a.AddSystemMessage(systemMsg)
+	}
+	
+	return nil
 }
 
 // ApplyCommand applies the loaded command's prompt with the given input
-func (a *Agent) ApplyCommand(input string) {
+func (a *Agent) ApplyCommand(input string) error {
 	if a.Command == nil {
-		return
+		return fmt.Errorf("no command loaded")
 	}
 
-	// If the command expects input, format the prompt with it
-	if a.Command.Input {
-		a.AddMessage("user", fmt.Sprintf(a.Command.Prompt, input))
-	} else {
-		a.AddMessage("user", a.Command.Prompt)
+	// Update template data with new input
+	a.TemplateData.Input = input
+
+	// Process the prompt template
+	processedPrompt, err := prompt.Execute(a.Command.Prompt, a.TemplateData)
+	if err != nil {
+		return fmt.Errorf("failed to process prompt template: %w", err)
 	}
+
+	a.AddMessage("user", processedPrompt)
+	return nil
 }
 
 // NewAgent creates a new Agent instance
 func NewAgent(id string, model *Model) *Agent {
 	return &Agent{
-		ID:       id,
-		Model:    model,
-		Messages: make([]Message, 0),
+		ID:           id,
+		Model:        model,
+		Messages:     make([]Message, 0),
+		TemplateData: prompt.NewTemplateData(""),
 	}
 }
 
