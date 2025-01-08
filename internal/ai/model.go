@@ -19,19 +19,21 @@ type Model struct {
 }
 
 type Info struct {
-	MaxTokens                 int     `json:"max_tokens"`
-	MaxInputTokens            int     `json:"max_input_tokens"`
-	MaxOutputTokens           int     `json:"max_output_tokens"`
-	InputCostPerToken         float64 `json:"input_cost_per_token"`
-	OutputCostPerToken        float64 `json:"output_cost_per_token"`
-	LiteLLMProvider           string  `json:"litellm_provider"`
-	Mode                      string  `json:"mode"`
-	SupportsFunctionCalling   bool    `json:"supports_function_calling"`
-	SupportsVision            bool    `json:"supports_vision"`
-	ToolUseSystemPromptTokens int     `json:"tool_use_system_prompt_tokens"`
-	SupportsAssistantPrefill  bool    `json:"supports_assistant_prefill"`
-	SupportsPromptCaching     bool    `json:"supports_prompt_caching"`
-	SupportsResponseSchema    bool    `json:"supports_response_schema"`
+	MaxTokens                      int     `json:"max_tokens"`
+	MaxInputTokens                 int     `json:"max_input_tokens"`
+	MaxOutputTokens                int     `json:"max_output_tokens"`
+	InputCostPerToken              float64 `json:"input_cost_per_token"`
+	OutputCostPerToken             float64 `json:"output_cost_per_token"`
+	LiteLLMProvider                string  `json:"litellm_provider"`
+	Mode                           string  `json:"mode"`
+	SupportsFunctionCalling        bool    `json:"supports_function_calling"`
+	SupportsParallelFunctionCalling bool   `json:"supports_parallel_function_calling"`
+	SupportsVision                 bool    `json:"supports_vision"`
+	SupportsAudioInput            bool    `json:"supports_audio_input"`
+	SupportsAudioOutput           bool    `json:"supports_audio_output"`
+	SupportsPromptCaching         bool    `json:"supports_prompt_caching"`
+	SupportsResponseSchema        bool    `json:"supports_response_schema"`
+	SupportsSystemMessages        bool    `json:"supports_system_messages"`
 }
 
 type (
@@ -137,8 +139,27 @@ func (t *InfoProviders) downloadToMemory() error {
 		return fmt.Errorf("failed to read info data: %w", err)
 	}
 
-	if err := json.Unmarshal(data, &t.infos); err != nil {
-		return fmt.Errorf("failed to parse info data: %w", err)
+	// Create a temporary map to hold all JSON data including sample_spec
+	var rawData map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawData); err != nil {
+		return fmt.Errorf("failed to parse raw info data: %w", err)
+	}
+
+	// Create new infos map
+	t.infos = make(map[string]Info)
+
+	// Process each field, skipping "sample_spec"
+	for key, value := range rawData {
+		if key == "sample_spec" {
+			continue
+		}
+
+		var info Info
+		if err := json.Unmarshal(value, &info); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to parse info for model %s: %v\n", key, err)
+			continue
+		}
+		t.infos[key] = info
 	}
 
 	return nil
