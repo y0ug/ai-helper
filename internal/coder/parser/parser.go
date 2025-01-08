@@ -13,7 +13,7 @@ type Parser struct {
 
 func New() *Parser {
 	return &Parser{
-		fileBlockRegex: regexp.MustCompile(`(?m)^([^\n]+)\n<source>(\w*)\n(.*?)\n</source>`),
+		fileBlockRegex: regexp.MustCompile(`(?ms)^([^\n]+)\n<source>(\w*)\n(.*?)\n</source>`),
 	}
 }
 
@@ -42,27 +42,36 @@ func (p *Parser) parseSection(filename, language, content string) *diff.Section 
 	inSearch := false
 	inReplace := false
 
+	hasSearchMarker := false
+	hasReplaceMarker := false
+
 	for _, line := range lines {
 		switch {
 		case strings.HasPrefix(line, diff.SearchMarker):
 			inSearch = true
 			inReplace = false
+			hasSearchMarker = true
+			continue
 		case strings.HasPrefix(line, diff.SeparatorMarker):
 			inSearch = false
 			inReplace = false
+			continue
 		case strings.HasPrefix(line, diff.ReplaceMarker):
 			inSearch = false
 			inReplace = true
-		default:
-			if inSearch {
-				searchLines = append(searchLines, line)
-			} else if inReplace {
-				replaceLines = append(replaceLines, line)
-			}
+			hasReplaceMarker = true
+			continue
+		}
+
+		if inSearch {
+			searchLines = append(searchLines, line)
+		} else if inReplace {
+			replaceLines = append(replaceLines, line)
 		}
 	}
 
-	if len(searchLines) == 0 && len(replaceLines) == 0 {
+	// Only create a section if we have both markers and at least one of the blocks
+	if !hasSearchMarker || !hasReplaceMarker {
 		return nil
 	}
 
