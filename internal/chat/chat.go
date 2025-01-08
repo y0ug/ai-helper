@@ -174,12 +174,12 @@ func (c *Chat) Start() error {
 		c.stats.MessageCost = resp.Cost
 		c.stats.TotalCost += resp.Cost
 
-		fmt.Printf("\nTokens: %dk sent, %dk cache write, %dk cache hit, %dk received.\n",
-			c.stats.SentTokens/1000,
-			c.stats.CacheWriteTokens/1000,
-			c.stats.CacheHitTokens/1000,
-			c.stats.ReceivedTokens/1000)
-		fmt.Printf("Cost: $%.2f message, $%.2f session.\n",
+		fmt.Printf("\nTokens: %d sent, %d cache write, %d cache hit, %d received.\n",
+			c.stats.SentTokens,
+			c.stats.CacheWriteTokens,
+			c.stats.CacheHitTokens,
+			c.stats.ReceivedTokens)
+		fmt.Printf("Cost: $%.4f message, $%.4f session.\n",
 			c.stats.MessageCost,
 			c.stats.TotalCost)
 		fmt.Print("\n> ")
