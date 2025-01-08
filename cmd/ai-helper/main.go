@@ -23,10 +23,11 @@ func main() {
 	showStats := flag.Bool("stats", false, "Show usage statistics")
 	showList := flag.Bool("list", false, "List available commands")
 	verbose := flag.Bool("v", false, "Show verbose cost information")
-	genCompletion := flag.String("completion", "", "Generate shell completion script (zsh)")
+	genCompletion := flag.String("completion", "", "Generate shell completion script (zsh|bash)")
 	showPrompt := flag.Bool("show-prompt", false, "Show only the generated prompt")
 	attachFiles := flag.String("files", "", "Comma-separated list of files to attach")
 	showVersion := flag.Bool("version", false, "Show version information")
+	interactiveMode := flag.Bool("i", false, "Interactive chat mode")
 	flag.Parse()
 
 	// Handle version display
@@ -37,11 +38,28 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Handle interactive mode
+	if *interactiveMode {
+		chat, err := chat.NewChat(client, "gpt-4")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing chat: %v\n", err)
+			os.Exit(1)
+		}
+		if err := chat.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error in chat mode: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	// Handle completion script generation
 	if *genCompletion != "" {
 		switch *genCompletion {
 		case "zsh":
 			fmt.Println(generateZshCompletion())
+			os.Exit(0)
+		case "bash":
+			fmt.Println(generateBashCompletion())
 			os.Exit(0)
 		default:
 			fmt.Fprintf(os.Stderr, "Unsupported shell for completion: %s\n", *genCompletion)
