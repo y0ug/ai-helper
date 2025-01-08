@@ -48,8 +48,11 @@ func main() {
  >>>>>>> REPLACE
  ` + "```"}, nil)
 
-	// Create coder instance
+	// Create coder instance with template data
 	coder := New(agent)
+	coder.SetTemplateData(map[string]string{
+		"test.go": "package main\n\nfunc main() {\n\tprintln(\"hello\")\n}",
+	})
 
 	// Test request
 	resp, err := coder.RequestChange(context.Background(), "Update the print message", files)

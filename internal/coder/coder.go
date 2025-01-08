@@ -9,10 +9,11 @@ import (
 )
 
 type Coder struct {
-	agent       *ai.Agent
-	service     *Service
-	prompts     *prompts.Manager
-	initialized bool
+	agent        *ai.Agent
+	service      *Service
+	prompts      *prompts.Manager
+	initialized  bool
+	templateData *prompt.TemplateData
 }
 
 func New(agent *ai.Agent) *Coder {
@@ -23,13 +24,20 @@ func New(agent *ai.Agent) *Coder {
 	}
 }
 
+// SetTemplateData sets the files map for template processing
+func (c *Coder) SetTemplateData(files map[string]string) {
+	c.templateData = &prompt.TemplateData{
+		Files: files,
+	}
+}
+
 func (c *Coder) initialize(ctx context.Context) error {
 	if err := c.prompts.LoadTemplates(); err != nil {
 		return fmt.Errorf("failed to load templates: %w", err)
 	}
 
 	// Initialize with system message
-	initPrompt, err := c.prompts.Execute("init", nil)
+	initPrompt, err := c.prompts.Execute("init", c.templateData)
 	if err != nil {
 		return fmt.Errorf("failed to generate init prompt: %w", err)
 	}
