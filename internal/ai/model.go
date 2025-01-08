@@ -15,7 +15,7 @@ import (
 type Model struct {
 	Provider string
 	Name     string
-	info     *Info
+	Info     *Info
 }
 
 type Info struct {
@@ -37,12 +37,12 @@ type Info struct {
 	SupportsFunctionCalling         bool `json:"supports_function_calling,omitempty"`
 	SupportsParallelFunctionCalling bool `json:"supports_parallel_function_calling,omitempty"`
 	SupportsVision                  bool `json:"supports_vision,omitempty"`
-	SupportsAudioInput             bool `json:"supports_audio_input,omitempty"`
-	SupportsAudioOutput            bool `json:"supports_audio_output,omitempty"`
-	SupportsPromptCaching          bool `json:"supports_prompt_caching,omitempty"`
-	SupportsResponseSchema         bool `json:"supports_response_schema,omitempty"`
-	SupportsSystemMessages         bool `json:"supports_system_messages,omitempty"`
-	SupportsAssistantPrefill       bool `json:"supports_assistant_prefill,omitempty"`
+	SupportsAudioInput              bool `json:"supports_audio_input,omitempty"`
+	SupportsAudioOutput             bool `json:"supports_audio_output,omitempty"`
+	SupportsPromptCaching           bool `json:"supports_prompt_caching,omitempty"`
+	SupportsResponseSchema          bool `json:"supports_response_schema,omitempty"`
+	SupportsSystemMessages          bool `json:"supports_system_messages,omitempty"`
+	SupportsAssistantPrefill        bool `json:"supports_assistant_prefill,omitempty"`
 }
 
 type (
@@ -224,7 +224,7 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 				return &Model{
 					Provider: info.LiteLLMProvider,
 					Name:     modelStr,
-					info:     info,
+					Info:     info,
 				}, nil
 			}
 		}
@@ -234,7 +234,7 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 			return &Model{
 				Provider: provider,
 				Name:     modelStr,
-				info:     nil,
+				Info:     nil,
 			}, nil
 		}
 		return nil, fmt.Errorf("could not determine provider for model: %s", modelStr)
@@ -255,7 +255,7 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 	return &Model{
 		Provider: provider,
 		Name:     name,
-		info:     info2,
+		Info:     info2,
 	}, nil
 }
 
