@@ -41,3 +41,9 @@ func (c *Config) ValidateConfig() error {
 
 	return nil
 }
+
+// LoadPromptContent loads the prompt content, system prompt, and any variables
+func LoadPromptContent(cmd Command) (string, string, map[string]interface{}, error) {
+	vars := make(map[string]interface{})
+	return cmd.Prompt, cmd.System, vars, nil
+}
