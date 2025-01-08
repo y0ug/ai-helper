@@ -48,12 +48,10 @@ func (p *GeminiProvider) GenerateResponse(messages []Message) (Response, error) 
 
 	var apiResp GeminiResponse
 
-	headers := map[string]string{
-		"x-goog-api-key": p.apiKey,
-	}
+	headers := map[string]string{}
+	p.setAuthorizationHeader(headers)
 
-	url := fmt.Sprintf("%s/%s", geminiAPIURL, "v1beta/models/"+p.model.Name+"/completions")
-	err := p.makeRequest("POST", url, headers, reqPayload, &apiResp)
+	err := p.makeRequest("POST", geminiAPIURL, headers, reqPayload, &apiResp)
 	if err != nil {
 		return Response{Error: err}, nil
 	}

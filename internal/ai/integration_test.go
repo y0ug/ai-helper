@@ -35,8 +35,9 @@ func TestIntegrationRequests(t *testing.T) {
 			prompt:   "Say hello in exactly 5 words.",
 		},
 		{
-			name:     "Gemini Integration",
-			model:    "gemini/gemini-pro",
+			name:  "Gemini Integration",
+			model: "gemini/gemini-pro",
+			// model:    "gemini/gemini-exp-1206",
 			provider: "gemini",
 			prompt:   "Say hello in exactly 5 words.",
 		},
@@ -79,7 +80,7 @@ func TestIntegrationRequests(t *testing.T) {
 			}
 
 			// Send request
-			response, err := client.Generate(tt.prompt, "test", "")
+			response, err := client.Generate(tt.prompt, "", "")
 			if err != nil {
 				t.Fatalf("Failed to generate response: %v", err)
 			}

@@ -9,7 +9,7 @@ const (
 	anthropicAPIURL  = "https://api.anthropic.com/v1/messages"
 	openRouterAPIURL = "https://openrouter.ai/api/v1/chat/completions"
 	openAIAPIURL     = "https://api.openai.com/v1/chat/completions"
-	geminiAPIURL     = "https://generativelanguage.googleapis.com/v1beta/models"
+	geminiAPIURL     = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 	deepSeekAPIURL   = "https://api.deepseek.com/v1/chat/completions"
 )
 
