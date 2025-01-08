@@ -68,7 +68,7 @@ new code
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agent := &ai.Agent{}
-
+			agent.TemplateData.Vars["Request"] = "Change the code"
 			s := NewService()
 			got, err := s.ProcessRequest(context.Background(), agent, tt.request, tt.files)
 
