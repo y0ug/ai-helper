@@ -174,9 +174,17 @@ func (c *Chat) Start() error {
 		c.stats.MessageCost = resp.Cost
 		c.stats.TotalCost += resp.Cost
 
-		fmt.Printf("\nTokens: %d sent, %d cache write, %d cache hit, %d received.\n",
+		// Calculate cache metrics
+		newCacheHits := 0
+		if resp.InputTokens >= 1024 {
+			// Round down to nearest 128 token increment
+			newCacheHits = (resp.CachedTokens / 128) * 128
+		}
+		c.stats.CacheHitTokens += newCacheHits
+		c.stats.CacheWriteTokens += resp.InputTokens - newCacheHits
+
+		fmt.Printf("\nTokens: %d sent (%d cached), %d received\n",
 			c.stats.SentTokens,
-			c.stats.CacheWriteTokens,
 			c.stats.CacheHitTokens,
 			c.stats.ReceivedTokens)
 		fmt.Printf("Cost: $%.4f message, $%.4f session.\n",
