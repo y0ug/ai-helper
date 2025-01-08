@@ -9,7 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestCoder_Integration(t *testing.T) {
+func TestCoder_Mock(t *testing.T) {
 	// Setup
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

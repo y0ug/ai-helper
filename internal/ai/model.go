@@ -283,6 +283,8 @@ func inferProvider(modelName string) string {
 	switch {
 	case strings.HasPrefix(modelName, "claude"):
 		return "anthropic"
+	case strings.HasPrefix(modelName, "deepseek"):
+		return "deepseek"
 	case strings.HasPrefix(modelName, "gpt"):
 		return "openai"
 	case strings.HasPrefix(modelName, "gemini"):

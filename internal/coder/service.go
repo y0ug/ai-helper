@@ -3,6 +3,7 @@ package coder
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/y0ug/ai-helper/internal/ai"
 	"github.com/y0ug/ai-helper/internal/coder/diff"
@@ -60,6 +61,7 @@ func (s *Service) ProcessRequest(
 		return nil, fmt.Errorf("failed to get analysis: %w", err)
 	}
 
+	fmt.Println(analysis)
 	// // Generate changes
 	// data.Vars["Analysis"] = analysis
 	// changePrompt, err := s.prompts.Execute("generate", data)
@@ -82,7 +84,8 @@ func (s *Service) ProcessRequest(
 	// Generate patches
 	patches := make(map[string]string)
 	for filename, modifiedContent := range modifiedFiles {
-		if original, exists := files[filename]; exists && original != modifiedContent {
+		if original, exists := files[strings.TrimSpace(filename)]; exists &&
+			original != modifiedContent {
 			patches[filename] = s.diff.GeneratePatch(original, modifiedContent)
 		}
 	}

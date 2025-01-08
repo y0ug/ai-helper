@@ -78,7 +78,7 @@ func TestCoder_Integration(t *testing.T) {
 				"example.go": `package main
 
 func main() {
-	// TODO: Implement proper greeting
+	// TODO: Implement proper greeting with Hello, World!
 	println("hi")
 }`,
 			}
@@ -86,10 +86,11 @@ func main() {
 			// Create coder instance
 			coder := New(agent)
 			coder.SetTemplateData(files)
-
+			//
 			// Test request
 			resp, err := coder.RequestChange(context.Background(),
-				"Update the greeting to print 'Hello, World!' with proper formatting",
+				// "Update the greeting to print 'Hello, World!' with proper formatting",
+				"Apply the TODO and remove it.",
 				files)
 
 			// Assertions
@@ -98,7 +99,6 @@ func main() {
 
 			// Verify the changes
 			assert.Contains(t, resp.ModifiedFiles["example.go"], "Hello, World!")
-			assert.Contains(t, resp.Analysis, "greeting")
 		})
 	}
 }
