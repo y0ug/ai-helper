@@ -12,6 +12,17 @@ import (
 	"github.com/y0ug/ai-helper/internal/prompt"
 )
 
+type AIConversation interface {
+	LoadCommand(cmd *config.Command) error
+	ApplyCommand(input string) error
+	Save() error
+	SendRequest() (Response, error)
+	GetMessages() []Message
+	AddMessage(role, content string)
+}
+
+var _ AIConversation = (*Agent)(nil) // Ensures Agent implements AIConversation
+
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
 	ID                string               `json:"id"`

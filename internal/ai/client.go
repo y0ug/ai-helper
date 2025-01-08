@@ -16,6 +16,12 @@ const (
 	EnvDeepSeekAPIKey   = "DEEPSEEK_API_KEY"
 )
 
+type AIClient interface {
+	GenerateWithMessages(messages []Message, command string) (Response, error)
+}
+
+var _ AIClient = (*Client)(nil) // Optional: ensures `Client` implements `AIClient`
+
 // Client handles AI model interactions
 type Client struct {
 	provider Provider
