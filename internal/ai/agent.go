@@ -18,7 +18,7 @@ type AgentState struct {
 	ModelName        string               `json:"model"`
 	Messages         []Message            `json:"messages"`
 	Command          *config.Command      `json:"command,omitempty"`
-	TemplateData     *prompt.TemplateData `json:"template_data"`
+	TemplateData     *prompt.TemplateData `json:"-"` // Skip normal JSON marshaling
 	CreatedAt        time.Time            `json:"created_at"`
 	UpdatedAt        time.Time            `json:"updated_at"`
 	TotalInputTokens  int                 `json:"total_input_tokens"`
@@ -134,6 +134,33 @@ func (a *Agent) Save() error {
 	}
 
 	return nil
+}
+
+// MarshalJSON implements custom JSON marshaling for AgentState
+func (s AgentState) MarshalJSON() ([]byte, error) {
+	type Alias AgentState // Create alias to avoid recursion
+	
+	// Create sanitized copy of template data
+	sanitizedData := *s.TemplateData
+	sanitizedData.Environment = make(map[string]string)
+	
+	// Copy environment vars, censoring those ending with _API_KEY
+	for k, v := range s.TemplateData.Environment {
+		if strings.HasSuffix(strings.ToUpper(k), "_API_KEY") {
+			sanitizedData.Environment[k] = "********"
+		} else {
+			sanitizedData.Environment[k] = v
+		}
+	}
+
+	// Use the alias type with our sanitized data
+	return json.Marshal(&struct {
+		Alias
+		TemplateData *prompt.TemplateData `json:"template_data"`
+	}{
+		Alias:        Alias(s),
+		TemplateData: &sanitizedData,
+	})
 }
 
 // Load restores the agent's state from a JSON file
