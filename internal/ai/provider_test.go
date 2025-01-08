@@ -84,6 +84,8 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 				os.Setenv(EnvOpenRouterAPIKey, tt.apiKey)
 			case "gemini":
 				os.Setenv(EnvGeminiAPIKey, tt.apiKey)
+			case "deepseek":
+				os.Setenv(EnvDeepSeekAPIKey, tt.apiKey)
 			}
 
 			// Create new client

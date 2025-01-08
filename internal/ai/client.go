@@ -88,6 +88,11 @@ func NewClient() (*Client, error) {
 		if apiKey == "" {
 			return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
 		}
+	case "deepseek":
+		apiKey = os.Getenv(EnvDeepSeekAPIKey)
+		if apiKey == "" {
+			return nil, fmt.Errorf("DEEPSEEK_API_KEY environment variable not set")
+		}
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", model.Provider)
 	}
