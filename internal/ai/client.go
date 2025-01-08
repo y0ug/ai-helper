@@ -85,11 +85,11 @@ func (c *Client) Generate(prompt string, system string, command string) (Respons
 		messages = append(messages, Message{Role: "system", Content: system})
 	}
 	messages = append(messages, Message{Role: "user", Content: prompt})
-	return c.GenerateWithMessages(messages, command)
+	return c.GenerateWithMessages(messages, command, system)
 }
 
 // GenerateWithMessages sends a conversation history to the AI model and returns the response
-func (c *Client) GenerateWithMessages(messages []Message, command string) (Response, error) {
+func (c *Client) GenerateWithMessages(messages []Message, command string, system string) (Response, error) {
 	resp, err := c.provider.GenerateResponse(messages)
 	if err != nil {
 		return Response{}, err
