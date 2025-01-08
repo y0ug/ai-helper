@@ -80,7 +80,12 @@ func NewClient() (*Client, error) {
 
 // Generate sends a prompt to the AI model and returns the response
 func (c *Client) Generate(prompt string, command string) (Response, error) {
-	resp, err := c.provider.GenerateResponse(prompt)
+	return c.GenerateWithMessages([]Message{{Role: "user", Content: prompt}}, command)
+}
+
+// GenerateWithMessages sends a conversation history to the AI model and returns the response
+func (c *Client) GenerateWithMessages(messages []Message, command string) (Response, error) {
+	resp, err := c.provider.GenerateResponse(messages)
 	if err != nil {
 		return Response{}, err
 	}

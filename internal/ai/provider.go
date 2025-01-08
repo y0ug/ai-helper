@@ -17,7 +17,7 @@ const (
 
 // Provider represents an AI service provider
 type Provider interface {
-	GenerateResponse(prompt string) (Response, error)
+	GenerateResponse(messages []Message) (Response, error)
 }
 
 // GeminiProvider implements the Provider interface for Google's Gemini API
@@ -35,7 +35,7 @@ func NewGeminiProvider(model, apiKey string) (*GeminiProvider, error) {
 	}, nil
 }
 
-func (p *GeminiProvider) GenerateResponse(prompt string) (Response, error) {
+func (p *GeminiProvider) GenerateResponse(messages []Message) (Response, error) {
 	url := fmt.Sprintf("%s/%s:generateContent?key=%s", geminiAPIURL, p.model, p.apiKey)
 	
 	req := struct {
@@ -54,7 +54,7 @@ func (p *GeminiProvider) GenerateResponse(prompt string) (Response, error) {
 				Parts: []struct {
 					Text string `json:"text"`
 				}{
-					{Text: prompt},
+					{Text: messages[len(messages)-1].Content},
 				},
 			},
 		},
@@ -133,7 +133,7 @@ func NewOpenAIProvider(model, apiKey string) (*OpenAIProvider, error) {
 	}, nil
 }
 
-func (p *OpenAIProvider) GenerateResponse(prompt string) (Response, error) {
+func (p *OpenAIProvider) GenerateResponse(messages []Message) (Response, error) {
 	req := struct {
 		Model     string    `json:"model"`
 		MaxTokens int       `json:"max_tokens"`
@@ -141,12 +141,7 @@ func (p *OpenAIProvider) GenerateResponse(prompt string) (Response, error) {
 	}{
 		Model:     p.model,
 		MaxTokens: 1024,
-		Messages: []Message{
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
+		Messages: messages,
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -223,7 +218,7 @@ func NewAnthropicProvider(model, apiKey string) (*AnthropicProvider, error) {
 	}, nil
 }
 
-func (p *AnthropicProvider) GenerateResponse(prompt string) (Response, error) {
+func (p *AnthropicProvider) GenerateResponse(messages []Message) (Response, error) {
 	req := struct {
 		Model     string    `json:"model"`
 		MaxTokens int       `json:"max_tokens"`
@@ -231,12 +226,7 @@ func (p *AnthropicProvider) GenerateResponse(prompt string) (Response, error) {
 	}{
 		Model:     p.model,
 		MaxTokens: 1024,
-		Messages: []Message{
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
+		Messages: messages,
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -302,15 +292,10 @@ func NewOpenRouterProvider(model, apiKey string) (*OpenRouterProvider, error) {
 	}, nil
 }
 
-func (p *OpenRouterProvider) GenerateResponse(prompt string) (Response, error) {
+func (p *OpenRouterProvider) GenerateResponse(messages []Message) (Response, error) {
 	req := Request{
-		Model: p.model,
-		Messages: []Message{
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
+		Model:    p.model,
+		Messages: messages,
 	}
 
 	jsonData, err := json.Marshal(req)
