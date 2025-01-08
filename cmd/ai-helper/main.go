@@ -46,89 +46,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Handle interactive mode
-	if *interactiveMode {
-		command := ""
-		if len(flag.Args()) > 0 {
-			command = flag.Args()[0]
-		}
-
-		var initialPrompt, systemPrompt string
-		if command != "" {
-			// Get command configuration
-			cmd, ok := cfg.Commands[command]
-			if !ok {
-				fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
-				os.Exit(1)
-			}
-
-			// Load prompt and system prompt content
-			promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading prompt: %v\n", err)
-				os.Exit(1)
-			}
-
-			// Process the prompts with template data
-			templateData := map[string]interface{}{
-				"env":   make(map[string]string),
-				"Files": make(map[string]string),
-			}
-			// Add variables from command config
-			for k, v := range vars {
-				templateData[k] = v
-			}
-
-			// Parse and execute the prompts
-			tmpl, err := template.New("prompt").Parse(promptContent)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error parsing prompt template: %v\n", err)
-				os.Exit(1)
-			}
-
-			var promptBuf bytes.Buffer
-			if err := tmpl.Execute(&promptBuf, templateData); err != nil {
-				fmt.Fprintf(os.Stderr, "Error executing prompt template: %v\n", err)
-				os.Exit(1)
-			}
-			initialPrompt = promptBuf.String()
-
-			if systemContent != "" {
-				systemTmpl, err := template.New("system").Parse(systemContent)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error parsing system template: %v\n", err)
-					os.Exit(1)
-				}
-
-				var systemBuf bytes.Buffer
-				if err := systemTmpl.Execute(&systemBuf, templateData); err != nil {
-					fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
-					os.Exit(1)
-				}
-				systemPrompt = systemBuf.String()
-			}
-		}
-
-		chatSession, err := chat.NewChat(client, "gpt-4")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing chat: %v\n", err)
-			os.Exit(1)
-		}
-
-		if initialPrompt != "" {
-			chatSession.SetInitialPrompt(initialPrompt)
-		}
-		if systemPrompt != "" {
-			chatSession.SetSystemPrompt(systemPrompt)
-		}
-
-		if err := chatSession.Start(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error in chat mode: %v\n", err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
-
 	// Handle completion script generation
 	if *genCompletion != "" {
 		switch *genCompletion {
@@ -217,6 +134,89 @@ func main() {
 		}
 		os.Exit(0)
 	}
+	// Handle interactive mode
+	if *interactiveMode {
+		command := ""
+		if len(flag.Args()) > 0 {
+			command = flag.Args()[0]
+		}
+
+		command = strings.TrimSpace(command)
+		var initialPrompt, systemPrompt string
+		if command != "" {
+			// Get command configuration
+			cmd, ok := cfg.Commands[command]
+			if !ok {
+				fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
+				os.Exit(1)
+			}
+
+			// Load prompt and system prompt content
+			promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading prompt: %v\n", err)
+				os.Exit(1)
+			}
+
+			// Process the prompts with template data
+			templateData := map[string]interface{}{
+				"env":   make(map[string]string),
+				"Files": make(map[string]string),
+			}
+			// Add variables from command config
+			for k, v := range vars {
+				templateData[k] = v
+			}
+
+			// Parse and execute the prompts
+			tmpl, err := template.New("prompt").Parse(promptContent)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error parsing prompt template: %v\n", err)
+				os.Exit(1)
+			}
+
+			var promptBuf bytes.Buffer
+			if err := tmpl.Execute(&promptBuf, templateData); err != nil {
+				fmt.Fprintf(os.Stderr, "Error executing prompt template: %v\n", err)
+				os.Exit(1)
+			}
+			initialPrompt = promptBuf.String()
+
+			if systemContent != "" {
+				systemTmpl, err := template.New("system").Parse(systemContent)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error parsing system template: %v\n", err)
+					os.Exit(1)
+				}
+
+				var systemBuf bytes.Buffer
+				if err := systemTmpl.Execute(&systemBuf, templateData); err != nil {
+					fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
+					os.Exit(1)
+				}
+				systemPrompt = systemBuf.String()
+			}
+		}
+
+		chatSession, err := chat.NewChat(client, "gpt-4")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing chat: %v\n", err)
+			os.Exit(1)
+		}
+
+		if initialPrompt != "" {
+			chatSession.SetInitialPrompt(initialPrompt)
+		}
+		if systemPrompt != "" {
+			chatSession.SetSystemPrompt(systemPrompt)
+		}
+
+		if err := chatSession.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error in chat mode: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// Get the command and remaining args
 	args := flag.Args()
@@ -266,7 +266,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
-
 
 	// Load prompt and system prompt content and variables
 	promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
