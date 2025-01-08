@@ -66,9 +66,66 @@ test new
 			},
 		},
 		{
-			name: "empty response",
+			name:     "empty response",
 			response: "",
-			want: nil,
+			want:     nil,
+		},
+		{
+			name: "backtick syntax - single file",
+			response: `test.go
+ ` + "```" + `go
+ <<<<<<< SEARCH
+ old code
+ =======
+ new code
+ >>>>>>> REPLACE
+ ` + "```" + ``,
+			want: []diff.Section{
+				{
+					Filename:     "test.go",
+					Language:     "go",
+					SearchBlock:  "old code",
+					ReplaceBlock: "new code",
+				},
+			},
+		},
+		{
+			name: "mixed syntax - source and backticks",
+			response: `main.go
+ <source>go
+ <<<<<<< SEARCH
+ func old() {}
+ =======
+ func new() {}
+ >>>>>>> REPLACE
+ </source>
+ test.go
+ ` + "```" + `go
+ <<<<<<< SEARCH
+ test old
+ =======
+ test new
+ >>>>>>> REPLACE
+ ` + "```" + ``,
+			want: []diff.Section{
+				{
+					Filename:     "main.go",
+					Language:     "go",
+					SearchBlock:  "func old() {}",
+					ReplaceBlock: "func new() {}",
+				},
+				{
+					Filename:     "test.go",
+					Language:     "go",
+					SearchBlock:  "test old",
+					ReplaceBlock: "test new",
+				},
+			},
+		},
+		{
+			name:     "empty response",
+			response: "",
+			want:     nil,
 		},
 		{
 			name: "invalid format - missing markers",
@@ -117,7 +174,7 @@ new python
 		t.Run(tt.name, func(t *testing.T) {
 			p := New()
 			got := p.ParseResponse(tt.response)
-			
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ParseResponse() = %v, want %v", got, tt.want)
 			}
@@ -182,7 +239,7 @@ some code`,
 		t.Run(tt.name, func(t *testing.T) {
 			p := New()
 			got := p.parseSection(tt.filename, tt.language, tt.content)
-			
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseSection() = %v, want %v", got, tt.want)
 			}
