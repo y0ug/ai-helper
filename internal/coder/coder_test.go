@@ -31,11 +31,11 @@ func TestCoder_Integration(t *testing.T) {
 	// Expected responses from AI
 	mockClient.EXPECT().
 		GenerateWithMessages(gomock.Any(), gomock.Any()).
-		Return(&ai.Response{Content: "Understood the request"}, nil)
+		Return(ai.Response{Content: "Understood the request"}, nil)
 
 	mockClient.EXPECT().
 		GenerateWithMessages(gomock.Any(), gomock.Any()).
-		Return(&ai.Response{Content: `test.go
+		Return(ai.Response{Content: `test.go
 ` + "```" + `go
 <<<<<<< SEARCH
 func main() {
