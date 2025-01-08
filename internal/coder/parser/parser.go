@@ -39,8 +39,7 @@ func (p *Parser) ParseResponse(response string) []diff.Section {
 func (p *Parser) parseSection(filename, language, content string) *diff.Section {
 	lines := strings.Split(content, "\n")
 	var searchLines, replaceLines []string
-	inSearch := false
-	inReplace := false
+	mode := ""
 
 	hasSearchMarker := false
 	hasReplaceMarker := false
@@ -48,29 +47,27 @@ func (p *Parser) parseSection(filename, language, content string) *diff.Section 
 	for _, line := range lines {
 		switch {
 		case strings.HasPrefix(line, diff.SearchMarker):
-			inSearch = true
-			inReplace = false
+			mode = "search"
 			hasSearchMarker = true
 			continue
 		case strings.HasPrefix(line, diff.SeparatorMarker):
-			inSearch = false
-			inReplace = false
+			mode = ""
 			continue
 		case strings.HasPrefix(line, diff.ReplaceMarker):
-			inSearch = false
-			inReplace = true
+			mode = "replace"
 			hasReplaceMarker = true
 			continue
 		}
 
-		if inSearch {
+		switch mode {
+		case "search":
 			searchLines = append(searchLines, line)
-		} else if inReplace {
+		case "replace":
 			replaceLines = append(replaceLines, line)
 		}
 	}
 
-	// Only create a section if we have both markers and at least one of the blocks
+	// Only create a section if we have both markers
 	if !hasSearchMarker || !hasReplaceMarker {
 		return nil
 	}
