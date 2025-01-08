@@ -21,39 +21,13 @@ type Client struct {
 	provider Provider
 	model    *Model
 	stats    *stats.Tracker
-	agents   map[string]*Agent // Track active agents by ID
 }
-
-// CreateAgent creates a new Agent instance and registers it with the client
-func (c *Client) CreateAgent(id string) *Agent {
-	agent := NewAgent(id, c.model, c)
-	c.agents[id] = agent
-	return agent
-}
-
-// GetAgent retrieves an existing agent by ID
-func (c *Client) GetAgent(id string) (*Agent, error) {
-	agent, exists := c.agents[id]
-	if !exists {
-		return nil, fmt.Errorf("no agent found with ID: %s", id)
-	}
-	return agent, nil
-}
-
-// GenerateForAgent generates a response using the agent's conversation history
 
 // NewClient creates a new AI client using environment variables
-func NewClient(infoProviders *InfoProviders, statsTracker *stats.Tracker) (*Client, error) {
-	modelStr := os.Getenv(EnvAIModel)
-	if modelStr == "" {
-		return nil, fmt.Errorf("AI_MODEL environment variable not set")
-	}
-
-	model, err := ParseModel(modelStr, infoProviders)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse model: %w", err)
-	}
-
+func NewClient(
+	model *Model,
+	statsTracker *stats.Tracker,
+) (*Client, error) {
 	var apiKey string
 	switch model.Provider {
 	case "anthropic":
@@ -93,7 +67,6 @@ func NewClient(infoProviders *InfoProviders, statsTracker *stats.Tracker) (*Clie
 	return &Client{
 		provider: provider,
 		model:    model,
-		agents:   make(map[string]*Agent),
 		stats:    statsTracker,
 	}, nil
 }

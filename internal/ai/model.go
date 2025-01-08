@@ -19,32 +19,35 @@ type Model struct {
 }
 
 type Info struct {
-	MaxTokens                 int
-	MaxInputTokens            int
-	MaxOutputTokens           int
-	InputCostPerToken         float64
-	OutputCostPerToken        float64
-	LiteLLMProvider           string
-	Mode                      string
-	SupportsFunctionCalling   bool
-	SupportsVision            bool
-	ToolUseSystemPromptTokens int
-	SupportsAssistantPrefill  bool
-	SupportsPromptCaching     bool
-	SupportsResponseSchema    bool
+	MaxTokens                 int     `json:"max_tokens"`
+	MaxInputTokens            int     `json:"max_input_tokens"`
+	MaxOutputTokens           int     `json:"max_output_tokens"`
+	InputCostPerToken         float64 `json:"input_cost_per_token"`
+	OutputCostPerToken        float64 `json:"output_cost_per_token"`
+	LiteLLMProvider           string  `json:"litellm_provider"`
+	Mode                      string  `json:"mode"`
+	SupportsFunctionCalling   bool    `json:"supports_function_calling"`
+	SupportsVision            bool    `json:"supports_vision"`
+	ToolUseSystemPromptTokens int     `json:"tool_use_system_prompt_tokens"`
+	SupportsAssistantPrefill  bool    `json:"supports_assistant_prefill"`
+	SupportsPromptCaching     bool    `json:"supports_prompt_caching"`
+	SupportsResponseSchema    bool    `json:"supports_response_schema"`
 }
 
-type InfoProviders struct {
-	mu            sync.RWMutex
-	infos         map[string]Info
-	infoURL       string
-	infoFile      string
-	cacheFile     string
-	lastUpdate    time.Time
-	cacheDuration time.Duration
-}
+type (
+	Infos         map[string]Info
+	InfoProviders struct {
+		mu            sync.RWMutex
+		infos         Infos
+		infoURL       string
+		infoFile      string
+		cacheFile     string
+		lastUpdate    time.Time
+		cacheDuration time.Duration
+	}
+)
 
-func NewInfoProviders(infoFilePath string) *InfoProviders {
+func NewInfoProviders(infoFilePath string) (*InfoProviders, error) {
 	info := &InfoProviders{
 		infos:         make(map[string]Info),
 		infoURL:       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
@@ -52,8 +55,12 @@ func NewInfoProviders(infoFilePath string) *InfoProviders {
 		cacheFile:     infoFilePath,
 		cacheDuration: 24 * time.Hour,
 	}
-	info.Load()
-	return info
+	err := info.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load info data: %w", err)
+	}
+
+	return info, nil
 }
 
 func (t *InfoProviders) Clear() error {
@@ -104,9 +111,12 @@ func (t *InfoProviders) Load() error {
 		return fmt.Errorf("failed to read info file: %w", err)
 	}
 
-	if err := json.Unmarshal(data, &t.infos); err != nil {
+	var infos Infos
+	if err := json.Unmarshal(data, &infos); err != nil {
 		return fmt.Errorf("failed to parse info data: %w", err)
 	}
+
+	t.infos = infos
 
 	return nil
 }
@@ -152,14 +162,16 @@ func (t *InfoProviders) downloadInfo(infoPath string) error {
 	return nil
 }
 
-func (t *InfoProviders) GetModelInfo(model string) (*Info, error) {
+func (t *InfoProviders) GetModelInfo(modelName string) (*Info, error) {
 	// Try the full model name first
-	if data, ok := t.infos[model]; ok {
+	if data, ok := t.infos[modelName]; ok {
+		fmt.Println("data", data)
+		fmt.Println("modelName", modelName)
 		return &data, nil
 	}
 
 	// Try with just the model name without provider prefix
-	parts := strings.Split(model, "/")
+	parts := strings.Split(modelName, "/")
 	if len(parts) > 1 {
 		modelName := parts[len(parts)-1]
 		if data, ok := t.infos[modelName]; ok {
@@ -167,7 +179,7 @@ func (t *InfoProviders) GetModelInfo(model string) (*Info, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no info data for model: %s", model)
+	return nil, fmt.Errorf("no info data for model: %s", modelName)
 }
 
 // ParseModel parses a model string in the format "provider/model"
@@ -175,10 +187,21 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 	parts := strings.Split(modelStr, "/")
 
 	if len(parts) < 2 {
-		return nil, fmt.Errorf(
-			"invalid model format: %s, expected format: provider/model",
-			modelStr,
-		)
+		// We are using the infoProviders to get the model info and provider name
+		info, err := infoProviders.GetModelInfo(modelStr)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"invalid model %s, we didn't find the provider. expected format: provider/model\n%w",
+				modelStr,
+				err,
+			)
+		}
+		fmt.Println(modelStr)
+		return &Model{
+			Provider: info.LiteLLMProvider,
+			Name:     modelStr,
+			info:     info,
+		}, nil
 	}
 
 	provider := parts[0]
@@ -188,7 +211,8 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 	if infoProviders != nil {
 		info, err := infoProviders.GetModelInfo(modelStr)
 		if err != nil {
-			fmt.Println(err)
+			// info not found but we can try using it
+			fmt.Fprint(os.Stderr, err)
 		}
 		info2 = info
 	}

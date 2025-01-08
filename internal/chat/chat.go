@@ -2,10 +2,8 @@ package chat
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,86 +27,14 @@ type SessionStats struct {
 }
 
 type Chat struct {
-	client       *ai.Client
-	agent        *ai.Agent
-	historyFile  string
-	historyCache []ChatHistory
-	stats        SessionStats
+	agent *ai.Agent
+	stats SessionStats
 }
 
-func NewChat(client *ai.Client, sessionID string) (*Chat, error) {
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get cache directory: %w", err)
+func NewChat(agent *ai.Agent) *Chat {
+	return &Chat{
+		agent: agent,
 	}
-
-	aiHelperCache := filepath.Join(cacheDir, "ai-helper")
-	if err := os.MkdirAll(aiHelperCache, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	historyFile := filepath.Join(aiHelperCache, "chat_history.json")
-
-	agent := client.CreateAgent(sessionID)
-
-	chat := &Chat{
-		client:      client,
-		agent:       agent,
-		historyFile: historyFile,
-	}
-
-	if err := chat.loadHistory(); err != nil {
-		return nil, fmt.Errorf("failed to load history: %w", err)
-	}
-
-	return chat, nil
-}
-
-func (c *Chat) loadHistory() error {
-	data, err := os.ReadFile(c.historyFile)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(data, &c.historyCache)
-}
-
-func (c *Chat) SetSystemPrompt(prompt string) {
-	if prompt != "" {
-		c.agent.AddSystemMessage(prompt)
-	}
-}
-
-func (c *Chat) SetInitialPrompt(prompt string) {
-	if prompt != "" {
-		c.agent.AddMessage("user", prompt)
-	}
-}
-
-func (c *Chat) saveHistory() error {
-	if len(c.agent.Messages) > 0 {
-		history := ChatHistory{
-			SessionID: c.agent.ID,
-			Messages:  c.agent.Messages,
-			Date:      time.Now(),
-			Model:     c.agent.Model.String(),
-		}
-		c.historyCache = append([]ChatHistory{history}, c.historyCache...)
-
-		// Keep only last 50 conversations
-		if len(c.historyCache) > 50 {
-			c.historyCache = c.historyCache[:50]
-		}
-	}
-
-	data, err := json.MarshalIndent(c.historyCache, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(c.historyFile, data, 0644)
 }
 
 func (c *Chat) Start() error {
@@ -138,7 +64,7 @@ func (c *Chat) Start() error {
 				continue
 			}
 			if input == "/exit" || input == "/quit" {
-				return c.saveHistory()
+				return c.agent.Save()
 			}
 			continue
 		}

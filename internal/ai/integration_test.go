@@ -70,11 +70,17 @@ func TestIntegrationRequests(t *testing.T) {
 			}
 
 			// Set up environment
-			os.Setenv(EnvAIModel, tt.model)
+			infoProviders, err := NewInfoProviders("")
+			if err != nil {
+				t.Fatalf("Failed to create info providers: %v", err)
+			}
+			model, err := ParseModel(tt.model, infoProviders)
+			if err != nil {
+				t.Fatalf("Failed to get model info: %v", err)
+			}
 
-			infoProviders := NewInfoProviders("")
 			// Create client
-			client, err := NewClient(infoProviders, nil)
+			client, err := NewClient(model, nil)
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}

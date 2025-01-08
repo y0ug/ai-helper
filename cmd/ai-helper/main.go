@@ -18,8 +18,26 @@ import (
 	"github.com/y0ug/ai-helper/internal/version"
 )
 
+const (
+	EnvAIModel = "AI_MODEL"
+)
+
 func generateSessionID() string {
 	return fmt.Sprintf("%x", time.Now().UnixNano())
+}
+
+func GetEnvAIModel(infoProviders *ai.InfoProviders) (*ai.Model, error) {
+	modelStr := os.Getenv(EnvAIModel)
+	if modelStr == "" {
+		return nil, fmt.Errorf("AI_MODEL environment variable not set")
+	}
+
+	model, err := ai.ParseModel(modelStr, infoProviders)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse model: %w", err)
+	}
+
+	return model, nil
 }
 
 func main() {
@@ -57,8 +75,17 @@ func main() {
 	statsTracker, err := stats.NewTracker(cacheDir)
 
 	infoProviderCacheFile := filepath.Join(configDir, "provider_cache.json")
-	infoProviders := ai.NewInfoProviders(infoProviderCacheFile)
-	client, err := ai.NewClient(infoProviders, statsTracker)
+	infoProviders, err := ai.NewInfoProviders(infoProviderCacheFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating info providers: %v\n", err)
+		os.Exit(1)
+	}
+	model, err := GetEnvAIModel(infoProviders)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting model: %v\n", err)
+		os.Exit(1)
+	}
+	client, err := ai.NewClient(model, statsTracker)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
 		os.Exit(1)
@@ -159,6 +186,10 @@ func main() {
 		}
 		os.Exit(0)
 	}
+
+	// Create an agent for this command
+	agent := ai.NewAgent(generateSessionID(), model, client)
+
 	// Handle interactive mode
 	if *interactiveMode {
 		command := ""
@@ -223,17 +254,13 @@ func main() {
 			}
 		}
 
-		chatSession, err := chat.NewChat(client, generateSessionID())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing chat: %v\n", err)
-			os.Exit(1)
-		}
+		chatSession := chat.NewChat(agent)
 
-		if initialPrompt != "" {
-			chatSession.SetInitialPrompt(initialPrompt)
-		}
 		if systemPrompt != "" {
-			chatSession.SetSystemPrompt(systemPrompt)
+			agent.AddMessage("system", initialPrompt)
+		}
+		if initialPrompt != "" {
+			agent.AddMessage("user", initialPrompt)
 		}
 
 		if err := chatSession.Start(); err != nil {
@@ -264,9 +291,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
 		os.Exit(1)
 	}
-
-	// Create an agent for this command
-	agent := client.CreateAgent(generateSessionID())
 
 	// Prepare input configuration
 	var inputTypes []string
@@ -320,15 +344,10 @@ func main() {
 
 	// If show-prompt flag is set, print the last user message and exit
 	if *showPrompt {
-		if len(agent.Messages) > 0 {
-			for i := len(agent.Messages) - 1; i >= 0; i-- {
-				if agent.Messages[i].Role == "user" {
-					fmt.Println(agent.Messages[i].Content)
-					os.Exit(0)
-				}
-			}
+		msgs := agent.GetMessages()
+		for _, v := range msgs {
+			fmt.Printf("%s: %s\n", v.Role, v.Content)
 		}
-		fmt.Fprintln(os.Stderr, "No prompt found in agent messages")
 		os.Exit(1)
 	}
 
