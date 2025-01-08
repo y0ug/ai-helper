@@ -17,60 +17,54 @@ func NewGeminiProvider(model *Model, apiKey string, client *http.Client) (*Gemin
 	}, nil
 }
 
-// GeminiRequest defines the request structure specific to Gemini.
-type GeminiParts struct {
-  Test string `json:"text"`
-}
-
-type GeminiContents struct {
-  Contents []GeminiParts `json:"parts"`
-}
-
+// GeminiRequest defines the request structure using OpenAI compatibility mode
 type GeminiRequest struct {
-  GeminiContents `json:"contents"`
+	Model     string    `json:"model"`
+	MaxTokens int       `json:"max_tokens"`
+	Messages  []Message `json:"messages"`
 }
 
-// GeminiResponse defines the response structure specific to Gemini.
+// GeminiResponse defines the response structure using OpenAI compatibility mode
 type GeminiResponse struct {
 	Choices []struct {
-		Content struct {
-			Parts []struct {
-				Text string `json:"text"`
-			} `json:"parts"`
-		} `json:"content"`
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
 	} `json:"choices"`
-	UsageMetadata struct {
-		PromptTokenCount     int `json:"promptTokenCount"`
-		CandidatesTokenCount int `json:"candidatesTokenCount"`
-	} `json:"usageMetadata"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
 }
 
-// GenerateResponse sends a request to Gemini's API and parses the response.
+// GenerateResponse sends a request to Gemini's API using OpenAI compatibility mode
 func (p *GeminiProvider) GenerateResponse(messages []Message) (Response, error) {
 	reqPayload := GeminiRequest{
-    contents = [
-      Parts = {
-
-  ]
+		Model:     p.model.Name,
+		MaxTokens: 1024,
+		Messages:  messages,
 	}
 
 	var apiResp GeminiResponse
 
-	headers := map[string]string{}
-	// p.setAuthorizationHeader(headers)
-	url := fmt.Sprintf("%s/%s:generateContent?key=%s", geminiAPIURL, p.model.Name, p.apiKey)
+	headers := map[string]string{
+		"x-goog-api-key": p.apiKey,
+	}
+
+	url := fmt.Sprintf("%s/%s", geminiAPIURL, "v1beta/models/"+p.model.Name+"/completions")
 	err := p.makeRequest("POST", url, headers, reqPayload, &apiResp)
 	if err != nil {
 		return Response{Error: err}, nil
 	}
 
-	if len(apiResp.Choices) == 0 || len(apiResp.Choices[0].Content.Parts) == 0 {
+	if len(apiResp.Choices) == 0 {
 		return Response{Error: fmt.Errorf("empty response from Gemini API")}, nil
 	}
 
 	return Response{
-		Content:      apiResp.Choices[0].Content.Parts[0].Text,
-		InputTokens:  apiResp.UsageMetadata.PromptTokenCount,
-		OutputTokens: apiResp.UsageMetadata.CandidatesTokenCount,
+		Content:      apiResp.Choices[0].Message.Content,
+		InputTokens:  apiResp.Usage.PromptTokens,
+		OutputTokens: apiResp.Usage.CompletionTokens,
 	}, nil
 }
