@@ -6,14 +6,15 @@ import (
 )
 
 func TestInfoProviders(t *testing.T) {
-	// Create a temporary file with valid test data
-	tmpFile, err := os.CreateTemp("", "model_info_*.json")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile.Name())
+	t.Run("Local File", func(t *testing.T) {
+		// Create a temporary file with valid test data
+		tmpFile, err := os.CreateTemp("", "model_info_*.json")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		defer os.Remove(tmpFile.Name())
 
-	// Write minimal valid JSON data
+		// Write minimal valid JSON data
 	testData := `{
 		"claude-2.1": {
 			"max_tokens": 8191,
@@ -95,6 +96,67 @@ func TestInfoProviders(t *testing.T) {
 			}
 		})
 	}
+
+	})
+
+	t.Run("Download Integration", func(t *testing.T) {
+		// Create a temporary file for downloaded data
+		tmpFile, err := os.CreateTemp("", "model_info_download_*.json")
+		if err != nil {
+			t.Fatalf("Failed to create temp file: %v", err)
+		}
+		defer os.Remove(tmpFile.Name())
+
+		// Initialize InfoProviders with temp file
+		providers, err := NewInfoProviders(tmpFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to create InfoProviders: %v", err)
+		}
+
+		// Force a fresh download
+		if err := providers.Clear(); err != nil {
+			t.Fatalf("Failed to clear providers: %v", err)
+		}
+
+		// Load should trigger a download
+		if err := providers.Load(); err != nil {
+			t.Fatalf("Failed to load/download model info: %v", err)
+		}
+
+		// Test some well-known models that should be in the downloaded data
+		knownModels := []struct {
+			name     string
+			provider string
+		}{
+			{"gpt-4", "openai"},
+			{"claude-2", "anthropic"},
+			{"gemini-pro", "google"},
+		}
+
+		for _, model := range knownModels {
+			info, err := providers.GetModelInfo(model.name)
+			if err != nil {
+				t.Errorf("Failed to get info for %s: %v", model.name, err)
+				continue
+			}
+
+			if info.LiteLLMProvider != model.provider {
+				t.Errorf("Expected provider %s for model %s, got %s",
+					model.provider, model.name, info.LiteLLMProvider)
+			}
+
+			// Verify essential fields
+			if info.MaxTokens == 0 {
+				t.Errorf("MaxTokens is 0 for %s", model.name)
+			}
+			if info.InputCostPerToken == 0 {
+				t.Errorf("InputCostPerToken is 0 for %s", model.name)
+			}
+			if info.OutputCostPerToken == 0 {
+				t.Errorf("OutputCostPerToken is 0 for %s", model.name)
+			}
+		}
+	})
 
 	// Test provider inference
 	t.Run("InferProvider", func(t *testing.T) {
