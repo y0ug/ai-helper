@@ -103,7 +103,6 @@ func NewClient(infoProviders *InfoProviders) (*Client, error) {
 	return &Client{
 		provider: provider,
 		model:    model,
-		tracker:  tracker,
 		agents:   make(map[string]*Agent),
 	}, nil
 }
