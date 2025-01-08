@@ -13,7 +13,7 @@ type Parser struct {
 
 func New() *Parser {
 	return &Parser{
-		fileBlockRegex: regexp.MustCompile(`(?ms)^([^\n]+)\n<source>(\w*)\n(.*?)\n</source>`),
+		fileBlockRegex: regexp.MustCompile(`(?ms)^([^\n]+)\n(?:<source>(\w*)\n(.*?)\n</source>|` + "```" + `(\w*)\n(.*?)\n` + "```" + `)`),
 	}
 }
 
@@ -24,8 +24,15 @@ func (p *Parser) ParseResponse(response string) []diff.Section {
 
 	for _, match := range matches {
 		filename := strings.TrimSpace(match[1])
-		language := match[2]
-		content := match[3]
+		var language, content string
+		
+		if match[2] != "" { // <source> format
+			language = match[2]
+			content = match[3]
+		} else { // ```language format
+			language = match[4]
+			content = match[5]
+		}
 
 		section := p.parseSection(filename, language, content)
 		if section != nil {
