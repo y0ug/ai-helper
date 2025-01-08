@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 )
 
 func TestInfoProviders(t *testing.T) {
@@ -48,6 +50,10 @@ func TestInfoProviders(t *testing.T) {
 		if err := os.WriteFile(tmpFile.Name(), []byte(testData), 0644); err != nil {
 			t.Fatalf("Failed to write test data: %v", err)
 		}
+
+		// Setup mock controller
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
 		// Initialize InfoProviders with temp file
 		providers, err := NewInfoProviders(tmpFile.Name())

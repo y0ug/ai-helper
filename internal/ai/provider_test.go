@@ -3,6 +3,8 @@ package ai
 import (
 	"os"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 )
 
 func TestProviderEnvironmentVariables(t *testing.T) {
@@ -87,6 +89,13 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 				t.Fatalf("Failed to parse model: %v", err)
 			}
 
+			// Setup mock controller
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// Create mock client
+			mockClient := NewMockAIClient(ctrl)
+			
 			// Create new client
 			client, err := NewClient(model, nil)
 
