@@ -19,6 +19,15 @@ type ChatHistory struct {
 	Model     string      `json:"model"`
 }
 
+type SessionStats struct {
+	SentTokens     int
+	CacheWriteTokens int
+	CacheHitTokens   int
+	ReceivedTokens   int
+	MessageCost    float64
+	TotalCost      float64
+}
+
 type Chat struct {
 	client       *ai.Client
 	model        string
@@ -26,6 +35,7 @@ type Chat struct {
 	historyFile  string
 	historyCache []ChatHistory
 	sessionID    string
+	stats        SessionStats
 }
 
 func generateSessionID() string {
@@ -158,10 +168,20 @@ func (c *Chat) Start() error {
 		})
 
 		fmt.Printf("\n%s\n", resp.Content)
-		fmt.Printf("\n[Tokens: %d in, %d out | Cost: $%.4f]\n",
-			resp.InputTokens,
-			resp.OutputTokens,
-			resp.Cost)
+		// Update session stats
+		c.stats.SentTokens += resp.InputTokens
+		c.stats.ReceivedTokens += resp.OutputTokens
+		c.stats.MessageCost = resp.Cost
+		c.stats.TotalCost += resp.Cost
+
+		fmt.Printf("\nTokens: %dk sent, %dk cache write, %dk cache hit, %dk received.\n",
+			c.stats.SentTokens/1000,
+			c.stats.CacheWriteTokens/1000,
+			c.stats.CacheHitTokens/1000,
+			c.stats.ReceivedTokens/1000)
+		fmt.Printf("Cost: $%.2f message, $%.2f session.\n",
+			c.stats.MessageCost,
+			c.stats.TotalCost)
 		fmt.Print("\n> ")
 	}
 }
