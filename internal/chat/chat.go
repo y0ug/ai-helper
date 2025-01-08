@@ -125,7 +125,7 @@ func (c *Chat) Start() error {
 	fmt.Println("  /load N      - Load conversation N from history")
 	fmt.Println("  /sessions    - List active sessions")
 	fmt.Println("  /resume ID   - Resume session by ID")
-	fmt.Printf("\nSession ID: %s\n", c.sessionID)
+	fmt.Printf("\nSession ID: %s\n", c.agent.ID)
 	fmt.Print("\n> ")
 
 	for {
@@ -199,7 +199,7 @@ func (c *Chat) handleCommand(cmd string) error {
 	case "/exit", "/quit":
 		return nil
 	case "/clear":
-		c.messages = nil
+		c.agent.Messages = nil
 		fmt.Println("Conversation cleared.")
 	case "/history":
 		fmt.Println("\nChat History:")
@@ -227,8 +227,8 @@ func (c *Chat) handleCommand(cmd string) error {
 		if index < 0 || index >= len(c.historyCache) {
 			return fmt.Errorf("history index out of range")
 		}
-		c.messages = make([]ai.Message, len(c.historyCache[index].Messages))
-		copy(c.messages, c.historyCache[index].Messages)
+		c.agent.Messages = make([]ai.Message, len(c.historyCache[index].Messages))
+		copy(c.agent.Messages, c.historyCache[index].Messages)
 		fmt.Println("Loaded conversation from history.")
 	case "/sessions":
 		fmt.Println("\nActive Sessions:")
@@ -249,9 +249,9 @@ func (c *Chat) handleCommand(cmd string) error {
 		var found bool
 		for _, h := range c.historyCache {
 			if h.SessionID == sessionID {
-				c.messages = make([]ai.Message, len(h.Messages))
-				copy(c.messages, h.Messages)
-				c.sessionID = sessionID
+				c.agent.Messages = make([]ai.Message, len(h.Messages))
+				copy(c.agent.Messages, h.Messages)
+				c.agent.ID = sessionID
 				found = true
 				fmt.Printf("Resumed session %s\n", sessionID)
 				break
