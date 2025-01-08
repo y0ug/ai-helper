@@ -12,7 +12,6 @@ import (
 	"github.com/y0ug/ai-helper/internal/chat"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
-	"github.com/y0ug/ai-helper/internal/prompt"
 	"github.com/y0ug/ai-helper/internal/stats"
 	"github.com/y0ug/ai-helper/internal/version"
 )
@@ -50,10 +49,10 @@ func main() {
 	if *genCompletion != "" {
 		switch *genCompletion {
 		case "zsh":
-			fmt.Println(generateZshCompletion())
+			// fmt.Println(generateZshCompletion())
 			os.Exit(0)
 		case "bash":
-			fmt.Println(generateBashCompletion())
+			// fmt.Println(generateBashCompletion())
 			os.Exit(0)
 		default:
 			fmt.Fprintf(os.Stderr, "Unsupported shell for completion: %s\n", *genCompletion)
