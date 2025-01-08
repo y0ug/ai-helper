@@ -134,6 +134,19 @@ func NewOpenAIProvider(model, apiKey string) (*OpenAIProvider, error) {
 }
 
 func (p *OpenAIProvider) GenerateResponse(messages []Message) (Response, error) {
+	// Convert system messages to developer role
+	modifiedMessages := make([]Message, len(messages))
+	for i, msg := range messages {
+		if msg.Role == "system" {
+			modifiedMessages[i] = Message{
+				Role:    "developer",
+				Content: msg.Content,
+			}
+		} else {
+			modifiedMessages[i] = msg
+		}
+	}
+
 	req := struct {
 		Model     string    `json:"model"`
 		MaxTokens int       `json:"max_tokens"`
@@ -141,7 +154,7 @@ func (p *OpenAIProvider) GenerateResponse(messages []Message) (Response, error) 
 	}{
 		Model:     p.model,
 		MaxTokens: 1024,
-		Messages:  messages,
+		Messages:  modifiedMessages,
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -219,14 +232,28 @@ func NewAnthropicProvider(model, apiKey string) (*AnthropicProvider, error) {
 }
 
 func (p *AnthropicProvider) GenerateResponse(messages []Message) (Response, error) {
+	// Extract system message if present
+	var systemPrompt string
+	var userMessages []Message
+	
+	for _, msg := range messages {
+		if msg.Role == "system" {
+			systemPrompt = msg.Content
+		} else {
+			userMessages = append(userMessages, msg)
+		}
+	}
+
 	req := struct {
 		Model     string    `json:"model"`
+		System    string    `json:"system,omitempty"`
 		MaxTokens int       `json:"max_tokens"`
 		Messages  []Message `json:"messages"`
 	}{
 		Model:     p.model,
+		System:    systemPrompt,
 		MaxTokens: 1024,
-		Messages:  messages,
+		Messages:  userMessages,
 	}
 
 	jsonData, err := json.Marshal(req)

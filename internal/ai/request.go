@@ -3,6 +3,7 @@ package ai
 // Request represents an AI generation request
 type Request struct {
 	Model    string    `json:"model"`
+	System   string    `json:"system,omitempty"`
 	Messages []Message `json:"messages"`
 }
 
