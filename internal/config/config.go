@@ -18,13 +18,13 @@ func GetConfig(configPath string) (*Config, error) {
 	return loader.Load(configPath)
 }
 
-// GetCommandPrompt returns the prompt for a given command name
-func (c *Config) GetCommandPrompt(name string) (string, error) {
+// GetCommandPrompt returns the prompt and system prompt for a given command name
+func (c *Config) GetCommandPrompt(name string) (string, string, error) {
 	cmd, exists := c.Commands[name]
 	if !exists {
-		return "", fmt.Errorf("command '%s' not found in configuration", name)
+		return "", "", fmt.Errorf("command '%s' not found in configuration", name)
 	}
-	return cmd.Prompt, nil
+	return cmd.Prompt, cmd.System, nil
 }
 
 // ValidateConfig checks if the configuration is valid

@@ -199,8 +199,8 @@ func main() {
 	}
 
 
-	// Load prompt content and variables
-	promptContent, vars, err := config.LoadPromptContent(cmd)
+	// Load prompt and system prompt content and variables
+	promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading prompt: %v\n", err)
 		os.Exit(1)
@@ -273,7 +273,7 @@ func main() {
 
 	}
 
-	// Parse and execute the prompt template
+	// Parse and execute the prompt and system templates
 	tmpl, err := template.New("prompt").Funcs(funcMap).Parse(promptContent)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing prompt template: %v\n", err)
@@ -286,13 +286,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	var systemBuf bytes.Buffer
+	if systemContent != "" {
+		systemTmpl, err := template.New("system").Funcs(funcMap).Parse(systemContent)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing system template: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := systemTmpl.Execute(&systemBuf, templateData); err != nil {
+			fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// If show-prompt flag is set, print the prompt and exit
 	if *showPrompt {
 		fmt.Println(promptBuf.String())
 		os.Exit(0)
 	}
 
-	resp, err := client.Generate(promptBuf.String(), command)
+	resp, err := client.Generate(promptBuf.String(), systemBuf.String(), command)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
 		os.Exit(1)
