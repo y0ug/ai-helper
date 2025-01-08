@@ -2,17 +2,19 @@ package prompt
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
 // TemplateData holds all data available to templates
 type TemplateData struct {
-	Input  string
-	Env    map[string]string
-	Files  map[string]string
-	Vars   map[string]interface{}
+	Input string
+	Env   map[string]string
+	Files map[string]string
+	Vars  map[string]interface{}
 }
 
 // NewTemplateData creates a new TemplateData with initialized maps

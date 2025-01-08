@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/chat"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
+	"github.com/y0ug/ai-helper/internal/prompt"
 	"github.com/y0ug/ai-helper/internal/stats"
 	"github.com/y0ug/ai-helper/internal/version"
 )
@@ -328,11 +328,11 @@ func main() {
 
 	// If show-prompt flag is set, print the prompt and exit
 	if *showPrompt {
-		fmt.Println(promptBuf.String())
+		fmt.Println(promptResult)
 		os.Exit(0)
 	}
 
-	resp, err := client.Generate(promptBuf.String(), systemBuf.String(), command)
+	resp, err := client.Generate(promptResult, systemResult, command)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
 		os.Exit(1)

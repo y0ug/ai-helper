@@ -50,6 +50,15 @@ commands:
 
       I'm {{ .WhoAmi }}. Can you say who I'm?
 
+  admin:
+    description: "An administrator"
+    system: |
+      You are a helpful assistant that specializes in zsh 
+      Current working directory: {{.env.PWD}}
+      response should in json with a command to execute and a message
+    prompt: |
+      {{.Input}}
+
   git-commit:
     input: true
     variables:

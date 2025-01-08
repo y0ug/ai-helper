@@ -15,17 +15,17 @@ import (
 type ChatHistory struct {
 	SessionID string       `json:"session_id"`
 	Messages  []ai.Message `json:"messages"`
-	Date      time.Time   `json:"date"`
-	Model     string      `json:"model"`
+	Date      time.Time    `json:"date"`
+	Model     string       `json:"model"`
 }
 
 type SessionStats struct {
-	SentTokens     int
+	SentTokens       int
 	CacheWriteTokens int
 	CacheHitTokens   int
 	ReceivedTokens   int
-	MessageCost    float64
-	TotalCost      float64
+	MessageCost      float64
+	TotalCost        float64
 }
 
 type Chat struct {
@@ -166,7 +166,7 @@ func (c *Chat) Start() error {
 		// Prepare messages for context
 		messages := make([]ai.Message, len(c.messages))
 		copy(messages, c.messages)
-		
+
 		// Get response using full conversation history
 		resp, err := c.client.GenerateWithMessages(messages, "chat", c.systemPrompt)
 		if err != nil {
@@ -223,7 +223,13 @@ func (c *Chat) handleCommand(cmd string) error {
 			if len(preview) > 60 {
 				preview = preview[:57] + "..."
 			}
-			fmt.Printf("%d: [%s] (Session: %s) %s\n", i, h.Date.Format("2006-01-02 15:04"), h.SessionID, preview)
+			fmt.Printf(
+				"%d: [%s] (Session: %s) %s\n",
+				i,
+				h.Date.Format("2006-01-02 15:04"),
+				h.SessionID,
+				preview,
+			)
 		}
 	case "/load":
 		if len(parts) != 2 {
