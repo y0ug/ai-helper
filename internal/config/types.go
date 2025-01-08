@@ -10,6 +10,7 @@ type Variable struct {
 // Command represents a single AI command configuration
 type Command struct {
 	Description  string     `yaml:"description,omitempty"   json:"description,omitempty"`
+	System       string     `yaml:"system,omitempty"        json:"system,omitempty"`
 	Prompt       string     `yaml:"prompt"                  json:"prompt"`
 	Variables    []Variable `yaml:"variables,omitempty"     json:"variables,omitempty"`
 	Input        bool       `yaml:"input,omitempty"         json:"input,omitempty"`
