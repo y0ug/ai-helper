@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/y0ug/ai-helper/internal/cost"
 	"github.com/y0ug/ai-helper/internal/stats"
 )
 
@@ -21,7 +20,6 @@ const (
 type Client struct {
 	provider Provider
 	model    *Model
-	tracker  *cost.Tracker
 	agents   map[string]*Agent // Track active agents by ID
 }
 
@@ -102,10 +100,6 @@ func NewClient(infoProviders *InfoProviders) (*Client, error) {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
-	tracker, err := cost.NewTracker()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cost tracker: %w", err)
-	}
 
 	return &Client{
 		provider: provider,
@@ -140,14 +134,15 @@ func (c *Client) GenerateWithMessages(
 		return Response{}, resp.Error
 	}
 
-	// Calculate cost
-	cost, err := c.tracker.CalculateCost(c.model.String(), resp.InputTokens, resp.OutputTokens)
-	if err != nil {
-		// Log the error but don't fail the request
-		fmt.Fprintf(os.Stderr, "Warning: failed to calculate cost: %v\n", err)
-		cost = 0
-	} else {
+	// Calculate cost using model info
+	var cost float64
+	if c.model.info != nil {
+		inputCost := float64(resp.InputTokens) * c.model.info.InputCostPerToken
+		outputCost := float64(resp.OutputTokens) * c.model.info.OutputCostPerToken
+		cost = inputCost + outputCost
 		fmt.Fprintf(os.Stderr, "Cost: $%.4f\n", cost)
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: no cost info available for model\n")
 	}
 
 	// Record stats
