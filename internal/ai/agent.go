@@ -1,11 +1,26 @@
 package ai
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/prompt"
 )
+
+// AgentState represents the serializable state of an Agent
+type AgentState struct {
+	ID           string           `json:"id"`
+	ModelName    string           `json:"model"`
+	Messages     []Message        `json:"messages"`
+	Command      *config.Command  `json:"command,omitempty"`
+	TemplateData *prompt.TemplateData `json:"template_data"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+}
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
@@ -14,6 +29,8 @@ type Agent struct {
 	Messages     []Message        // Conversation history
 	Command      *config.Command  // Current active command
 	TemplateData *prompt.TemplateData // Data for template processing
+	CreatedAt    time.Time        // When the agent was created
+	UpdatedAt    time.Time        // Last time the agent was updated
 }
 
 // LoadCommand loads a command configuration into the agent
@@ -63,12 +80,108 @@ func (a *Agent) ApplyCommand(input string) error {
 
 // NewAgent creates a new Agent instance
 func NewAgent(id string, model *Model) *Agent {
+	now := time.Now()
 	return &Agent{
 		ID:           id,
 		Model:        model,
 		Messages:     make([]Message, 0),
 		TemplateData: prompt.NewTemplateData(""),
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
+}
+
+// Save persists the agent's state to a JSON file
+func (a *Agent) Save() error {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return fmt.Errorf("failed to get cache directory: %w", err)
+	}
+
+	agentDir := filepath.Join(cacheDir, "ai-helper", "agents")
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		return fmt.Errorf("failed to create agent directory: %w", err)
+	}
+
+	state := AgentState{
+		ID:           a.ID,
+		ModelName:    a.Model.String(),
+		Messages:     a.Messages,
+		Command:      a.Command,
+		TemplateData: a.TemplateData,
+		CreatedAt:    a.CreatedAt,
+		UpdatedAt:    time.Now(),
+	}
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal agent state: %w", err)
+	}
+
+	filename := filepath.Join(agentDir, fmt.Sprintf("%s.json", a.ID))
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		return fmt.Errorf("failed to write agent state: %w", err)
+	}
+
+	return nil
+}
+
+// Load restores the agent's state from a JSON file
+func LoadAgent(id string, model *Model) (*Agent, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cache directory: %w", err)
+	}
+
+	filename := filepath.Join(cacheDir, "ai-helper", "agents", fmt.Sprintf("%s.json", id))
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read agent state: %w", err)
+	}
+
+	var state AgentState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal agent state: %w", err)
+	}
+
+	agent := &Agent{
+		ID:           state.ID,
+		Model:        model,
+		Messages:     state.Messages,
+		Command:      state.Command,
+		TemplateData: state.TemplateData,
+		CreatedAt:    state.CreatedAt,
+		UpdatedAt:    state.UpdatedAt,
+	}
+
+	return agent, nil
+}
+
+// ListAgents returns a list of all saved agent IDs
+func ListAgents() ([]string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cache directory: %w", err)
+	}
+
+	agentDir := filepath.Join(cacheDir, "ai-helper", "agents")
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create agent directory: %w", err)
+	}
+
+	files, err := os.ReadDir(agentDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read agent directory: %w", err)
+	}
+
+	var agents []string
+	for _, file := range files {
+		if !file.IsDir() && filepath.Ext(file.Name()) == ".json" {
+			agents = append(agents, strings.TrimSuffix(file.Name(), ".json"))
+		}
+	}
+
+	return agents, nil
 }
 
 // AddMessage adds a new message to the agent's conversation history
