@@ -45,13 +45,15 @@ type InfoProviders struct {
 }
 
 func NewInfoProviders(infoFilePath string) *InfoProviders {
-	return &InfoProviders{
+	info := &InfoProviders{
 		infos:         make(map[string]Info),
 		infoURL:       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
 		infoFile:      "model_prices_and_context_window.json",
 		cacheFile:     infoFilePath,
 		cacheDuration: 24 * time.Hour,
 	}
+	info.Load()
+	return info
 }
 
 func (t *InfoProviders) Clear() error {
