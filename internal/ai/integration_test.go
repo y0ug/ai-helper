@@ -80,7 +80,10 @@ func TestIntegrationRequests(t *testing.T) {
 			}
 
 			// Send request
-			response, err := client.Generate(tt.prompt, "", "")
+			response, err := client.GenerateWithMessages(
+				[]Message{*NewUserMessage(tt.prompt)},
+				"test",
+			)
 			if err != nil {
 				t.Fatalf("Failed to generate response: %v", err)
 			}

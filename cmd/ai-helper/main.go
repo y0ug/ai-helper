@@ -333,7 +333,7 @@ func main() {
 	}
 
 	// Generate response using the agent
-	resp, err := client.GenerateForAgent(agent, command)
+	resp, err := agent.SendRequest()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
 		os.Exit(1)

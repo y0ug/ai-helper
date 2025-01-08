@@ -13,6 +13,13 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+func NewUserMessage(content string) *Message {
+	return &Message{
+		Role:    "user",
+		Content: content,
+	}
+}
+
 // Response represents an AI generation response
 type Response struct {
 	Content      string

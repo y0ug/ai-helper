@@ -115,9 +115,8 @@ func (c *Chat) Start() error {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Interactive chat mode. Commands:")
 	fmt.Println("  /exit, /quit - End session")
-	fmt.Println("  /clear       - Clear current conversation")
+	fmt.Println("  /reset       - Clear current conversation")
 	fmt.Println("  /history     - Show chat history")
-	fmt.Println("  /load N      - Load conversation N from history")
 	fmt.Println("  /sessions    - List active sessions")
 	fmt.Println("  /resume ID   - Resume session by ID")
 	fmt.Printf("\nSession ID: %s\n", c.agent.ID)
@@ -153,7 +152,7 @@ func (c *Chat) Start() error {
 		c.agent.AddMessage("user", input)
 
 		// Generate response using the agent
-		resp, err := c.client.GenerateForAgent(c.agent, "chat")
+		resp, err := c.agent.SendRequest()
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			fmt.Print("\n> ")
@@ -179,7 +178,8 @@ func (c *Chat) Start() error {
 		c.stats.CacheHitTokens += newCacheHits
 		c.stats.CacheWriteTokens += resp.InputTokens - newCacheHits
 
-		fmt.Printf("\nTokens: %d sent (%d cached), %d received\n",
+		fmt.Printf("\nModel %s | Tokens: %d sent (%d cached), %d received\n",
+			c.agent.Model.Name,
 			c.stats.SentTokens,
 			c.stats.CacheHitTokens,
 			c.stats.ReceivedTokens)
@@ -195,68 +195,37 @@ func (c *Chat) handleCommand(cmd string) error {
 	switch parts[0] {
 	case "/exit", "/quit":
 		return nil
-	case "/clear":
+	case "/reset":
 		c.agent.Messages = nil
 		fmt.Println("Conversation cleared.")
 	case "/history":
 		fmt.Println("\nChat History:")
-		for i, h := range c.historyCache {
-			preview := h.Messages[0].Content
-			if len(preview) > 60 {
-				preview = preview[:57] + "..."
+		for _, h := range c.agent.Messages {
+			if h.Role == "user" {
+				fmt.Printf("> ")
 			}
-			fmt.Printf(
-				"%d: [%s] (Session: %s) %s\n",
-				i,
-				h.Date.Format("2006-01-02 15:04"),
-				h.SessionID,
-				preview,
-			)
+			fmt.Printf("%s\n", h.Content)
 		}
-	case "/load":
-		if len(parts) != 2 {
-			return fmt.Errorf("usage: /load N")
-		}
-		var index int
-		if _, err := fmt.Sscanf(parts[1], "%d", &index); err != nil {
-			return fmt.Errorf("invalid history index: %s", parts[1])
-		}
-		if index < 0 || index >= len(c.historyCache) {
-			return fmt.Errorf("history index out of range")
-		}
-		c.agent.Messages = make([]ai.Message, len(c.historyCache[index].Messages))
-		copy(c.agent.Messages, c.historyCache[index].Messages)
-		fmt.Println("Loaded conversation from history.")
+
 	case "/sessions":
-		fmt.Println("\nActive Sessions:")
-		sessions := make(map[string]time.Time)
-		for _, h := range c.historyCache {
-			if _, exists := sessions[h.SessionID]; !exists {
-				sessions[h.SessionID] = h.Date
-			}
+		sessions, err := ai.ListAgents()
+		if err != nil {
+			return fmt.Errorf("failed to list sessions: %w", err)
 		}
-		for id, date := range sessions {
-			fmt.Printf("%s: Last active %s\n", id, date.Format("2006-01-02 15:04"))
+		for _, v := range sessions {
+			fmt.Printf("%s\n", v)
 		}
+
 	case "/resume":
 		if len(parts) != 2 {
 			return fmt.Errorf("usage: /resume SESSION_ID")
 		}
 		sessionID := parts[1]
-		var found bool
-		for _, h := range c.historyCache {
-			if h.SessionID == sessionID {
-				c.agent.Messages = make([]ai.Message, len(h.Messages))
-				copy(c.agent.Messages, h.Messages)
-				c.agent.ID = sessionID
-				found = true
-				fmt.Printf("Resumed session %s\n", sessionID)
-				break
-			}
+		newAgent, err := ai.LoadAgent(sessionID, c.agent.Model)
+		if err != nil {
+			return fmt.Errorf("session not found: %w", err)
 		}
-		if !found {
-			return fmt.Errorf("session not found: %s", sessionID)
-		}
+		c.agent = newAgent
 	default:
 		return fmt.Errorf("unknown command: %s", cmd)
 	}

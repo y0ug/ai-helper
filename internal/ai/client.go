@@ -41,18 +41,6 @@ func (c *Client) GetAgent(id string) (*Agent, error) {
 }
 
 // GenerateForAgent generates a response using the agent's conversation history
-func (c *Client) GenerateForAgent(agent *Agent, command string) (Response, error) {
-	resp, err := c.GenerateWithMessages(agent.GetMessages(), command)
-	if err != nil {
-		return Response{}, err
-	}
-
-	// Add the assistant's response to the agent's history
-	agent.AddMessage("assistant", resp.Content)
-
-	agent.UpdateCosts(&resp)
-	return resp, nil
-}
 
 // NewClient creates a new AI client using environment variables
 func NewClient(infoProviders *InfoProviders, statsTracker *stats.Tracker) (*Client, error) {
@@ -108,16 +96,6 @@ func NewClient(infoProviders *InfoProviders, statsTracker *stats.Tracker) (*Clie
 		agents:   make(map[string]*Agent),
 		stats:    statsTracker,
 	}, nil
-}
-
-// Generate sends a prompt to the AI model and returns the response
-func (c *Client) Generate(prompt string, system string, command string) (Response, error) {
-	messages := []Message{}
-	if system != "" {
-		messages = append(messages, Message{Role: "system", Content: system})
-	}
-	messages = append(messages, Message{Role: "user", Content: prompt})
-	return c.GenerateWithMessages(messages, command)
 }
 
 // GenerateWithMessages sends a conversation history to the AI model and returns the response

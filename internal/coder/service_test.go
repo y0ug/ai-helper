@@ -12,7 +12,10 @@ type mockClient struct {
 	current   int
 }
 
-func (m *mockClient) GenerateWithMessages(messages []ai.Message, command string) (*ai.Response, error) {
+func (m *mockClient) GenerateWithMessages(
+	messages []ai.Message,
+	command string,
+) (*ai.Response, error) {
 	resp := m.responses[m.current]
 	m.current++
 	return &ai.Response{Content: resp}, nil
@@ -67,16 +70,6 @@ new code
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &mockClient{responses: tt.mockResp}
-			agent := &ai.Agent{
-				Client: mockClient,
-				TemplateData: &prompt.TemplateData{
-					Vars: map[string]interface{}{
-						"Request": "Change the code",
-					},
-				},
-			}
-			
 			s := NewService()
 			got, err := s.ProcessRequest(context.Background(), agent, tt.request, tt.files)
 

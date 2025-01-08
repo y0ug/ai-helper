@@ -208,6 +208,18 @@ func (a *Agent) UpdateCosts(response *Response) {
 	}
 }
 
+func (a *Agent) SendRequest() (Response, error) {
+	resp, err := a.Client.GenerateWithMessages(a.GetMessages(), "agent_name")
+	if err != nil {
+		return Response{}, err
+	}
+
+	a.AddMessage("assistant", resp.Content)
+
+	a.UpdateCosts(&resp)
+	return resp, nil
+}
+
 // ListAgents returns a list of all saved agent IDs
 func ListAgents() ([]string, error) {
 	cacheDir, err := os.UserCacheDir()
