@@ -1,0 +1,13 @@
+Analyze the following code change request:
+
+{{.Request}}
+
+Files available:
+{{range $path, $content := .Files}}
+File: {{$path}}
+```{{fileExt $path}}
+{{$content}}
+```
+{{end}}
+
+Provide a clear analysis of what needs to be changed.
