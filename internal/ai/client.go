@@ -21,6 +21,36 @@ type Client struct {
 	provider Provider
 	model    *Model
 	tracker  *cost.Tracker
+	agents   map[string]*Agent // Track active agents by ID
+}
+
+// CreateAgent creates a new Agent instance and registers it with the client
+func (c *Client) CreateAgent(id string) *Agent {
+	agent := NewAgent(id, c.model)
+	c.agents[id] = agent
+	return agent
+}
+
+// GetAgent retrieves an existing agent by ID
+func (c *Client) GetAgent(id string) (*Agent, error) {
+	agent, exists := c.agents[id]
+	if !exists {
+		return nil, fmt.Errorf("no agent found with ID: %s", id)
+	}
+	return agent, nil
+}
+
+// GenerateForAgent generates a response using the agent's conversation history
+func (c *Client) GenerateForAgent(agent *Agent, command string) (Response, error) {
+	resp, err := c.GenerateWithMessages(agent.GetMessages(), command, "")
+	if err != nil {
+		return Response{}, err
+	}
+
+	// Add the assistant's response to the agent's history
+	agent.AddMessage("assistant", resp.Content)
+	
+	return resp, nil
 }
 
 // NewClient creates a new AI client using environment variables
@@ -75,6 +105,7 @@ func NewClient() (*Client, error) {
 		provider: provider,
 		model:    model,
 		tracker:  tracker,
+		agents:   make(map[string]*Agent),
 	}, nil
 }
 
