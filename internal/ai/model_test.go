@@ -67,7 +67,7 @@ func TestInfoProviders(t *testing.T) {
 	// Test provider inference
 	t.Run("InferProvider", func(t *testing.T) {
 		testCases := []struct {
-			modelName       string
+			modelName        string
 			expectedProvider string
 		}{
 			{"claude-3-opus-20240229", "anthropic"},
@@ -80,7 +80,7 @@ func TestInfoProviders(t *testing.T) {
 		for _, tc := range testCases {
 			provider := inferProvider(tc.modelName)
 			if provider != tc.expectedProvider {
-				t.Errorf("Expected provider %s for model %s, got %s", 
+				t.Errorf("Expected provider %s for model %s, got %s",
 					tc.expectedProvider, tc.modelName, provider)
 			}
 		}
