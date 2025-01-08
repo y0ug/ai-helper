@@ -89,7 +89,7 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 			}
 
 			// Create new client
-			client, err := NewClient()
+			client, err := NewClient(nil)
 
 			// Check error cases
 			if tt.wantErr {

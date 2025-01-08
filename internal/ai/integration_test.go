@@ -61,6 +61,8 @@ func TestIntegrationRequests(t *testing.T) {
 				apiKey = os.Getenv(EnvOpenRouterAPIKey)
 			case "gemini":
 				apiKey = os.Getenv(EnvGeminiAPIKey)
+			case "deepseek":
+				apiKey = os.Getenv(EnvDeepSeekAPIKey)
 			}
 			if apiKey == "" {
 				t.Skipf("Skipping %s test: no API key set", tt.provider)
@@ -69,8 +71,9 @@ func TestIntegrationRequests(t *testing.T) {
 			// Set up environment
 			os.Setenv(EnvAIModel, tt.model)
 
+			infoProviders := NewInfoProviders("")
 			// Create client
-			client, err := NewClient()
+			client, err := NewClient(infoProviders)
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}

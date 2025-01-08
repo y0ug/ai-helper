@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -31,7 +32,21 @@ func main() {
 	flag.Parse()
 
 	// Create AI client early as it's needed for multiple features
-	client, err := ai.NewClient()
+	configDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to get home directory: %s", err)
+		os.Exit(1)
+	}
+
+	configDir = filepath.Join(configDir, ".config", "ai-helper")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create config directory: %s", err)
+		os.Exit(1)
+	}
+
+	infoProviderCacheFile := filepath.Join(configDir, "provider_cache.json")
+	infoProviders := ai.NewInfoProviders(infoProviderCacheFile)
+	client, err := ai.NewClient(infoProviders)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
 		os.Exit(1)
