@@ -37,7 +37,7 @@ func NewGeminiProvider(model, apiKey string) (*GeminiProvider, error) {
 
 func (p *GeminiProvider) GenerateResponse(messages []Message) (Response, error) {
 	url := fmt.Sprintf("%s/%s:generateContent?key=%s", geminiAPIURL, p.model, p.apiKey)
-	
+
 	req := struct {
 		Contents []struct {
 			Parts []struct {
@@ -141,7 +141,7 @@ func (p *OpenAIProvider) GenerateResponse(messages []Message) (Response, error) 
 	}{
 		Model:     p.model,
 		MaxTokens: 1024,
-		Messages: messages,
+		Messages:  messages,
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -178,7 +178,6 @@ func (p *OpenAIProvider) GenerateResponse(messages []Message) (Response, error) 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return Response{Error: fmt.Errorf("failed to decode response: %w", err)}, nil
 	}
-
 
 	return Response{
 		Content:      response.Choices[0].Message.Content,
@@ -227,7 +226,7 @@ func (p *AnthropicProvider) GenerateResponse(messages []Message) (Response, erro
 	}{
 		Model:     p.model,
 		MaxTokens: 1024,
-		Messages: messages,
+		Messages:  messages,
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -265,7 +264,6 @@ func (p *AnthropicProvider) GenerateResponse(messages []Message) (Response, erro
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return Response{Error: fmt.Errorf("failed to decode response: %w", err)}, nil
 	}
-
 
 	if len(response.Content) == 0 {
 		return Response{Error: fmt.Errorf("empty response from API")}, nil
