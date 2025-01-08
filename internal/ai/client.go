@@ -133,12 +133,10 @@ func (c *Client) GenerateWithMessages(
 	}
 
 	// Calculate cost using model info
-	var cost float64
 	if c.model.info != nil {
 		inputCost := float64(resp.InputTokens) * c.model.info.InputCostPerToken
 		outputCost := float64(resp.OutputTokens) * c.model.info.OutputCostPerToken
-		cost = inputCost + outputCost
-		fmt.Fprintf(os.Stderr, "Cost: $%.4f\n", cost)
+		resp.Cost = float64ToPtr(inputCost + outputCost)
 	} else {
 		fmt.Fprintf(os.Stderr, "Warning: no cost info available for model\n")
 	}
@@ -148,6 +146,11 @@ func (c *Client) GenerateWithMessages(
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to create stats tracker: %v\n", err)
 	} else {
+		// TODO: find a better way to handle no cost info available
+		cost := 0.0
+		if resp.Cost != nil {
+			cost = *resp.Cost
+		}
 		statsTracker.RecordQuery(
 			c.model.Provider,
 			command,
@@ -159,4 +162,8 @@ func (c *Client) GenerateWithMessages(
 	}
 
 	return resp, nil
+}
+
+func float64ToPtr(f float64) *float64 {
+	return &f
 }

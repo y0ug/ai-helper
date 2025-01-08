@@ -19,7 +19,7 @@ type Response struct {
 	InputTokens  int
 	OutputTokens int
 	CachedTokens int
-	Cost         float64
+	Cost         *float64
 	Error        error
 }
 

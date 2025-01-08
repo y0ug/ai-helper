@@ -243,10 +243,8 @@ func main() {
 
 	// Create config loader and load config
 	if err := cfg.ValidateConfig(); err != nil {
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
-		}
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Get command configuration
@@ -338,8 +336,8 @@ func main() {
 			resp.InputTokens,
 			resp.OutputTokens,
 		)
-		fmt.Fprintf(os.Stderr, "Estimated cost: $%.4f\n", resp.Cost)
 	}
+	fmt.Fprintf(os.Stderr, "Model: %s | Estimated cost: $%.4f\n", agent.Model.Name, resp.Cost)
 
 	// Ensure output directory exists if writing to file
 	if *outputFile != "" {
