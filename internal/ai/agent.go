@@ -2,13 +2,40 @@ package ai
 
 import (
 	"fmt"
+
+	"github.com/y0ug/ai-helper/internal/config"
 )
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
-	ID       string    // Unique identifier for this agent/session
-	Model    *Model    // The AI model being used
-	Messages []Message // Conversation history
+	ID       string           // Unique identifier for this agent/session
+	Model    *Model           // The AI model being used
+	Messages []Message        // Conversation history
+	Command  *config.Command  // Current active command
+}
+
+// LoadCommand loads a command configuration into the agent
+func (a *Agent) LoadCommand(cmd *config.Command) {
+	a.Command = cmd
+	
+	// If there's a system message, apply it
+	if cmd.System != "" {
+		a.AddSystemMessage(cmd.System)
+	}
+}
+
+// ApplyCommand applies the loaded command's prompt with the given input
+func (a *Agent) ApplyCommand(input string) {
+	if a.Command == nil {
+		return
+	}
+
+	// If the command expects input, format the prompt with it
+	if a.Command.Input {
+		a.AddMessage("user", fmt.Sprintf(a.Command.Prompt, input))
+	} else {
+		a.AddMessage("user", a.Command.Prompt)
+	}
 }
 
 // NewAgent creates a new Agent instance
