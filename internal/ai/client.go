@@ -100,7 +100,6 @@ func NewClient(infoProviders *InfoProviders) (*Client, error) {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
 
-
 	return &Client{
 		provider: provider,
 		model:    model,
