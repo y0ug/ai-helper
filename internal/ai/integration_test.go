@@ -76,7 +76,7 @@ func TestIntegrationRequests(t *testing.T) {
 			}
 
 			// Send request
-			response, err := client.Generate(tt.prompt, "test")
+			response, err := client.Generate(tt.prompt, "test", "")
 			if err != nil {
 				t.Fatalf("Failed to generate response: %v", err)
 			}
