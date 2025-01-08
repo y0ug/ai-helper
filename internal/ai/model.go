@@ -45,6 +45,16 @@ type Info struct {
 	SupportsAssistantPrefill        bool `json:"supports_assistant_prefill,omitempty"`
 }
 
+// InfoProvider defines the interface for accessing model information
+type InfoProvider interface {
+	// Load loads or refreshes the model information
+	Load() error
+	// Clear clears all cached model information
+	Clear() error
+	// GetModelInfo retrieves information for a specific model
+	GetModelInfo(modelName string) (*Info, error)
+}
+
 type (
 	Infos         map[string]Info
 	InfoProviders struct {
