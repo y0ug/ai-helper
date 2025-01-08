@@ -3,7 +3,7 @@ package ai
 import (
 	"fmt"
 	"os"
-	
+
 	"github.com/y0ug/ai-helper/internal/cost"
 	"github.com/y0ug/ai-helper/internal/stats"
 )
@@ -50,18 +50,18 @@ func (c *Client) GenerateForAgent(agent *Agent, command string) (Response, error
 
 	// Add the assistant's response to the agent's history
 	agent.AddMessage("assistant", resp.Content)
-	
+
 	return resp, nil
 }
 
 // NewClient creates a new AI client using environment variables
-func NewClient() (*Client, error) {
+func NewClient(infoProviders *InfoProviders) (*Client, error) {
 	modelStr := os.Getenv(EnvAIModel)
 	if modelStr == "" {
 		return nil, fmt.Errorf("AI_MODEL environment variable not set")
 	}
 
-	model, err := ParseModel(modelStr)
+	model, err := ParseModel(modelStr, infoProviders)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse model: %w", err)
 	}
@@ -126,7 +126,11 @@ func (c *Client) Generate(prompt string, system string, command string) (Respons
 }
 
 // GenerateWithMessages sends a conversation history to the AI model and returns the response
-func (c *Client) GenerateWithMessages(messages []Message, command string, system string) (Response, error) {
+func (c *Client) GenerateWithMessages(
+	messages []Message,
+	command string,
+	system string,
+) (Response, error) {
 	resp, err := c.provider.GenerateResponse(messages)
 	if err != nil {
 		return Response{}, err

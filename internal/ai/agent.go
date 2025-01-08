@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/config"
@@ -13,40 +14,40 @@ import (
 
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
-	ID           string           `json:"id"`
-	ModelName    string           `json:"model"`
-	Messages     []Message        `json:"messages"`
-	Command      *config.Command  `json:"command,omitempty"`
+	ID           string               `json:"id"`
+	ModelName    string               `json:"model"`
+	Messages     []Message            `json:"messages"`
+	Command      *config.Command      `json:"command,omitempty"`
 	TemplateData *prompt.TemplateData `json:"template_data"`
-	CreatedAt    time.Time        `json:"created_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
+	CreatedAt    time.Time            `json:"created_at"`
+	UpdatedAt    time.Time            `json:"updated_at"`
 }
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
-	ID           string           // Unique identifier for this agent/session
-	Model        *Model           // The AI model being used
-	Messages     []Message        // Conversation history
-	Command      *config.Command  // Current active command
+	ID           string               // Unique identifier for this agent/session
+	Model        *Model               // The AI model being used
+	Messages     []Message            // Conversation history
+	Command      *config.Command      // Current active command
 	TemplateData *prompt.TemplateData // Data for template processing
-	CreatedAt    time.Time        // When the agent was created
-	UpdatedAt    time.Time        // Last time the agent was updated
+	CreatedAt    time.Time            // When the agent was created
+	UpdatedAt    time.Time            // Last time the agent was updated
 }
 
 // LoadCommand loads a command configuration into the agent
 func (a *Agent) LoadCommand(cmd *config.Command) error {
 	a.Command = cmd
-	
+
 	// Load environment variables
 	a.TemplateData.LoadEnvironment()
-	
+
 	// Load any required files
 	if len(cmd.Files) > 0 {
 		if err := a.TemplateData.LoadFiles(cmd.Files); err != nil {
 			return fmt.Errorf("failed to load command files: %w", err)
 		}
 	}
-	
+
 	// Process system message template if present
 	if cmd.System != "" {
 		systemMsg, err := prompt.Execute(cmd.System, a.TemplateData)
@@ -55,7 +56,7 @@ func (a *Agent) LoadCommand(cmd *config.Command) error {
 		}
 		a.AddSystemMessage(systemMsg)
 	}
-	
+
 	return nil
 }
 
@@ -204,7 +205,7 @@ func (a *Agent) AddSystemMessage(content string) {
 		a.Messages[0].Content = content
 		return
 	}
-	
+
 	// Insert system message at the beginning
 	a.Messages = append([]Message{{Role: "system", Content: content}}, a.Messages...)
 }
