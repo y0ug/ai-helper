@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/y0ug/ai-helper/internal/io"
 )
 
 // Tracker manages statistics recording and persistence
@@ -17,12 +15,7 @@ type Tracker struct {
 }
 
 // NewTracker creates a new statistics tracker
-func NewTracker() (*Tracker, error) {
-	cacheDir := io.GetCacheDir()
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
+func NewTracker(cacheDir string) (*Tracker, error) {
 	t := &Tracker{
 		stats:    NewStats(),
 		filePath: filepath.Join(cacheDir, "stats.json"),
@@ -37,7 +30,13 @@ func NewTracker() (*Tracker, error) {
 }
 
 // RecordQuery records statistics for a single query
-func (t *Tracker) RecordQuery(provider string, command string, inputTokens, outputTokens int, cost float64, functionCalls int) {
+func (t *Tracker) RecordQuery(
+	provider string,
+	command string,
+	inputTokens, outputTokens int,
+	cost float64,
+	functionCalls int,
+) {
 	t.stats.mu.Lock()
 	defer t.stats.mu.Unlock()
 

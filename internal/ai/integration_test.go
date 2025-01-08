@@ -74,7 +74,7 @@ func TestIntegrationRequests(t *testing.T) {
 
 			infoProviders := NewInfoProviders("")
 			// Create client
-			client, err := NewClient(infoProviders)
+			client, err := NewClient(infoProviders, nil)
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}

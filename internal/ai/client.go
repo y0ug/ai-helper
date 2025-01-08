@@ -20,6 +20,7 @@ const (
 type Client struct {
 	provider Provider
 	model    *Model
+	stats    *stats.Tracker
 	agents   map[string]*Agent // Track active agents by ID
 }
 
@@ -53,7 +54,7 @@ func (c *Client) GenerateForAgent(agent *Agent, command string) (Response, error
 }
 
 // NewClient creates a new AI client using environment variables
-func NewClient(infoProviders *InfoProviders) (*Client, error) {
+func NewClient(infoProviders *InfoProviders, statsTracker *stats.Tracker) (*Client, error) {
 	modelStr := os.Getenv(EnvAIModel)
 	if modelStr == "" {
 		return nil, fmt.Errorf("AI_MODEL environment variable not set")
@@ -104,6 +105,7 @@ func NewClient(infoProviders *InfoProviders) (*Client, error) {
 		provider: provider,
 		model:    model,
 		agents:   make(map[string]*Agent),
+		stats:    statsTracker,
 	}, nil
 }
 
@@ -142,7 +144,6 @@ func (c *Client) GenerateWithMessages(
 	}
 
 	// Record stats
-	statsTracker, err := stats.NewTracker()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to create stats tracker: %v\n", err)
 	} else {
@@ -151,14 +152,16 @@ func (c *Client) GenerateWithMessages(
 		if resp.Cost != nil {
 			cost = *resp.Cost
 		}
-		statsTracker.RecordQuery(
-			c.model.Provider,
-			command,
-			resp.InputTokens,
-			resp.OutputTokens,
-			cost,
-			0,
-		)
+		if c.stats != nil {
+			c.stats.RecordQuery(
+				c.model.Provider,
+				command,
+				resp.InputTokens,
+				resp.OutputTokens,
+				cost,
+				0,
+			)
+		}
 	}
 
 	return resp, nil

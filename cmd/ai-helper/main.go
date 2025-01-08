@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/y0ug/ai-helper/internal/ai"
 	"github.com/y0ug/ai-helper/internal/chat"
@@ -16,6 +17,10 @@ import (
 	"github.com/y0ug/ai-helper/internal/stats"
 	"github.com/y0ug/ai-helper/internal/version"
 )
+
+func generateSessionID() string {
+	return fmt.Sprintf("%x", time.Now().UnixNano())
+}
 
 func main() {
 	// Parse command line flags
@@ -44,9 +49,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	cacheDir := io.GetCacheDir()
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create cache directory: %w", err)
+		os.Exit(1)
+	}
+	statsTracker, err := stats.NewTracker(cacheDir)
+
 	infoProviderCacheFile := filepath.Join(configDir, "provider_cache.json")
 	infoProviders := ai.NewInfoProviders(infoProviderCacheFile)
-	client, err := ai.NewClient(infoProviders)
+	client, err := ai.NewClient(infoProviders, statsTracker)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
 		os.Exit(1)
@@ -108,13 +120,12 @@ func main() {
 
 	// Handle stats display
 	if *showStats {
-		tracker, err := stats.NewTracker()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating stats tracker: %v\n", err)
 			os.Exit(1)
 		}
 
-		stats := tracker.GetStats()
+		stats := statsTracker.GetStats()
 		fmt.Println("AI Provider Usage Statistics:")
 		fmt.Println("============================")
 
@@ -212,7 +223,7 @@ func main() {
 			}
 		}
 
-		chatSession, err := chat.NewChat(client)
+		chatSession, err := chat.NewChat(client, generateSessionID())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing chat: %v\n", err)
 			os.Exit(1)
@@ -255,7 +266,7 @@ func main() {
 	}
 
 	// Create an agent for this command
-	agent := client.CreateAgent(command)
+	agent := client.CreateAgent(generateSessionID())
 
 	// Prepare input configuration
 	var inputTypes []string
@@ -337,7 +348,17 @@ func main() {
 			resp.OutputTokens,
 		)
 	}
-	fmt.Fprintf(os.Stderr, "Model: %s | Estimated cost: $%.4f\n", agent.Model.Name, resp.Cost)
+	cost := "N/A"
+	if resp.Cost != nil {
+		cost = fmt.Sprintf("$%.4f", *resp.Cost)
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"Session: %s | Model: %s | Estimated cost: %s\n",
+		agent.ID,
+		agent.Model.Name,
+		cost,
+	)
 
 	// Ensure output directory exists if writing to file
 	if *outputFile != "" {
@@ -352,6 +373,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
 		os.Exit(1)
 	}
+
+	agent.Save()
 }
 
 func generateBashCompletion() string {

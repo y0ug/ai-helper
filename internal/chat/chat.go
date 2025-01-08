@@ -36,11 +36,7 @@ type Chat struct {
 	stats        SessionStats
 }
 
-func generateSessionID() string {
-	return fmt.Sprintf("%x", time.Now().UnixNano())
-}
-
-func NewChat(client *ai.Client) (*Chat, error) {
+func NewChat(client *ai.Client, sessionID string) (*Chat, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cache directory: %w", err)
@@ -52,8 +48,7 @@ func NewChat(client *ai.Client) (*Chat, error) {
 	}
 
 	historyFile := filepath.Join(aiHelperCache, "chat_history.json")
-	sessionID := generateSessionID()
-	
+
 	agent := client.CreateAgent(sessionID)
 
 	chat := &Chat{
@@ -165,13 +160,15 @@ func (c *Chat) Start() error {
 			continue
 		}
 
-
 		fmt.Printf("\n%s\n", resp.Content)
 		// Update session stats
 		c.stats.SentTokens += resp.InputTokens
 		c.stats.ReceivedTokens += resp.OutputTokens
-		c.stats.MessageCost = resp.Cost
-		c.stats.TotalCost += resp.Cost
+
+		if resp.Cost != nil {
+			c.stats.MessageCost = *resp.Cost
+			c.stats.TotalCost += *resp.Cost
+		}
 
 		// Calculate cache metrics
 		newCacheHits := 0
