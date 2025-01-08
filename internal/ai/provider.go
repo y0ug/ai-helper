@@ -184,6 +184,7 @@ func (p *OpenAIProvider) GenerateResponse(messages []Message) (Response, error) 
 		Content:      response.Choices[0].Message.Content,
 		InputTokens:  response.Usage.PromptTokens,
 		OutputTokens: response.Usage.CompletionTokens,
+		CachedTokens: response.Usage.PromptTokensDetails.CachedTokens,
 	}, nil
 }
 
@@ -343,5 +344,6 @@ func (p *OpenRouterProvider) GenerateResponse(messages []Message) (Response, err
 		Content:      response.Choices[0].Message.Content,
 		InputTokens:  response.Usage.PromptTokens,
 		OutputTokens: response.Usage.CompletionTokens,
+		CachedTokens: response.Usage.PromptTokensDetails.CachedTokens,
 	}, nil
 }
