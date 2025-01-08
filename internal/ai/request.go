@@ -31,9 +31,9 @@ type APIResponse struct {
 		} `json:"message"`
 	} `json:"choices"`
 	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		TotalTokens         int `json:"total_tokens"`
 		PromptTokensDetails struct {
 			CachedTokens int `json:"cached_tokens"`
 		} `json:"prompt_tokens_details"`
@@ -42,18 +42,6 @@ type APIResponse struct {
 			AcceptedPredictionTokens int `json:"accepted_prediction_tokens"`
 			RejectedPredictionTokens int `json:"rejected_prediction_tokens"`
 		} `json:"completion_tokens_details"`
-	} `json:"usage"`
-}
-
-// AnthropicResponse represents Anthropic's specific response format
-type AnthropicResponse struct {
-	Content []struct {
-		Text string `json:"text"`
-		Type string `json:"type"`
-	} `json:"content"`
-	Usage struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
 	} `json:"usage"`
 }
 

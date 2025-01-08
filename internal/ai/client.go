@@ -95,7 +95,7 @@ func NewClient(infoProviders *InfoProviders) (*Client, error) {
 		return nil, fmt.Errorf("unsupported provider: %s", model.Provider)
 	}
 
-	provider, err := NewProvider(model, apiKey)
+	provider, err := NewProvider(model, apiKey, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
