@@ -1,27 +1,29 @@
 package coder
 
 import (
-    "context"
-    "testing"
-    "github.com/y0ug/ai-helper/internal/ai"
+	"context"
+	"testing"
+
+	"github.com/y0ug/ai-helper/internal/ai"
 )
 
 type mockModel struct {
-    responses []string
-    current   int
+	responses []string
+	current   int
 }
 
 func (m *mockModel) SendMessages(messages []ai.Message) (*ai.Response, error) {
-    resp := m.responses[m.current]
-    m.current++
-    return &ai.Response{Content: resp}, nil
+	resp := m.responses[m.current]
+	m.current++
+	return &ai.Response{Content: resp}, nil
 }
 
 func TestService_ProcessRequest(t *testing.T) {
-    mockModel := &mockModel{
-        responses: []string{
-            "Analysis: Need to update the print statement",
-            `test.py
+	ctx := context.Background()
+	mockModel := &mockModel{
+		responses: []string{
+			"Analysis: Need to update the print statement",
+			`test.py
 ` + "```" + `python
 <<<<<<< SEARCH
 print("hello")
