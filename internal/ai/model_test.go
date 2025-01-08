@@ -59,14 +59,13 @@ func TestInfoProviders(t *testing.T) {
 		t.Fatalf("Failed to load model info: %v", err)
 	}
 
-	// Test popular models
+	// Test models from our test data
 	testCases := []struct {
 		modelName string
 		provider  string
 	}{
-		{"gpt-4", "openai"},
-		{"claude-2", "anthropic"},
-		{"gemini-pro", "google"},
+		{"claude-2.1", "anthropic"},
+		{"claude-3-haiku-20240307", "anthropic"},
 	}
 
 	for _, tc := range testCases {

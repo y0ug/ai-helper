@@ -58,9 +58,9 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 		{
 			name:     "Empty Model",
 			model:    "",
-			apiKey:   "test-key",
+			apiKey:   "",
 			wantErr:  true,
-			provider: "",
+			provider: "invalid",
 		},
 		{
 			name:     "Empty API Key",
