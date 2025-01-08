@@ -3,7 +3,7 @@ package coder
 import (
     "context"
     "testing"
-    "github.com/yourusername/yourproject/internal/ai"
+    "github.com/y0ug/ai-helper/internal/ai"
 )
 
 type mockModel struct {
