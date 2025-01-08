@@ -61,7 +61,7 @@ func (t *InfoProviders) Clear() error {
 
 	// Clear the in-memory cache
 	t.infos = make(map[string]Info)
-	
+
 	// Reset the last update time
 	t.lastUpdate = time.Time{}
 
@@ -69,7 +69,7 @@ func (t *InfoProviders) Clear() error {
 	infoPath := filepath.Join(t.configDir, ".config", "ai-helper", t.infoFile)
 	if _, err := os.Stat(infoPath); err == nil {
 		if err := os.Remove(infoPath); err != nil {
-			return fmt.Errorf("failed to remove pricing file: %w", err)
+			return fmt.Errorf("failed to remove info file: %w", err)
 		}
 	}
 
