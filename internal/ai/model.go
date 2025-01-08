@@ -56,6 +56,24 @@ func NewInfoProviders(configDir string) *InfoProviders {
 }
 
 func (t *InfoProviders) Clear() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Clear the in-memory cache
+	t.infos = make(map[string]Info)
+	
+	// Reset the last update time
+	t.lastUpdate = time.Time{}
+
+	// Delete the cached file if it exists
+	infoPath := filepath.Join(t.configDir, ".config", "ai-helper", t.infoFile)
+	if _, err := os.Stat(infoPath); err == nil {
+		if err := os.Remove(infoPath); err != nil {
+			return fmt.Errorf("failed to remove pricing file: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (t *InfoProviders) Load() error {
