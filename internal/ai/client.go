@@ -26,7 +26,7 @@ type Client struct {
 
 // CreateAgent creates a new Agent instance and registers it with the client
 func (c *Client) CreateAgent(id string) *Agent {
-	agent := NewAgent(id, c.model)
+	agent := NewAgent(id, c.model, c)
 	c.agents[id] = agent
 	return agent
 }
@@ -42,7 +42,7 @@ func (c *Client) GetAgent(id string) (*Agent, error) {
 
 // GenerateForAgent generates a response using the agent's conversation history
 func (c *Client) GenerateForAgent(agent *Agent, command string) (Response, error) {
-	resp, err := c.GenerateWithMessages(agent.GetMessages(), command, "")
+	resp, err := c.GenerateWithMessages(agent.GetMessages(), command)
 	if err != nil {
 		return Response{}, err
 	}
@@ -117,14 +117,13 @@ func (c *Client) Generate(prompt string, system string, command string) (Respons
 		messages = append(messages, Message{Role: "system", Content: system})
 	}
 	messages = append(messages, Message{Role: "user", Content: prompt})
-	return c.GenerateWithMessages(messages, command, system)
+	return c.GenerateWithMessages(messages, command)
 }
 
 // GenerateWithMessages sends a conversation history to the AI model and returns the response
 func (c *Client) GenerateWithMessages(
 	messages []Message,
 	command string,
-	system string,
 ) (Response, error) {
 	resp, err := c.provider.GenerateResponse(messages)
 	if err != nil {

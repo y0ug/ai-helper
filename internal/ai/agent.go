@@ -28,8 +28,9 @@ type AgentState struct {
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
-	ID                string               // Unique identifier for this agent/session
-	Model             *Model               // The AI model being used
+	ID                string // Unique identifier for this agent/session
+	Model             *Model // The AI model being used
+	Client            *Client
 	Messages          []Message            // Conversation history
 	Command           *config.Command      // Current active command
 	TemplateData      *prompt.TemplateData // Data for template processing
@@ -113,10 +114,11 @@ func (a *Agent) ApplyCommand(input string) error {
 }
 
 // NewAgent creates a new Agent instance
-func NewAgent(id string, model *Model) *Agent {
+func NewAgent(id string, model *Model, client *Client) *Agent {
 	now := time.Now()
 	return &Agent{
 		ID:           id,
+		Client:       client,
 		Model:        model,
 		Messages:     make([]Message, 0),
 		TemplateData: prompt.NewTemplateData(""),
