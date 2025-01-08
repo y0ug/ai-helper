@@ -41,3 +41,21 @@ func TestCoder_Integration(t *testing.T) {
 func main() {
 	println("hello")
 }
+ =======
+ func main() {
+     println("hello world")
+ }
+ >>>>>>> REPLACE
+ ` + "```"}, nil)
+
+	// Create coder instance
+	coder := New(agent)
+
+	// Test request
+	resp, err := coder.RequestChange(context.Background(), "Update the print message", files)
+
+	// Assertions
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Contains(t, resp.ModifiedFiles["test.go"], "hello world")
+}
