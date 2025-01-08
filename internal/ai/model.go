@@ -19,21 +19,30 @@ type Model struct {
 }
 
 type Info struct {
-	MaxTokens                       int     `json:"max_tokens"`
-	MaxInputTokens                  int     `json:"max_input_tokens"`
-	MaxOutputTokens                 int     `json:"max_output_tokens"`
-	InputCostPerToken               float64 `json:"input_cost_per_token"`
-	OutputCostPerToken              float64 `json:"output_cost_per_token"`
-	LiteLLMProvider                 string  `json:"litellm_provider"`
-	Mode                            string  `json:"mode"`
-	SupportsFunctionCalling         bool    `json:"supports_function_calling"`
-	SupportsParallelFunctionCalling bool    `json:"supports_parallel_function_calling"`
-	SupportsVision                  bool    `json:"supports_vision"`
-	SupportsAudioInput              bool    `json:"supports_audio_input"`
-	SupportsAudioOutput             bool    `json:"supports_audio_output"`
-	SupportsPromptCaching           bool    `json:"supports_prompt_caching"`
-	SupportsResponseSchema          bool    `json:"supports_response_schema"`
-	SupportsSystemMessages          bool    `json:"supports_system_messages"`
+	// Required fields that should always be present
+	MaxTokens          int     `json:"max_tokens"`
+	MaxInputTokens     int     `json:"max_input_tokens"`
+	MaxOutputTokens    int     `json:"max_output_tokens"`
+	InputCostPerToken  float64 `json:"input_cost_per_token"`
+	OutputCostPerToken float64 `json:"output_cost_per_token"`
+	LiteLLMProvider    string  `json:"litellm_provider"`
+	Mode               string  `json:"mode"`
+
+	// Optional fields
+	CacheCreationInputTokenCost float64 `json:"cache_creation_input_token_cost,omitempty"`
+	CacheReadInputTokenCost     float64 `json:"cache_read_input_token_cost,omitempty"`
+	ToolUseSystemPromptTokens   int     `json:"tool_use_system_prompt_tokens,omitempty"`
+
+	// Optional feature flags
+	SupportsFunctionCalling         bool `json:"supports_function_calling,omitempty"`
+	SupportsParallelFunctionCalling bool `json:"supports_parallel_function_calling,omitempty"`
+	SupportsVision                  bool `json:"supports_vision,omitempty"`
+	SupportsAudioInput             bool `json:"supports_audio_input,omitempty"`
+	SupportsAudioOutput            bool `json:"supports_audio_output,omitempty"`
+	SupportsPromptCaching          bool `json:"supports_prompt_caching,omitempty"`
+	SupportsResponseSchema         bool `json:"supports_response_schema,omitempty"`
+	SupportsSystemMessages         bool `json:"supports_system_messages,omitempty"`
+	SupportsAssistantPrefill       bool `json:"supports_assistant_prefill,omitempty"`
 }
 
 type (

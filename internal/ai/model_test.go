@@ -15,22 +15,31 @@ func TestInfoProviders(t *testing.T) {
 
 	// Write minimal valid JSON data
 	testData := `{
-		"gpt-4": {
-			"max_tokens": 8192,
-			"max_input_tokens": 8192,
+		"claude-2.1": {
+			"max_tokens": 8191,
+			"max_input_tokens": 200000,
+			"max_output_tokens": 8191,
+			"input_cost_per_token": 0.000008,
+			"output_cost_per_token": 0.000024,
+			"litellm_provider": "anthropic",
+			"mode": "chat"
+		},
+		"claude-3-haiku-20240307": {
+			"max_tokens": 4096,
+			"max_input_tokens": 200000,
 			"max_output_tokens": 4096,
-			"input_cost_per_token": 0.00003,
-			"output_cost_per_token": 0.00006,
-			"litellm_provider": "openai",
+			"input_cost_per_token": 0.00000025,
+			"output_cost_per_token": 0.00000125,
+			"cache_creation_input_token_cost": 0.0000003,
+			"cache_read_input_token_cost": 0.00000003,
+			"litellm_provider": "anthropic",
 			"mode": "chat",
 			"supports_function_calling": true,
-			"supports_parallel_function_calling": false,
-			"supports_vision": false,
-			"supports_audio_input": false,
-			"supports_audio_output": false,
-			"supports_prompt_caching": false,
-			"supports_response_schema": false,
-			"supports_system_messages": true
+			"supports_vision": true,
+			"tool_use_system_prompt_tokens": 264,
+			"supports_assistant_prefill": true,
+			"supports_prompt_caching": true,
+			"supports_response_schema": true
 		}
 	}`
 
