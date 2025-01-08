@@ -14,30 +14,57 @@ import (
 
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
-	ID               string               `json:"id"`
-	ModelName        string               `json:"model"`
-	Messages         []Message            `json:"messages"`
-	Command          *config.Command      `json:"command,omitempty"`
-	TemplateData     *prompt.TemplateData `json:"-"` // Skip normal JSON marshaling
-	CreatedAt        time.Time            `json:"created_at"`
-	UpdatedAt        time.Time            `json:"updated_at"`
-	TotalInputTokens  int                 `json:"total_input_tokens"`
-	TotalOutputTokens int                 `json:"total_output_tokens"`
-	TotalCost        float64              `json:"total_cost"`
+	ID                string               `json:"id"`
+	ModelName         string               `json:"model"`
+	Messages          []Message            `json:"messages"`
+	Command           *config.Command      `json:"command,omitempty"`
+	TemplateData      *prompt.TemplateData `json:"-"` // Skip normal JSON marshaling
+	CreatedAt         time.Time            `json:"created_at"`
+	UpdatedAt         time.Time            `json:"updated_at"`
+	TotalInputTokens  int                  `json:"total_input_tokens"`
+	TotalOutputTokens int                  `json:"total_output_tokens"`
+	TotalCost         float64              `json:"total_cost"`
 }
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
-	ID               string               // Unique identifier for this agent/session
-	Model            *Model               // The AI model being used
-	Messages         []Message            // Conversation history
-	Command          *config.Command      // Current active command
-	TemplateData     *prompt.TemplateData // Data for template processing
-	CreatedAt        time.Time            // When the agent was created
-	UpdatedAt        time.Time            // Last time the agent was updated
-	TotalInputTokens  int                 // Total tokens used in inputs
-	TotalOutputTokens int                 // Total tokens used in outputs
-	TotalCost        float64              // Total cost accumulated
+	ID                string               // Unique identifier for this agent/session
+	Model             *Model               // The AI model being used
+	Messages          []Message            // Conversation history
+	Command           *config.Command      // Current active command
+	TemplateData      *prompt.TemplateData // Data for template processing
+	CreatedAt         time.Time            // When the agent was created
+	UpdatedAt         time.Time            // Last time the agent was updated
+	TotalInputTokens  int                  // Total tokens used in inputs
+	TotalOutputTokens int                  // Total tokens used in outputs
+	TotalCost         float64              // Total cost accumulated
+}
+
+// MarshalJSON implements custom JSON marshaling for AgentState
+func (s AgentState) MarshalJSON() ([]byte, error) {
+	type Alias AgentState // Create alias to avoid recursion
+
+	// Create sanitized copy of template data
+	sanitizedData := *s.TemplateData
+	sanitizedData.Env = make(map[string]string)
+
+	// Copy environment vars, censoring those ending with _API_KEY
+	for k, v := range s.TemplateData.Env {
+		if strings.HasSuffix(strings.ToUpper(k), "_API_KEY") {
+			sanitizedData.Env[k] = "********"
+		} else {
+			sanitizedData.Env[k] = v
+		}
+	}
+
+	// Use the alias type with our sanitized data
+	return json.Marshal(&struct {
+		Alias
+		TemplateData *prompt.TemplateData `json:"template_data"`
+	}{
+		Alias:        Alias(s),
+		TemplateData: &sanitizedData,
+	})
 }
 
 // LoadCommand loads a command configuration into the agent
@@ -111,16 +138,16 @@ func (a *Agent) Save() error {
 	}
 
 	state := AgentState{
-		ID:               a.ID,
-		ModelName:        a.Model.String(),
-		Messages:         a.Messages,
-		Command:          a.Command,
-		TemplateData:     a.TemplateData,
-		CreatedAt:        a.CreatedAt,
-		UpdatedAt:        time.Now(),
+		ID:                a.ID,
+		ModelName:         a.Model.String(),
+		Messages:          a.Messages,
+		Command:           a.Command,
+		TemplateData:      a.TemplateData,
+		CreatedAt:         a.CreatedAt,
+		UpdatedAt:         time.Now(),
 		TotalInputTokens:  a.TotalInputTokens,
 		TotalOutputTokens: a.TotalOutputTokens,
-		TotalCost:        a.TotalCost,
+		TotalCost:         a.TotalCost,
 	}
 
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -134,33 +161,6 @@ func (a *Agent) Save() error {
 	}
 
 	return nil
-}
-
-// MarshalJSON implements custom JSON marshaling for AgentState
-func (s AgentState) MarshalJSON() ([]byte, error) {
-	type Alias AgentState // Create alias to avoid recursion
-	
-	// Create sanitized copy of template data
-	sanitizedData := *s.TemplateData
-	sanitizedData.Environment = make(map[string]string)
-	
-	// Copy environment vars, censoring those ending with _API_KEY
-	for k, v := range s.TemplateData.Environment {
-		if strings.HasSuffix(strings.ToUpper(k), "_API_KEY") {
-			sanitizedData.Environment[k] = "********"
-		} else {
-			sanitizedData.Environment[k] = v
-		}
-	}
-
-	// Use the alias type with our sanitized data
-	return json.Marshal(&struct {
-		Alias
-		TemplateData *prompt.TemplateData `json:"template_data"`
-	}{
-		Alias:        Alias(s),
-		TemplateData: &sanitizedData,
-	})
 }
 
 // Load restores the agent's state from a JSON file
@@ -182,16 +182,16 @@ func LoadAgent(id string, model *Model) (*Agent, error) {
 	}
 
 	agent := &Agent{
-		ID:               state.ID,
-		Model:            model,
-		Messages:         state.Messages,
-		Command:          state.Command,
-		TemplateData:     state.TemplateData,
-		CreatedAt:        state.CreatedAt,
-		UpdatedAt:        state.UpdatedAt,
+		ID:                state.ID,
+		Model:             model,
+		Messages:          state.Messages,
+		Command:           state.Command,
+		TemplateData:      state.TemplateData,
+		CreatedAt:         state.CreatedAt,
+		UpdatedAt:         state.UpdatedAt,
 		TotalInputTokens:  state.TotalInputTokens,
 		TotalOutputTokens: state.TotalOutputTokens,
-		TotalCost:        state.TotalCost,
+		TotalCost:         state.TotalCost,
 	}
 
 	return agent, nil

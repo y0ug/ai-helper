@@ -50,6 +50,7 @@ func (c *Client) GenerateForAgent(agent *Agent, command string) (Response, error
 	// Add the assistant's response to the agent's history
 	agent.AddMessage("assistant", resp.Content)
 
+	agent.UpdateCosts(&resp)
 	return resp, nil
 }
 
