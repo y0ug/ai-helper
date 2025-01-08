@@ -323,3 +323,19 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+func generateBashCompletion() string {
+	return `_ai_helper() {
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-output -config -stats -list -v -completion -show-prompt -files -version -i"
+
+    if [[ ${cur} == -* ]] ; then
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+        return 0
+    fi
+}
+complete -F _ai_helper ai-helper`
+}
