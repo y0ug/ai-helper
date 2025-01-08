@@ -14,6 +14,7 @@ const (
 	EnvOpenAIAPIKey     = "OPENAI_API_KEY"
 	EnvOpenRouterAPIKey = "OPENROUTER_API_KEY"
 	EnvGeminiAPIKey     = "GEMINI_API_KEY"
+	EnvDeepSeekAPIKey   = "DEEPSEEK_API_KEY"
 )
 
 // Client handles AI model interactions

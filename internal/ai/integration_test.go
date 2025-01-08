@@ -40,6 +40,12 @@ func TestIntegrationRequests(t *testing.T) {
 			provider: "gemini",
 			prompt:   "Say hello in exactly 5 words.",
 		},
+		{
+			name:     "DeepSeek Integration",
+			model:    "deepseek/deepseek-chat",
+			provider: "deepseek",
+			prompt:   "Say hello in exactly 5 words.",
+		},
 	}
 
 	for _, tt := range tests {

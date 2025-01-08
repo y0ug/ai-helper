@@ -13,6 +13,7 @@ const (
 	openRouterAPIURL = "https://openrouter.ai/api/v1/chat/completions"
 	openAIAPIURL     = "https://api.openai.com/v1/chat/completions"
 	geminiAPIURL     = "https://generativelanguage.googleapis.com/v1beta/models"
+	deepSeekAPIURL   = "https://api.deepseek.com/v1/chat/completions"
 )
 
 // Provider represents an AI service provider
@@ -211,6 +212,8 @@ func NewProvider(model *Model, apiKey string) (Provider, error) {
 		return NewOpenAIProvider(model.Name, apiKey)
 	case "gemini":
 		return NewGeminiProvider(model.Name, apiKey)
+	case "deepseek":
+		return NewDeepSeekProvider(model.Name, apiKey)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", model.Provider)
 	}
@@ -300,6 +303,76 @@ func (p *AnthropicProvider) GenerateResponse(messages []Message) (Response, erro
 		Content:      response.Content[0].Text,
 		InputTokens:  response.Usage.InputTokens,
 		OutputTokens: response.Usage.OutputTokens,
+	}, nil
+}
+
+// DeepSeekProvider implements the Provider interface for DeepSeek's API
+type DeepSeekProvider struct {
+	model  string
+	apiKey string
+	client *http.Client
+}
+
+func NewDeepSeekProvider(model, apiKey string) (*DeepSeekProvider, error) {
+	return &DeepSeekProvider{
+		model:  model,
+		apiKey: apiKey,
+		client: &http.Client{},
+	}, nil
+}
+
+func (p *DeepSeekProvider) GenerateResponse(messages []Message) (Response, error) {
+	req := struct {
+		Model    string    `json:"model"`
+		Messages []Message `json:"messages"`
+	}{
+		Model:    p.model,
+		Messages: messages,
+	}
+
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		return Response{Error: fmt.Errorf("failed to marshal request: %w", err)}, nil
+	}
+
+	httpReq, err := http.NewRequest("POST", deepSeekAPIURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return Response{Error: fmt.Errorf("failed to create request: %w", err)}, nil
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return Response{Error: fmt.Errorf("failed to send request: %w", err)}, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return Response{
+			Error: fmt.Errorf(
+				"API request failed with status %d: %s",
+				resp.StatusCode,
+				string(body),
+			),
+		}, nil
+	}
+
+	var response APIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return Response{Error: fmt.Errorf("failed to decode response: %w", err)}, nil
+	}
+
+	if len(response.Choices) == 0 {
+		return Response{Error: fmt.Errorf("empty response from API")}, nil
+	}
+
+	return Response{
+		Content:      response.Choices[0].Message.Content,
+		InputTokens:  response.Usage.PromptTokens,
+		OutputTokens: response.Usage.CompletionTokens,
 	}, nil
 }
 

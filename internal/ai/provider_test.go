@@ -42,6 +42,13 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 			provider: "gemini",
 		},
 		{
+			name:     "DeepSeek Provider",
+			model:    "deepseek/deepseek-chat",
+			apiKey:   "test-deepseek-key",
+			wantErr:  false,
+			provider: "deepseek",
+		},
+		{
 			name:     "Invalid Provider",
 			model:    "invalid/model",
 			apiKey:   "test-key",
@@ -107,6 +114,7 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 	os.Unsetenv(EnvAnthropicAPIKey)
 	os.Unsetenv(EnvOpenAIAPIKey)
 	os.Unsetenv(EnvOpenRouterAPIKey)
+	os.Unsetenv(EnvDeepSeekAPIKey)
 }
 
 func TestModelParsing(t *testing.T) {
