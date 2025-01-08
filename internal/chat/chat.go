@@ -13,9 +13,10 @@ import (
 )
 
 type ChatHistory struct {
-	Messages []ai.Message `json:"messages"`
-	Date     time.Time   `json:"date"`
-	Model    string      `json:"model"`
+	SessionID string       `json:"session_id"`
+	Messages  []ai.Message `json:"messages"`
+	Date      time.Time   `json:"date"`
+	Model     string      `json:"model"`
 }
 
 type Chat struct {
@@ -24,6 +25,11 @@ type Chat struct {
 	messages     []ai.Message
 	historyFile  string
 	historyCache []ChatHistory
+	sessionID    string
+}
+
+func generateSessionID() string {
+	return fmt.Sprintf("%x", time.Now().UnixNano())
 }
 
 func NewChat(client *ai.Client, model string) (*Chat, error) {
@@ -50,6 +56,7 @@ func NewChat(client *ai.Client, model string) (*Chat, error) {
 		return nil, fmt.Errorf("failed to load history: %w", err)
 	}
 
+	chat.sessionID = generateSessionID()
 	return chat, nil
 }
 
@@ -67,9 +74,10 @@ func (c *Chat) loadHistory() error {
 func (c *Chat) saveHistory() error {
 	if len(c.messages) > 0 {
 		history := ChatHistory{
-			Messages: c.messages,
-			Date:     time.Now(),
-			Model:    c.model,
+			SessionID: c.sessionID,
+			Messages:  c.messages,
+			Date:      time.Now(),
+			Model:     c.model,
 		}
 		c.historyCache = append([]ChatHistory{history}, c.historyCache...)
 
@@ -94,6 +102,9 @@ func (c *Chat) Start() error {
 	fmt.Println("  /clear       - Clear current conversation")
 	fmt.Println("  /history     - Show chat history")
 	fmt.Println("  /load N      - Load conversation N from history")
+	fmt.Println("  /sessions    - List active sessions")
+	fmt.Println("  /resume ID   - Resume session by ID")
+	fmt.Printf("\nSession ID: %s\n", c.sessionID)
 	fmt.Print("\n> ")
 
 	for {
@@ -166,7 +177,7 @@ func (c *Chat) handleCommand(cmd string) error {
 			if len(preview) > 60 {
 				preview = preview[:57] + "..."
 			}
-			fmt.Printf("%d: [%s] %s\n", i, h.Date.Format("2006-01-02 15:04"), preview)
+			fmt.Printf("%d: [%s] (Session: %s) %s\n", i, h.Date.Format("2006-01-02 15:04"), h.SessionID, preview)
 		}
 	case "/load":
 		if len(parts) != 2 {
@@ -182,6 +193,36 @@ func (c *Chat) handleCommand(cmd string) error {
 		c.messages = make([]ai.Message, len(c.historyCache[index].Messages))
 		copy(c.messages, c.historyCache[index].Messages)
 		fmt.Println("Loaded conversation from history.")
+	case "/sessions":
+		fmt.Println("\nActive Sessions:")
+		sessions := make(map[string]time.Time)
+		for _, h := range c.historyCache {
+			if _, exists := sessions[h.SessionID]; !exists {
+				sessions[h.SessionID] = h.Date
+			}
+		}
+		for id, date := range sessions {
+			fmt.Printf("%s: Last active %s\n", id, date.Format("2006-01-02 15:04"))
+		}
+	case "/resume":
+		if len(parts) != 2 {
+			return fmt.Errorf("usage: /resume SESSION_ID")
+		}
+		sessionID := parts[1]
+		var found bool
+		for _, h := range c.historyCache {
+			if h.SessionID == sessionID {
+				c.messages = make([]ai.Message, len(h.Messages))
+				copy(c.messages, h.Messages)
+				c.sessionID = sessionID
+				found = true
+				fmt.Printf("Resumed session %s\n", sessionID)
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("session not found: %s", sessionID)
+		}
 	default:
 		return fmt.Errorf("unknown command: %s", cmd)
 	}
