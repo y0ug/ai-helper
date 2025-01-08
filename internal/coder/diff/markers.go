@@ -1,9 +1,9 @@
 package diff
 
 const (
-	SearchMarker    = "<<<<<<<<< SEARCH"
-	ReplaceMarker   = ">>>>>>>>> REPLACE"
-	SeparatorMarker = "========="
+	SearchMarker    = "<<<<<<< SEARCH"
+	ReplaceMarker   = ">>>>>>> REPLACE"
+	SeparatorMarker   = "======="
 )
 
 type Section struct {

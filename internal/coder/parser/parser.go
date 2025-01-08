@@ -13,7 +13,7 @@ type Parser struct {
 
 func New() *Parser {
 	return &Parser{
-		fileBlockRegex: regexp.MustCompile(`(?m)^([^\n]+)\n\x60\x60\x60(\w*)\n(.*?)\n\x60\x60\x60`),
+		fileBlockRegex: regexp.MustCompile(`(?m)^([^\n]+)\n<source>(\w*)\n(.*?)\n</source>`),
 	}
 }
 

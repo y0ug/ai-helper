@@ -15,6 +15,6 @@ func TestParser_ParseResponse(t *testing.T) {
         {
             name: "simple replacement",
             response: `test.py
-` + "```" + `python
+<source>python
 <<<<<<< SEARCH
 print('hello')
