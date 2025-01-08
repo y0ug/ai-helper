@@ -5,23 +5,12 @@ import (
 	"testing"
 
 	"github.com/y0ug/ai-helper/internal/ai"
+	"go.uber.org/mock/gomock"
 )
 
-type mockClient struct {
-	responses []string
-	current   int
-}
-
-func (m *mockClient) GenerateWithMessages(
-	messages []ai.Message,
-	command string,
-) (*ai.Response, error) {
-	resp := m.responses[m.current]
-	m.current++
-	return &ai.Response{Content: resp}, nil
-}
-
 func TestService_ProcessRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	tests := []struct {
 		name     string
 		files    map[string]string
@@ -70,6 +59,22 @@ new code
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create mock client
+			mockClient := ai.NewMockAIClient(ctrl)
+			
+			// Setup expected calls
+			for _, resp := range tt.mockResp {
+				mockClient.EXPECT().
+					GenerateWithMessages(gomock.Any(), gomock.Any()).
+					Return(ai.Response{Content: resp}, nil)
+			}
+
+			// Create mock agent
+			agent := &ai.Agent{
+				Client:   mockClient,
+				Messages: []ai.Message{},
+			}
+
 			s := NewService()
 			got, err := s.ProcessRequest(context.Background(), agent, tt.request, tt.files)
 
