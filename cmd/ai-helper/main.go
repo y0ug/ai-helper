@@ -197,7 +197,7 @@ func main() {
 			}
 		}
 
-		chatSession, err := chat.NewChat(client, "gpt-4")
+		chatSession, err := chat.NewChat(client)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing chat: %v\n", err)
 			os.Exit(1)

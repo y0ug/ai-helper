@@ -30,36 +30,35 @@ type SessionStats struct {
 
 type Chat struct {
 	client       *ai.Client
-	model        string
-	messages     []ai.Message
+	agent        *ai.Agent
 	historyFile  string
 	historyCache []ChatHistory
-	sessionID    string
 	stats        SessionStats
-	systemPrompt string
 }
 
 func generateSessionID() string {
 	return fmt.Sprintf("%x", time.Now().UnixNano())
 }
 
-func NewChat(client *ai.Client, model string) (*Chat, error) {
+func NewChat(client *ai.Client) (*Chat, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cache directory: %w", err)
 	}
 
-	// Create ai-helper cache directory if it doesn't exist
 	aiHelperCache := filepath.Join(cacheDir, "ai-helper")
 	if err := os.MkdirAll(aiHelperCache, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
 	historyFile := filepath.Join(aiHelperCache, "chat_history.json")
+	sessionID := generateSessionID()
+	
+	agent := client.CreateAgent(sessionID)
 
 	chat := &Chat{
 		client:      client,
-		model:       model,
+		agent:       agent,
 		historyFile: historyFile,
 	}
 
@@ -67,7 +66,6 @@ func NewChat(client *ai.Client, model string) (*Chat, error) {
 		return nil, fmt.Errorf("failed to load history: %w", err)
 	}
 
-	chat.sessionID = generateSessionID()
 	return chat, nil
 }
 
@@ -83,25 +81,24 @@ func (c *Chat) loadHistory() error {
 }
 
 func (c *Chat) SetSystemPrompt(prompt string) {
-	c.systemPrompt = prompt
+	if prompt != "" {
+		c.agent.AddSystemMessage(prompt)
+	}
 }
 
 func (c *Chat) SetInitialPrompt(prompt string) {
 	if prompt != "" {
-		c.messages = append(c.messages, ai.Message{
-			Role:    "user",
-			Content: prompt,
-		})
+		c.agent.AddMessage("user", prompt)
 	}
 }
 
 func (c *Chat) saveHistory() error {
-	if len(c.messages) > 0 {
+	if len(c.agent.Messages) > 0 {
 		history := ChatHistory{
-			SessionID: c.sessionID,
-			Messages:  c.messages,
+			SessionID: c.agent.ID,
+			Messages:  c.agent.Messages,
 			Date:      time.Now(),
-			Model:     c.model,
+			Model:     c.agent.Model.String(),
 		}
 		c.historyCache = append([]ChatHistory{history}, c.historyCache...)
 
@@ -157,29 +154,17 @@ func (c *Chat) Start() error {
 			continue
 		}
 
-		// Add user message
-		c.messages = append(c.messages, ai.Message{
-			Role:    "user",
-			Content: input,
-		})
+		// Add user message to agent
+		c.agent.AddMessage("user", input)
 
-		// Prepare messages for context
-		messages := make([]ai.Message, len(c.messages))
-		copy(messages, c.messages)
-
-		// Get response using full conversation history
-		resp, err := c.client.GenerateWithMessages(messages, "chat", c.systemPrompt)
+		// Generate response using the agent
+		resp, err := c.client.GenerateForAgent(c.agent, "chat")
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			fmt.Print("\n> ")
 			continue
 		}
 
-		// Add assistant response
-		c.messages = append(c.messages, ai.Message{
-			Role:    "assistant",
-			Content: resp.Content,
-		})
 
 		fmt.Printf("\n%s\n", resp.Content)
 		// Update session stats
