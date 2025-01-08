@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/y0ug/ai-helper/internal/ai"
+	"github.com/y0ug/ai-helper/internal/chat"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/stats"
