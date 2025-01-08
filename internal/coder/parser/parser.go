@@ -37,45 +37,31 @@ func (p *Parser) ParseResponse(response string) []diff.Section {
 }
 
 func (p *Parser) parseSection(filename, language, content string) *diff.Section {
-	lines := strings.Split(content, "\n")
-	var searchLines, replaceLines []string
-	mode := ""
-
-	hasSearchMarker := false
-	hasReplaceMarker := false
-
-	for _, line := range lines {
-		switch {
-		case strings.HasPrefix(line, diff.SearchMarker):
-			mode = "search"
-			hasSearchMarker = true
-			continue
-		case strings.HasPrefix(line, diff.SeparatorMarker):
-			mode = ""
-			continue
-		case strings.HasPrefix(line, diff.ReplaceMarker):
-			mode = "replace"
-			hasReplaceMarker = true
-			continue
-		}
-
-		switch mode {
-		case "search":
-			searchLines = append(searchLines, line)
-		case "replace":
-			replaceLines = append(replaceLines, line)
-		}
-	}
-
-	// Only create a section if we have both markers
-	if !hasSearchMarker || !hasReplaceMarker {
+	searchStart := strings.Index(content, diff.SearchMarker)
+	if searchStart == -1 {
 		return nil
 	}
 
+	separatorStart := strings.Index(content, diff.SeparatorMarker)
+	if separatorStart == -1 {
+		return nil
+	}
+
+	replaceStart := strings.Index(content, diff.ReplaceMarker)
+	if replaceStart == -1 {
+		return nil
+	}
+
+	// Extract the search block (between SEARCH marker and separator)
+	searchBlock := strings.TrimSpace(content[searchStart+len(diff.SearchMarker):separatorStart])
+
+	// Extract the replace block (between separator and REPLACE marker)
+	replaceBlock := strings.TrimSpace(content[separatorStart+len(diff.SeparatorMarker):replaceStart])
+
 	return &diff.Section{
 		Filename:     filename,
-		SearchBlock:  strings.Join(searchLines, "\n"),
-		ReplaceBlock: strings.Join(replaceLines, "\n"),
+		SearchBlock:  searchBlock,
+		ReplaceBlock: replaceBlock,
 		Language:     language,
 	}
 }
