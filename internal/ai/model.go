@@ -42,7 +42,6 @@ type (
 		mu            sync.RWMutex
 		infos         Infos
 		infoURL       string
-		infoFile      string
 		cacheFile     string
 		lastUpdate    time.Time
 		cacheDuration time.Duration
@@ -53,7 +52,6 @@ func NewInfoProviders(infoFilePath string) (*InfoProviders, error) {
 	info := &InfoProviders{
 		infos:         make(map[string]Info),
 		infoURL:       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-		infoFile:      "model_prices_and_context_window.json",
 		cacheFile:     infoFilePath,
 		cacheDuration: 24 * time.Hour,
 	}
@@ -186,8 +184,6 @@ func (t *InfoProviders) downloadInfo(infoPath string) error {
 func (t *InfoProviders) GetModelInfo(modelName string) (*Info, error) {
 	// Try the full model name first
 	if data, ok := t.infos[modelName]; ok {
-		fmt.Println("data", data)
-		fmt.Println("modelName", modelName)
 		return &data, nil
 	}
 
