@@ -88,8 +88,14 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 				os.Setenv(EnvDeepSeekAPIKey, tt.apiKey)
 			}
 
+			// Parse and create model
+			model, err := ParseModel(tt.model, nil)
+			if err != nil {
+				t.Fatalf("Failed to parse model: %v", err)
+			}
+
 			// Create new client
-			client, err := NewClient(nil, nil)
+			client, err := NewClient(model, nil)
 
 			// Check error cases
 			if tt.wantErr {

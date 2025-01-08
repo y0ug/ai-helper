@@ -6,13 +6,37 @@ import (
 )
 
 func TestInfoProviders(t *testing.T) {
-	// Create a temporary file for testing
+	// Create a temporary file with valid test data
 	tmpFile, err := os.CreateTemp("", "model_info_*.json")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+
+	// Write minimal valid JSON data
+	testData := `{
+		"gpt-4": {
+			"max_tokens": 8192,
+			"max_input_tokens": 8192,
+			"max_output_tokens": 4096,
+			"input_cost_per_token": 0.00003,
+			"output_cost_per_token": 0.00006,
+			"litellm_provider": "openai",
+			"mode": "chat",
+			"supports_function_calling": true,
+			"supports_parallel_function_calling": false,
+			"supports_vision": false,
+			"supports_audio_input": false,
+			"supports_audio_output": false,
+			"supports_prompt_caching": false,
+			"supports_response_schema": false,
+			"supports_system_messages": true
+		}
+	}`
+
+	if err := os.WriteFile(tmpFile.Name(), []byte(testData), 0644); err != nil {
+		t.Fatalf("Failed to write test data: %v", err)
+	}
 
 	// Initialize InfoProviders with temp file
 	providers, err := NewInfoProviders(tmpFile.Name())
