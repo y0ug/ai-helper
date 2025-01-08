@@ -36,22 +36,19 @@ type Info struct {
 }
 
 type InfoProviders struct {
-	mu            sync.RWMutex
-	infos         map[string]Info
-	lastUpdate    time.Time
-	infoURL       string
-	infoFile      string
-	configDir     string
-	cacheDuration time.Duration
+	mu         sync.RWMutex
+	infos      map[string]Info
+	infoURL    string
+	infoFile   string
+	cacheFile  string
 }
 
-func NewInfoProviders(configDir string) *InfoProviders {
+func NewInfoProviders(infoFilePath string) *InfoProviders {
 	return &InfoProviders{
-		infos:         make(map[string]Info),
-		infoURL:       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-		infoFile:      "model_prices_and_context_window.json",
-		cacheDuration: 24 * time.Hour,
-		configDir:     configDir,
+		infos:    make(map[string]Info),
+		infoURL:  "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+		infoFile: "model_prices_and_context_window.json",
+		cacheFile: infoFilePath,
 	}
 }
 
@@ -62,14 +59,12 @@ func (t *InfoProviders) Clear() error {
 	// Clear the in-memory cache
 	t.infos = make(map[string]Info)
 
-	// Reset the last update time
-	t.lastUpdate = time.Time{}
-
 	// Delete the cached file if it exists
-	infoPath := filepath.Join(t.configDir, ".config", "ai-helper", t.infoFile)
-	if _, err := os.Stat(infoPath); err == nil {
-		if err := os.Remove(infoPath); err != nil {
-			return fmt.Errorf("failed to remove info file: %w", err)
+	if t.cacheFile != "" {
+		if _, err := os.Stat(t.cacheFile); err == nil {
+			if err := os.Remove(t.cacheFile); err != nil {
+				return fmt.Errorf("failed to remove info file: %w", err)
+			}
 		}
 	}
 
@@ -80,54 +75,64 @@ func (t *InfoProviders) Load() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// configDir, _ := os.UserHomeDir()
-	infoPath := filepath.Join(t.configDir, ".config", "ai-helper", t.infoFile)
-
-	// Check if we need to update the pricing file
-	needsUpdate := true
-	if info, err := os.Stat(infoPath); err == nil {
-		t.lastUpdate = info.ModTime()
-		if time.Since(t.lastUpdate) < t.cacheDuration {
-			needsUpdate = false
-		}
+	// If no cache file is specified, just download fresh data
+	if t.cacheFile == "" {
+		return t.downloadToMemory()
 	}
 
-	if needsUpdate {
-		if err := t.downloadInfo(infoPath); err != nil {
-			return fmt.Errorf("failed to download pricing: %w", err)
+	// Try to load from cache file first
+	if _, err := os.Stat(t.cacheFile); err == nil {
+		data, err := os.ReadFile(t.cacheFile)
+		if err != nil {
+			return fmt.Errorf("failed to read info file: %w", err)
 		}
+
+		if err := json.Unmarshal(data, &t.infos); err != nil {
+			return fmt.Errorf("failed to parse info data: %w", err)
+		}
+		return nil
 	}
 
-	data, err := os.ReadFile(infoPath)
+	// If cache file doesn't exist, download and save it
+	return t.downloadInfo(t.cacheFile)
+}
+
+func (t *InfoProviders) downloadToMemory() error {
+	resp, err := http.Get(t.infoURL)
 	if err != nil {
-		return fmt.Errorf("failed to read pricing file: %w", err)
+		return fmt.Errorf("failed to download info data: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download info data: status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read info data: %w", err)
 	}
 
 	if err := json.Unmarshal(data, &t.infos); err != nil {
-		return fmt.Errorf("failed to parse pricing data: %w", err)
+		return fmt.Errorf("failed to parse info data: %w", err)
 	}
 
 	return nil
 }
 
 func (t *InfoProviders) downloadInfo(infoPath string) error {
-	resp, err := http.Get(t.infoURL)
-	if err != nil {
-		return fmt.Errorf("failed to download pricing data: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download pricing data: status %d", resp.StatusCode)
+	if err := t.downloadToMemory(); err != nil {
+		return err
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	// Save to cache file
+	data, err := json.Marshal(t.infos)
 	if err != nil {
-		return fmt.Errorf("failed to read pricing data: %w", err)
+		return fmt.Errorf("failed to marshal info data: %w", err)
 	}
 
 	if err := os.WriteFile(infoPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write pricing file: %w", err)
+		return fmt.Errorf("failed to write info file: %w", err)
 	}
 
 	return nil
