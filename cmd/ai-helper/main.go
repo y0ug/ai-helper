@@ -242,6 +242,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create an agent for this command
+	agent := client.CreateAgent(command)
+
 	// Prepare input configuration
 	var inputTypes []string
 	var fallbackCmd string
@@ -265,74 +268,49 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 			os.Exit(1)
 		}
+		agent.TemplateData.Input = input
 	}
 
-	// Load prompt and system prompt content and variables
-	promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading prompt: %v\n", err)
+	// Load command configuration into agent
+	if err := agent.LoadCommand(&cmd); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading command: %v\n", err)
 		os.Exit(1)
-	}
-
-	// Prepare template data
-	templateData := prompt.NewTemplateData(input)
-	templateData.LoadEnvironment()
-
-	// Collect files to load
-	var filesToLoad []string
-	fileSet := make(map[string]bool)
-
-	// Add files from config
-	for _, filepath := range cmd.Files {
-		fileSet[filepath] = true
 	}
 
 	// Add files from command line flag
 	if *attachFiles != "" {
-		for _, filepath := range strings.Split(*attachFiles, ",") {
-			fileSet[strings.TrimSpace(filepath)] = true
+		additionalFiles := strings.Split(*attachFiles, ",")
+		for _, filepath := range additionalFiles {
+			filepath = strings.TrimSpace(filepath)
+			if err := agent.TemplateData.LoadFiles([]string{filepath}); err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading additional file %s: %v\n", filepath, err)
+				os.Exit(1)
+			}
 		}
 	}
 
-	// Convert set to slice
-	for filepath := range fileSet {
-		filesToLoad = append(filesToLoad, filepath)
-	}
-
-	// Load files
-	if err := templateData.LoadFiles(filesToLoad); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading files: %v\n", err)
+	// Apply the command with input
+	if err := agent.ApplyCommand(input); err != nil {
+		fmt.Fprintf(os.Stderr, "Error applying command: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Add variables from command config
-	for k, v := range vars {
-		templateData.Vars[k] = v
-	}
-
-	// Execute templates
-	promptResult, err := prompt.Execute(promptContent, templateData)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error executing prompt template: %v\n", err)
-		os.Exit(1)
-	}
-
-	var systemResult string
-	if systemContent != "" {
-		systemResult, err = prompt.Execute(systemContent, templateData)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
-	// If show-prompt flag is set, print the prompt and exit
+	// If show-prompt flag is set, print the last user message and exit
 	if *showPrompt {
-		fmt.Println(promptResult)
-		os.Exit(0)
+		if len(agent.Messages) > 0 {
+			for i := len(agent.Messages) - 1; i >= 0; i-- {
+				if agent.Messages[i].Role == "user" {
+					fmt.Println(agent.Messages[i].Content)
+					os.Exit(0)
+				}
+			}
+		}
+		fmt.Fprintln(os.Stderr, "No prompt found in agent messages")
+		os.Exit(1)
 	}
 
-	resp, err := client.Generate(promptResult, systemResult, command)
+	// Generate response using the agent
+	resp, err := client.GenerateForAgent(agent, command)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
 		os.Exit(1)
