@@ -73,13 +73,13 @@ test new
 		{
 			name: "backtick syntax - single file",
 			response: `test.go
- ` + "```" + `go
- <<<<<<< SEARCH
- old code
- =======
- new code
- >>>>>>> REPLACE
- ` + "```" + ``,
+` + "```" + `go
+<<<<<<< SEARCH
+old code
+=======
+new code
+>>>>>>> REPLACE
+` + "```" + ``,
 			want: []diff.Section{
 				{
 					Filename:     "test.go",
@@ -92,21 +92,21 @@ test new
 		{
 			name: "mixed syntax - source and backticks",
 			response: `main.go
- <source>go
- <<<<<<< SEARCH
- func old() {}
- =======
- func new() {}
- >>>>>>> REPLACE
- </source>
- test.go
- ` + "```" + `go
- <<<<<<< SEARCH
- test old
- =======
- test new
- >>>>>>> REPLACE
- ` + "```" + ``,
+<source>go
+<<<<<<< SEARCH
+func old() {}
+=======
+func new() {}
+>>>>>>> REPLACE
+</source>
+test.go
+` + "```" + `go
+<<<<<<< SEARCH
+test old
+=======
+test new
+>>>>>>> REPLACE
+` + "```" + ``,
 			want: []diff.Section{
 				{
 					Filename:     "main.go",

@@ -41,7 +41,7 @@ type AgentState struct {
 type Agent struct {
 	ID                string // Unique identifier for this agent/session
 	Model             *Model // The AI model being used
-	Client            *Client
+	Client            AIClient
 	Messages          []Message            // Conversation history
 	Command           *config.Command      // Current active command
 	TemplateData      *prompt.TemplateData // Data for template processing

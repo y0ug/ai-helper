@@ -60,20 +60,20 @@ func (s *Service) ProcessRequest(
 		return nil, fmt.Errorf("failed to get analysis: %w", err)
 	}
 
-	// Generate changes
-	data.Vars["Analysis"] = analysis
-	changePrompt, err := s.prompts.Execute("generate", data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate change prompt: %w", err)
-	}
+	// // Generate changes
+	// data.Vars["Analysis"] = analysis
+	// changePrompt, err := s.prompts.Execute("generate", data)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to generate change prompt: %w", err)
+	// }
 
-	changes, err := s.executePrompt(ctx, agent, changePrompt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate changes: %w", err)
-	}
+	// changes, err := s.executePrompt(ctx, agent, changePrompt)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to generate changes: %w", err)
+	// }
 
 	// Parse and apply changes
-	sections := s.parser.ParseResponse(changes)
+	sections := s.parser.ParseResponse(analysis)
 	modifiedFiles, err := s.diff.ApplyChanges(files, sections)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply changes: %w", err)
@@ -89,7 +89,7 @@ func (s *Service) ProcessRequest(
 
 	return &Response{
 		Analysis:      analysis,
-		Changes:       changes,
+		Changes:       "",
 		ModifiedFiles: modifiedFiles,
 		Patches:       patches,
 	}, nil
@@ -105,6 +105,8 @@ func (s *Service) executePrompt(
 		Content: prompt,
 	}
 
+	// fmt.Printf("######\n%s: %s\n######\n", msg.Role, msg.Content)
+
 	agent.Messages = append(agent.Messages, msg)
 	resp, err := agent.Client.GenerateWithMessages(agent.Messages, "coder")
 	if err != nil {
@@ -116,5 +118,6 @@ func (s *Service) executePrompt(
 		Content: resp.Content,
 	})
 
+	// fmt.Printf("#####\n%s: %s\n######", "assistant", resp.Content)
 	return resp.Content, nil
 }

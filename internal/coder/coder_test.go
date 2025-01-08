@@ -25,7 +25,11 @@ func TestCoder_Integration(t *testing.T) {
 
 	// Test files
 	files := map[string]string{
-		"test.go": "package main\n\nfunc main() {\n\tprintln(\"hello\")\n}",
+		"test.go": `package main
+
+func main() {
+  println("hello")
+}`,
 	}
 
 	// Expected responses from AI
@@ -36,26 +40,28 @@ func TestCoder_Integration(t *testing.T) {
 	mockClient.EXPECT().
 		GenerateWithMessages(gomock.Any(), gomock.Any()).
 		Return(ai.Response{Content: `test.go
-` + "```" + `go
+<source>go
 <<<<<<< SEARCH
 func main() {
-	println("hello")
+  println("hello")
 }
- =======
- func main() {
-     println("hello world")
- }
- >>>>>>> REPLACE
- ` + "```"}, nil)
+=======
+func main() {
+  println("hello world")
+}
+>>>>>>> REPLACE
+</source>`}, nil)
 
 	// Create coder instance with template data
 	coder := New(agent)
-	coder.SetTemplateData(map[string]string{
-		"test.go": "package main\n\nfunc main() {\n\tprintln(\"hello\")\n}",
-	})
+	coder.SetTemplateData(files)
 
 	// Test request
-	resp, err := coder.RequestChange(context.Background(), "Update the print message", files)
+	resp, err := coder.RequestChange(
+		context.Background(),
+		"Update the print from hello to \"hello world\"",
+		files,
+	)
 
 	// Assertions
 	assert.NoError(t, err)

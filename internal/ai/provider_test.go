@@ -94,8 +94,8 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 			defer ctrl.Finish()
 
 			// Create mock client
-			mockClient := NewMockAIClient(ctrl)
-			
+			_ = NewMockAIClient(ctrl)
+
 			// Create new client
 			client, err := NewClient(model, nil)
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/ai"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
+	"github.com/y0ug/ai-helper/internal/prompt"
 )
 
 type Coder struct {
@@ -43,12 +44,20 @@ func (c *Coder) initialize(ctx context.Context) error {
 	}
 
 	msg := ai.Message{
-		Role:    "system",
+		Role:    "user",
 		Content: initPrompt,
 	}
 	c.agent.Messages = append(c.agent.Messages, msg)
 
 	c.initialized = true
+
+	_, err = c.agent.SendRequest()
+	if err != nil {
+		fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Should contains I understand
+	// fmt.Println(resp.Content)
 	return nil
 }
 

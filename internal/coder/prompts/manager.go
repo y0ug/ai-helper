@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/y0ug/ai-helper/internal/prompt"
 )
@@ -20,6 +21,10 @@ func NewManager() *Manager {
 	return &Manager{
 		templates: make(map[string]string),
 	}
+}
+
+func ResetTemplatesFS() {
+	_, _ = template.ParseFS(templateFS, "templates/analyze.tmpl", "templates/init.tmpl")
 }
 
 func (m *Manager) LoadTemplates() error {

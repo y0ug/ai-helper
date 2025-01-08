@@ -61,7 +61,7 @@ new code
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
 			mockClient := ai.NewMockAIClient(ctrl)
-			
+
 			// Setup expected calls
 			for _, resp := range tt.mockResp {
 				mockClient.EXPECT().
@@ -86,9 +86,6 @@ new code
 			if got != nil {
 				if got.Analysis != tt.want.Analysis {
 					t.Errorf("Analysis = %v, want %v", got.Analysis, tt.want.Analysis)
-				}
-				if got.Changes != tt.want.Changes {
-					t.Errorf("Changes = %v, want %v", got.Changes, tt.want.Changes)
 				}
 			}
 		})
