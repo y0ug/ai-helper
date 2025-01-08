@@ -31,6 +31,13 @@ func main() {
 	interactiveMode := flag.Bool("i", false, "Interactive chat mode")
 	flag.Parse()
 
+	// Create AI client early as it's needed for multiple features
+	client, err := ai.NewClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Handle version display
 	if *showVersion {
 		fmt.Printf("ai-helper version %s\n", version.Version)
@@ -41,12 +48,12 @@ func main() {
 
 	// Handle interactive mode
 	if *interactiveMode {
-		chat, err := chat.NewChat(client, "gpt-4")
+		chatSession, err := chat.NewChat(client, "gpt-4")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing chat: %v\n", err)
 			os.Exit(1)
 		}
-		if err := chat.Start(); err != nil {
+		if err := chatSession.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error in chat mode: %v\n", err)
 			os.Exit(1)
 		}
@@ -191,12 +198,6 @@ func main() {
 		}
 	}
 
-	// Create AI client
-	client, err := ai.NewClient()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
-		os.Exit(1)
-	}
 
 	// Load prompt content and variables
 	promptContent, vars, err := config.LoadPromptContent(cmd)

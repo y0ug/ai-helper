@@ -129,11 +129,6 @@ func (c *Chat) Start() error {
 		})
 
 		// Get response
-		req := &ai.Request{
-			Model:    c.model,
-			Messages: c.messages,
-		}
-
 		resp, err := c.client.Generate(input, "chat")
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
