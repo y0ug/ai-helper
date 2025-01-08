@@ -122,7 +122,9 @@ func (t *InfoProviders) Load() error {
 
 	var infos Infos
 	if err := json.Unmarshal(data, &infos); err != nil {
-		return fmt.Errorf("failed to parse info data: %w", err)
+		// Download and save fresh data
+		fmt.Fprintf(os.Stderr, "failed to parse info data: %s\ndownloading again the file\n", err)
+		return t.downloadInfo(t.cacheFile)
 	}
 
 	t.infos = infos

@@ -141,7 +141,7 @@ func (a *Agent) Save() error {
 
 	state := AgentState{
 		ID:                a.ID,
-		ModelName:         a.Model.String(),
+		ModelName:         a.Model.Name,
 		Messages:          a.Messages,
 		Command:           a.Command,
 		TemplateData:      a.TemplateData,

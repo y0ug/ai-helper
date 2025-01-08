@@ -86,9 +86,9 @@ func (c *Client) GenerateWithMessages(
 	}
 
 	// Calculate cost using model info
-	if c.model.info != nil {
-		inputCost := float64(resp.InputTokens) * c.model.info.InputCostPerToken
-		outputCost := float64(resp.OutputTokens) * c.model.info.OutputCostPerToken
+	if c.model.Info != nil {
+		inputCost := float64(resp.InputTokens) * c.model.Info.InputCostPerToken
+		outputCost := float64(resp.OutputTokens) * c.model.Info.OutputCostPerToken
 		resp.Cost = float64ToPtr(inputCost + outputCost)
 	} else {
 		fmt.Fprintf(os.Stderr, "Warning: no cost info available for model\n")

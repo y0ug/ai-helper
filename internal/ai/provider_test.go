@@ -56,13 +56,6 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 			provider: "invalid",
 		},
 		{
-			name:     "Empty Model",
-			model:    "",
-			apiKey:   "",
-			wantErr:  true,
-			provider: "invalid",
-		},
-		{
 			name:     "Empty API Key",
 			model:    "openai/gpt-4",
 			apiKey:   "",

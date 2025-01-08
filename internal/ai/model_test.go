@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"fmt"
 	"os"
 	"testing"
 )
@@ -15,7 +16,7 @@ func TestInfoProviders(t *testing.T) {
 		defer os.Remove(tmpFile.Name())
 
 		// Write minimal valid JSON data
-	testData := `{
+		testData := `{
 		"claude-2.1": {
 			"max_tokens": 8191,
 			"max_input_tokens": 200000,
@@ -44,59 +45,58 @@ func TestInfoProviders(t *testing.T) {
 		}
 	}`
 
-	if err := os.WriteFile(tmpFile.Name(), []byte(testData), 0644); err != nil {
-		t.Fatalf("Failed to write test data: %v", err)
-	}
+		if err := os.WriteFile(tmpFile.Name(), []byte(testData), 0644); err != nil {
+			t.Fatalf("Failed to write test data: %v", err)
+		}
 
-	// Initialize InfoProviders with temp file
-	providers, err := NewInfoProviders(tmpFile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create InfoProviders: %v", err)
-	}
+		// Initialize InfoProviders with temp file
+		providers, err := NewInfoProviders(tmpFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to create InfoProviders: %v", err)
+		}
 
-	// Test downloading and loading data
-	err = providers.Load()
-	if err != nil {
-		t.Fatalf("Failed to load model info: %v", err)
-	}
+		// Test downloading and loading data
+		err = providers.Load()
+		if err != nil {
+			t.Fatalf("Failed to load model info: %v", err)
+		}
 
-	// Test models from our test data
-	testCases := []struct {
-		modelName string
-		provider  string
-	}{
-		{"claude-2.1", "anthropic"},
-		{"claude-3-haiku-20240307", "anthropic"},
-	}
+		// Test models from our test data
+		testCases := []struct {
+			modelName string
+			provider  string
+		}{
+			{"claude-2.1", "anthropic"},
+			{"claude-3-haiku-20240307", "anthropic"},
+		}
 
-	for _, tc := range testCases {
-		t.Run(tc.modelName, func(t *testing.T) {
-			info, err := providers.GetModelInfo(tc.modelName)
-			if err != nil {
-				t.Errorf("Failed to get info for %s: %v", tc.modelName, err)
-				return
-			}
+		for _, tc := range testCases {
+			t.Run(tc.modelName, func(t *testing.T) {
+				info, err := providers.GetModelInfo(tc.modelName)
+				if err != nil {
+					t.Errorf("Failed to get info for %s: %v", tc.modelName, err)
+					return
+				}
 
-			if info == nil {
-				t.Errorf("Got nil info for %s", tc.modelName)
-				return
-			}
+				if info == nil {
+					t.Errorf("Got nil info for %s", tc.modelName)
+					return
+				}
 
-			// Check that essential fields have non-zero values
-			if info.MaxTokens == 0 {
-				t.Errorf("MaxTokens is 0 for %s", tc.modelName)
-			}
+				// Check that essential fields have non-zero values
+				if info.MaxTokens == 0 {
+					t.Errorf("MaxTokens is 0 for %s", tc.modelName)
+				}
 
-			if info.InputCostPerToken == 0 {
-				t.Errorf("InputCostPerToken is 0 for %s", tc.modelName)
-			}
+				if info.InputCostPerToken == 0 {
+					t.Errorf("InputCostPerToken is 0 for %s", tc.modelName)
+				}
 
-			if info.OutputCostPerToken == 0 {
-				t.Errorf("OutputCostPerToken is 0 for %s", tc.modelName)
-			}
-		})
-	}
-
+				if info.OutputCostPerToken == 0 {
+					t.Errorf("OutputCostPerToken is 0 for %s", tc.modelName)
+				}
+			})
+		}
 	})
 
 	t.Run("Download Integration", func(t *testing.T) {
@@ -105,6 +105,7 @@ func TestInfoProviders(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
+		tmpFile.Close()
 		defer os.Remove(tmpFile.Name())
 
 		// Initialize InfoProviders with temp file
@@ -130,11 +131,11 @@ func TestInfoProviders(t *testing.T) {
 		}{
 			{"gpt-4", "openai"},
 			{"claude-2", "anthropic"},
-			{"gemini-pro", "google"},
+			{"gemini-pro", "vertex_ai-language-models"},
 		}
 
 		for _, model := range knownModels {
-			info, err := providers.GetModelInfo(model.name)
+			info, err := providers.GetModelInfo(fmt.Sprintf("%s/%s", model.provider, model.name))
 			if err != nil {
 				t.Errorf("Failed to get info for %s: %v", model.name, err)
 				continue
