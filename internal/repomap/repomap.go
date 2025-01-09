@@ -1,6 +1,7 @@
 package repomap
 
 import (
+	"embed"
 	"fmt"
 	"log"
 	"math"
@@ -13,38 +14,8 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-const goFunctionQuery = `
-(
-  (comment)* @doc
-  .
-  (function_declaration
-    name: (identifier) @name.definition.function) @definition.function
-  (#strip! @doc "^//\\s*")
-  (#set-adjacent! @doc @definition.function)
-)
-
-(
-  (comment)* @doc
-  .
-  (method_declaration
-    name: (field_identifier) @name.definition.method) @definition.method
-  (#strip! @doc "^//\\s*")
-  (#set-adjacent! @doc @definition.method)
-)
-
-(call_expression
-  function: [
-    (identifier) @name.reference.call
-    (parenthesized_expression (identifier) @name.reference.call)
-    (selector_expression field: (field_identifier) @name.reference.call)
-    (parenthesized_expression (selector_expression field: (field_identifier) @name.reference.call))
-  ]) @reference.call
-
-(type_spec
-  name: (type_identifier) @name.definition.type) @definition.type
-
-(type_identifier) @name.reference.type @reference.type
-`
+//go:embed queries
+var queriesFS embed.FS
 
 type RepoMap struct {
 	defines    map[string]map[string]bool // symbol -> set of files
@@ -178,13 +149,20 @@ func processFile(
 	if !exists {
 		return
 	}
-	var queryStr string
+	queryFile := ""
 	switch ext {
 	case ".go":
-		queryStr = goFunctionQuery
+		queryFile = "queries/tree-sitter-go-tags.scm"
 	default:
 		return
 	}
+
+	queryBytes, err := queriesFS.ReadFile(queryFile)
+	if err != nil {
+		log.Printf("Failed to read query file %s: %v", queryFile, err)
+		return
+	}
+	queryStr := string(queryBytes)
 
 	results, err := executeQuery(content, lang, queryStr)
 	if err != nil {
