@@ -1,6 +1,7 @@
 package repomap
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -24,18 +25,22 @@ func TestTraverseRepo(t *testing.T) {
 	// }
 
 	// Initialize RepoMap and language map
-	repoMap := RepoMap{}
+	rm := NewRepoMap()
 	languageMap := map[string]*tree_sitter.Language{
 		".go": tree_sitter.NewLanguage(treesitter_go.Language()),
 		".js": tree_sitter.NewLanguage(treesitter_javascript.Language()),
 	}
 
 	// Traverse the repository
-	err = traverseRepo("/home/rick/ai-helper/", languageMap, &repoMap)
+	err = traverseRepo("/home/rick/ai-helper/", languageMap, rm)
 	if err != nil {
 		t.Fatalf("Error traversing repo: %v", err)
 	}
-
+	ranked := rm.RankedFiles()
+	fmt.Println("Files by rank:")
+	for _, f := range ranked {
+		fmt.Println(f)
+	}
 	// // Print results for debugging
 	// fmt.Printf("Classes: %+v\n", repoMap.Classes)
 	// fmt.Printf("Functions: %+v\n", repoMap.Functions)

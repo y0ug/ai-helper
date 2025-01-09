@@ -3,10 +3,13 @@ package repomap
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -43,43 +46,30 @@ const goFunctionQuery = `
 (type_identifier) @name.reference.type @reference.type
 `
 
-const jsClassQuery = `
-(class_declaration
-    name: (identifier) @class_name
-    body: (class_body
-        (method_definition
-            name: (property_identifier) @method_name
-            parameters: (formal_parameters) @method_params
-            return_type: (_) @method_return_type)))
-`
-
-type FunctionInfo struct {
-	Name       string
-	Parameters []Parameter
-	ReturnType string
-}
-
-type Parameter struct {
-	Name string
-	Type string
-}
-
-type ClassInfo struct {
-	Name    string
-	Methods []FunctionInfo
-}
-
 type RepoMap struct {
-	Classes   []ClassInfo
-	Functions []FunctionInfo
-	// Add Types, etc., as needed
+	defines    map[string]map[string]bool // symbol -> set of files
+	references map[string][]string        // symbol -> list of referencer files
+}
+
+// Helper constructor
+func NewRepoMap() *RepoMap {
+	return &RepoMap{
+		defines:    make(map[string]map[string]bool),
+		references: make(map[string][]string),
+	}
+}
+
+type CaptureResult struct {
+	CaptureName string
+	Text        string
+	// Optionally add line number, kind, etc.
 }
 
 func executeQuery(
 	sourceCode []byte,
 	lang *tree_sitter.Language,
 	queryStr string,
-) ([]map[string]string, error) {
+) ([]CaptureResult, error) {
 	parser := tree_sitter.NewParser()
 	parser.SetLanguage(lang)
 	defer parser.Close()
@@ -95,95 +85,66 @@ func executeQuery(
 
 	qc := tree_sitter.NewQueryCursor()
 	defer qc.Close()
+
 	matches := qc.Matches(query, tree.RootNode(), sourceCode)
+
+	var results []CaptureResult
 
 	for match := matches.Next(); match != nil; match = matches.Next() {
 		for _, capture := range match.Captures {
-			fmt.Printf(
-				"Match %d, Capture %d (%s): %s\n",
-				match.PatternIndex,
-				capture.Index,
-				query.CaptureNames()[capture.Index],
-				capture.Node.Utf8Text(sourceCode),
-			)
+			captureName := query.CaptureNames()[capture.Index]
+			text := string(capture.Node.Utf8Text(sourceCode))
+			results = append(results, CaptureResult{
+				CaptureName: captureName,
+				Text:        text,
+			})
 		}
 	}
-	return nil, nil
+	return results, nil
 }
 
-func parseGoParameters(paramStr string) []Parameter {
-	// Implement parsing logic for Go parameters
-	// This can involve using Tree-sitter again or simple string parsing
-	// For simplicity, here's a dummy implementation
-	return []Parameter{
-		{Name: "param1", Type: "int"},
-		{Name: "param2", Type: "string"},
-	}
-}
-
-func cloneRepo(url, directory string) (*git.Repository, error) {
-	repo, err := git.PlainClone(directory, false, &git.CloneOptions{
-		URL:      url,
-		Progress: os.Stdout,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return repo, nil
-}
-
-// func traverseRepo(
-//
-//	    root string,
-//	    languageMap map[string]*tree_sitter.Language,
-//	    repoMap *RepoMap,
-//	) error {
-//	    // Open the repository
-//	    repo, err := git.PlainOpen(root)
-//	    if err != nil {
-//	        return fmt.Errorf("failed to open repository: %w", err)
-//	    }
-//
-//	    // Get the worktree
-//	    wt, err := repo.Worktree()
-//	    if err != nil {
-//	        return fmt.Errorf("failed to get worktree: %w", err)
-//	    }
-//
-//	    // Get the status to find tracked files
-//	    status, err := wt.Status()
-//	    if err != nil {
-//	        return fmt.Errorf("failed to get repository status: %w", err)
-//	    }
-//
-//	    // Process each tracked file
-//	    for filePath, fileStatus := range status {
-//	        // Skip untracked files
-//	        if fileStatus.Worktree == git.Untracked {
-//	            continue
-//	        }
-//
-//	        // Check file extension
-//	        ext := filepath.Ext(filePath)
-//	        lang, exists := languageMap[ext]
-//	        if !exists {
-//	            continue // Skip unsupported file types
-//	        }
-//
-//	        // Read file content
-//	        fullPath := filepath.Join(root, filePath)
-//	        content, err := ioutil.ReadFile(fullPath)
-//	        if err != nil {
-//	            log.Printf("Failed to read file %s: %v", fullPath, err)
-//	            continue
-//	        }
-//
-//	        processFile(fullPath, lang, content, repoMap)
-//	    }
-//
-//	    return nil
-//	}
 func traverseRepo(
+	root string,
+	languageMap map[string]*tree_sitter.Language,
+	repoMap *RepoMap,
+) error {
+	// Open the repository
+	r, err := git.PlainOpen(root)
+	if err != nil {
+		return fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	// Get the head
+	ref, err := r.Head()
+	if err != nil {
+		return fmt.Errorf("failed to get HEAD: %w", err)
+	}
+	commit, err := r.CommitObject(ref.Hash())
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	tree, err := commit.Tree()
+	if err != nil {
+		return fmt.Errorf("failed to get tree: %w", err)
+	}
+
+	tree.Files().ForEach(func(f *object.File) error {
+		// fmt.Printf("100644 blob %s    %s\n", f.Hash, f.Name)
+		relPath := filepath.Join(root, f.Name)
+		content, err := os.ReadFile(relPath)
+		if err != nil {
+			log.Printf("Failed to read file %s: %v", f.Name, err)
+			return nil
+		}
+		processFile(f.Name, languageMap, content, repoMap)
+		return nil
+	})
+
+	return nil
+}
+
+func traversePath(
 	root string,
 	languageMap map[string]*tree_sitter.Language,
 	repoMap *RepoMap,
@@ -195,39 +156,36 @@ func traverseRepo(
 		if info.IsDir() {
 			return nil
 		}
-		ext := filepath.Ext(path)
-		fmt.Println(ext)
-		lang, exists := languageMap[ext]
-		if !exists {
-			return nil // Skip unsupported file types
-		}
+
 		content, err := os.ReadFile(path)
 		if err != nil {
 			log.Printf("Failed to read file %s: %v", path, err)
 			return nil
 		}
-		fmt.Println(path)
-		processFile(path, ext, lang, content, repoMap)
+		processFile(path, languageMap, content, repoMap)
 		return nil
 	})
 }
 
 func processFile(
 	path string,
-	ext string,
-	lang *tree_sitter.Language,
+	languageMap map[string]*tree_sitter.Language,
 	content []byte,
 	repoMap *RepoMap,
 ) {
+	ext := filepath.Ext(path)
+	lang, exists := languageMap[ext]
+	if !exists {
+		return
+	}
 	var queryStr string
 	switch ext {
 	case ".go":
 		queryStr = goFunctionQuery
-	case ".js":
-		queryStr = jsClassQuery
 	default:
 		return
 	}
+
 	results, err := executeQuery(content, lang, queryStr)
 	if err != nil {
 		log.Printf("Query execution failed for file %s: %v", path, err)
@@ -235,20 +193,170 @@ func processFile(
 	}
 
 	for _, res := range results {
-		switch ext {
-		case ".go":
-			funcInfo := FunctionInfo{
-				Name:       res["func_name"],
-				Parameters: parseGoParameters(res["params"]),
-				ReturnType: res["return_type"],
+		switch res.CaptureName {
+		// For Go, e.g. "name.definition.function"
+		case "name.definition.function", "name.definition.method", "name.definition.type":
+			symbol := res.Text
+			if repoMap.defines[symbol] == nil {
+				repoMap.defines[symbol] = make(map[string]bool)
 			}
-			repoMap.Functions = append(repoMap.Functions, funcInfo)
-		case ".js":
-			classInfo := ClassInfo{
-				Name: res["class_name"],
-				// You can similarly extract methods by executing another query or extending the current one
-			}
-			repoMap.Classes = append(repoMap.Classes, classInfo)
+			repoMap.defines[symbol][path] = true
+
+		// For Go, e.g. "name.reference.call"
+		case "name.reference.call", "name.reference.type":
+			symbol := res.Text
+			repoMap.references[symbol] = append(repoMap.references[symbol], path)
 		}
 	}
+}
+
+func (rm *RepoMap) BuildGraph() map[string]map[string]float64 {
+	graph := make(map[string]map[string]float64)
+
+	for symbol, definersMap := range rm.defines {
+		// definersMap is map[fileName]bool
+		// references is []string
+		referencers := rm.references[symbol]
+
+		// Convert definersMap into a slice
+		var definers []string
+		for f := range definersMap {
+			definers = append(definers, f)
+		}
+
+		// Count how many times each file references this symbol
+		freqCount := make(map[string]int)
+		for _, refFile := range referencers {
+			freqCount[refFile]++
+		}
+
+		// Create edges refFile -> defFile with some weighting
+		for refFile, count := range freqCount {
+			// sqrt is optional, just to reduce large counts
+			edgeWeight := math.Sqrt(float64(count))
+
+			for _, defFile := range definers {
+				// skip self-edges if you want
+				if refFile == defFile {
+					continue
+				}
+				if graph[refFile] == nil {
+					graph[refFile] = make(map[string]float64)
+				}
+				graph[refFile][defFile] += edgeWeight
+			}
+		}
+	}
+
+	return graph
+}
+
+func pageRank(
+	graph map[string]map[string]float64,
+	damping float64,
+	maxIter int,
+	tol float64,
+) map[string]float64 {
+	// 1) gather all nodes
+	nodes := make([]string, 0, len(graph))
+	for n := range graph {
+		nodes = append(nodes, n)
+	}
+	// also gather nodes that appear only as targets
+	seenTargets := make(map[string]bool)
+	for _, edges := range graph {
+		for target := range edges {
+			seenTargets[target] = true
+		}
+	}
+	for t := range seenTargets {
+		if _, ok := graph[t]; !ok {
+			graph[t] = make(map[string]float64)
+			nodes = append(nodes, t)
+		}
+	}
+
+	n := float64(len(nodes))
+	rank := make(map[string]float64)
+	for _, node := range nodes {
+		rank[node] = 1.0 / n
+	}
+
+	// 2) precompute out-sum
+	outSum := make(map[string]float64)
+	for src, edges := range graph {
+		var sum float64
+		for _, w := range edges {
+			sum += w
+		}
+		outSum[src] = sum
+	}
+
+	// 3) iterate
+	for i := 0; i < maxIter; i++ {
+		diff := 0.0
+		newRank := make(map[string]float64)
+
+		base := (1 - damping) / n
+		for _, node := range nodes {
+			newRank[node] = base
+		}
+
+		for src, edges := range graph {
+			if len(edges) == 0 {
+				// "sink"
+				for _, node := range nodes {
+					newRank[node] += damping * (rank[src] / n)
+				}
+			} else {
+				for dst, w := range edges {
+					if outSum[src] > 0 {
+						share := damping * (w / outSum[src]) * rank[src]
+						newRank[dst] += share
+					}
+				}
+			}
+		}
+
+		// measure difference
+		for _, node := range nodes {
+			diff += math.Abs(newRank[node] - rank[node])
+		}
+		rank = newRank
+
+		// if close to convergence, stop
+		if diff < tol {
+			break
+		}
+	}
+
+	return rank
+}
+
+func (rm *RepoMap) RankedFiles() []string {
+	graph := rm.BuildGraph()
+	ranks := pageRank(graph, 0.85, 100, 1e-6)
+
+	// Convert to slice for sorting
+	type fs struct {
+		file  string
+		score float64
+	}
+	var results []fs
+	for file, score := range ranks {
+		results = append(results, fs{file, score})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].score > results[j].score
+	})
+
+	// Just return file names in descending rank order
+	rankedFiles := make([]string, len(results))
+	for i, fs := range results {
+		rankedFiles[i] = fs.file
+		// optionally print them
+		fmt.Printf("%s => %.3f\n", fs.file, fs.score)
+	}
+	return rankedFiles
 }
