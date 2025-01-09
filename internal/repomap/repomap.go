@@ -311,6 +311,33 @@ func pageRank(
 	return rank
 }
 
+// Dump prints the contents of the RepoMap for debugging purposes
+func (rm *RepoMap) Dump() {
+	fmt.Println("=== RepoMap Dump ===")
+	
+	fmt.Println("\nDefinitions:")
+	for symbol, files := range rm.defines {
+		fmt.Printf("%s defined in:\n", symbol)
+		for file := range files {
+			fmt.Printf("  - %s\n", file)
+		}
+	}
+
+	fmt.Println("\nReferences:")
+	for symbol, files := range rm.references {
+		fmt.Printf("%s referenced in:\n", symbol)
+		// Count references per file
+		refCount := make(map[string]int)
+		for _, file := range files {
+			refCount[file]++
+		}
+		for file, count := range refCount {
+			fmt.Printf("  - %s (%d times)\n", file, count)
+		}
+	}
+	fmt.Println("==================")
+}
+
 func (rm *RepoMap) RankedFiles() []string {
 	graph := rm.BuildGraph()
 	ranks := pageRank(graph, 0.85, 100, 1e-6)

@@ -36,6 +36,9 @@ func TestTraverseRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error traversing repo: %v", err)
 	}
+	// Dump the repo map contents
+	rm.Dump()
+
 	ranked := rm.RankedFiles()
 	fmt.Println("Files by rank:")
 	for _, f := range ranked {
