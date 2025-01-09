@@ -43,6 +43,33 @@ type DocumentSymbolParams struct {
 	} `json:"textDocument"`
 }
 
+type ReferenceParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Position struct {
+		Line      int `json:"line"`
+		Character int `json:"character"`
+	} `json:"position"`
+	Context struct {
+		IncludeDeclaration bool `json:"includeDeclaration"`
+	} `json:"context"`
+}
+
+type Location struct {
+	URI   string `json:"uri"`
+	Range struct {
+		Start struct {
+			Line      int `json:"line"`
+			Character int `json:"character"`
+		} `json:"start"`
+		End struct {
+			Line      int `json:"line"`
+			Character int `json:"character"`
+		} `json:"end"`
+	} `json:"range"`
+}
+
 type SymbolInformation struct {
 	Name     string `json:"name"`
 	Kind     int    `json:"kind"`
@@ -158,6 +185,21 @@ func (c *Client) DocumentSymbols(ctx context.Context, uri string) ([]SymbolInfor
 	}
 
 	return symbols, nil
+}
+
+func (c *Client) References(ctx context.Context, uri string, line, character int) ([]Location, error) {
+	params := ReferenceParams{}
+	params.TextDocument.URI = uri
+	params.Position.Line = line
+	params.Position.Character = character
+	params.Context.IncludeDeclaration = false
+
+	var locations []Location
+	if err := c.conn.Call(ctx, "textDocument/references", params, &locations); err != nil {
+		return nil, fmt.Errorf("references request failed: %w", err)
+	}
+
+	return locations, nil
 }
 
 func (c *Client) Shutdown(ctx context.Context) error {

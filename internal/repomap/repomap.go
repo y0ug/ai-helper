@@ -390,6 +390,25 @@ func (rm *RepoMap) TraverseWithLSP(root string, serverCmd string, args ...string
 					rm.defines[symbol.Name] = make(map[string]bool)
 				}
 				rm.defines[symbol.Name][path] = true
+
+				// Get references for this symbol
+				refs, err := client.References(ctx, uri, 
+					symbol.Location.Range.Start.Line,
+					symbol.Location.Range.Start.Character)
+				if err != nil {
+					log.Printf("Failed to get references for %s: %v", symbol.Name, err)
+					continue
+				}
+
+				// Add references to the map
+				for _, ref := range refs {
+					// Convert URI to file path
+					refPath := ref.URI
+					if len(refPath) > 7 && refPath[:7] == "file://" {
+						refPath = refPath[7:]
+					}
+					rm.references[symbol.Name] = append(rm.references[symbol.Name], refPath)
+				}
 			}
 		}
 
