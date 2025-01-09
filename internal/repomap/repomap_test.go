@@ -4,10 +4,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-
-	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	treesitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
-	treesitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
 )
 
 func TestTraverseRepo(t *testing.T) {
@@ -25,30 +21,35 @@ func TestTraverseRepo(t *testing.T) {
 	// }
 
 	// Initialize RepoMap and language map
-	rm := NewRepoMap()
-	languageMap := map[string]*tree_sitter.Language{
-		".go": tree_sitter.NewLanguage(treesitter_go.Language()),
-		".js": tree_sitter.NewLanguage(treesitter_javascript.Language()),
-	}
-
-	// Test both traversal methods
-	err = traverseRepo("/home/rick/ai-helper/", languageMap, rm)
-	if err != nil {
-		t.Fatalf("Error traversing repo with tree-sitter: %v", err)
-	}
+	// rm := NewRepoMap()
+	// languageMap := map[string]*tree_sitter.Language{
+	// 	".go": tree_sitter.NewLanguage(treesitter_go.Language()),
+	// 	".js": tree_sitter.NewLanguage(treesitter_javascript.Language()),
+	// }
+	//
+	// // Test both traversal methods
+	// err = traverseRepo("/home/rick/ai-helper/", languageMap, rm)
+	// if err != nil {
+	// 	t.Fatalf("Error traversing repo with tree-sitter: %v", err)
+	// }
 
 	// Test LSP traversal with gopls
-	err = rm.TraverseWithLSP("/home/rick/ai-helper/", "gopls", "serve")
+	rm2 := NewRepoMap()
+	err = rm2.TraverseWithLSP("/home/rick/ai-helper/", "gopls", "serve")
 	if err != nil {
 		t.Fatalf("Error traversing repo: %v", err)
 	}
-	// Dump the repo map contents
-	rm.Dump()
 
-	ranked := rm.RankedFiles()
-	fmt.Println("Files by rank:")
-	for _, f := range ranked {
-		fmt.Println(f)
+	rms := []*RepoMap{rm2}
+	for _, rm := range rms {
+		// Dump the repo map contents
+		rm.Dump()
+
+		ranked := rm.RankedFiles()
+		fmt.Println("Files by rank:")
+		for _, f := range ranked {
+			fmt.Println(f)
+		}
 	}
 	// // Print results for debugging
 	// fmt.Printf("Classes: %+v\n", repoMap.Classes)
