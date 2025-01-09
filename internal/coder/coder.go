@@ -25,10 +25,13 @@ func New(agent *ai.Agent) *Coder {
 	}
 }
 
-// SetTemplateData sets the files map for template processing
+// SetTemplateData sets the template data for prompt processing
+// files is a map of filenames to their contents
 func (c *Coder) SetTemplateData(files map[string]string) {
 	c.templateData = &prompt.TemplateData{
 		Files: files,
+		Env:   make(map[string]string),
+		Vars:  make(map[string]interface{}),
 	}
 }
 
@@ -53,7 +56,7 @@ func (c *Coder) initialize(ctx context.Context) error {
 
 	_, err = c.agent.SendRequest()
 	if err != nil {
-		fmt.Errorf("failed to send request: %w", err)
+		return fmt.Errorf("failed to send request: %w", err)
 	}
 
 	// Should contains I understand
