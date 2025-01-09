@@ -2,22 +2,45 @@ package repomap
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/go-git/go-git/v5"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	treesitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
-	treesitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
 )
 
 const goFunctionQuery = `
-(function_declaration
-    name: (identifier) @func_name
-    parameters: (parameter_list) @params
-    return_type: (type) @return_type)
+(
+  (comment)* @doc
+  .
+  (function_declaration
+    name: (identifier) @name.definition.function) @definition.function
+  (#strip! @doc "^//\\s*")
+  (#set-adjacent! @doc @definition.function)
+)
+
+(
+  (comment)* @doc
+  .
+  (method_declaration
+    name: (field_identifier) @name.definition.method) @definition.method
+  (#strip! @doc "^//\\s*")
+  (#set-adjacent! @doc @definition.method)
+)
+
+(call_expression
+  function: [
+    (identifier) @name.reference.call
+    (parenthesized_expression (identifier) @name.reference.call)
+    (selector_expression field: (field_identifier) @name.reference.call)
+    (parenthesized_expression (selector_expression field: (field_identifier) @name.reference.call))
+  ]) @reference.call
+
+(type_spec
+  name: (type_identifier) @name.definition.type) @definition.type
+
+(type_identifier) @name.reference.type @reference.type
 `
 
 const jsClassQuery = `
@@ -53,33 +76,39 @@ type RepoMap struct {
 }
 
 func executeQuery(
-	content []byte,
-	lang tree_sitter.Language,
+	sourceCode []byte,
+	lang *tree_sitter.Language,
 	queryStr string,
 ) ([]map[string]string, error) {
 	parser := tree_sitter.NewParser()
 	parser.SetLanguage(lang)
-	tree := parser.Parse(content)
+	defer parser.Close()
+
+	tree := parser.Parse(sourceCode, nil)
+	defer tree.Close()
+
 	query, err := tree_sitter.NewQuery(lang, queryStr)
 	if err != nil {
 		return nil, err
 	}
-	queryCursor := tree_sitter.NewQueryCursor()
-	queryCursor.Exec(query, tree.RootNode())
+	defer query.Close()
 
-	var results []map[string]string
-	for {
-		match, ok := queryCursor.NextMatch()
-		if !ok {
-			break
+	qc := tree_sitter.NewQueryCursor()
+	defer qc.Close()
+	matches := qc.Matches(query, tree.RootNode(), sourceCode)
+
+	for match := matches.Next(); match != nil; match = matches.Next() {
+		for _, capture := range match.Captures {
+			fmt.Printf(
+				"Match %d, Capture %d (%s): %s\n",
+				match.PatternIndex,
+				capture.Index,
+				query.CaptureNames()[capture.Index],
+				capture.Node.Utf8Text(sourceCode),
+			)
 		}
-		captures := make(map[string]string)
-		for _, c := range match.Captures {
-			captures[c.Name] = string(c.Node.Content(content))
-		}
-		results = append(results, captures)
 	}
-	return results, nil
+	return nil, nil
 }
 
 func parseGoParameters(paramStr string) []Parameter {
@@ -103,72 +132,102 @@ func cloneRepo(url, directory string) (*git.Repository, error) {
 	return repo, nil
 }
 
+// func traverseRepo(
+//
+//	    root string,
+//	    languageMap map[string]*tree_sitter.Language,
+//	    repoMap *RepoMap,
+//	) error {
+//	    // Open the repository
+//	    repo, err := git.PlainOpen(root)
+//	    if err != nil {
+//	        return fmt.Errorf("failed to open repository: %w", err)
+//	    }
+//
+//	    // Get the worktree
+//	    wt, err := repo.Worktree()
+//	    if err != nil {
+//	        return fmt.Errorf("failed to get worktree: %w", err)
+//	    }
+//
+//	    // Get the status to find tracked files
+//	    status, err := wt.Status()
+//	    if err != nil {
+//	        return fmt.Errorf("failed to get repository status: %w", err)
+//	    }
+//
+//	    // Process each tracked file
+//	    for filePath, fileStatus := range status {
+//	        // Skip untracked files
+//	        if fileStatus.Worktree == git.Untracked {
+//	            continue
+//	        }
+//
+//	        // Check file extension
+//	        ext := filepath.Ext(filePath)
+//	        lang, exists := languageMap[ext]
+//	        if !exists {
+//	            continue // Skip unsupported file types
+//	        }
+//
+//	        // Read file content
+//	        fullPath := filepath.Join(root, filePath)
+//	        content, err := ioutil.ReadFile(fullPath)
+//	        if err != nil {
+//	            log.Printf("Failed to read file %s: %v", fullPath, err)
+//	            continue
+//	        }
+//
+//	        processFile(fullPath, lang, content, repoMap)
+//	    }
+//
+//	    return nil
+//	}
 func traverseRepo(
 	root string,
-	languageMap map[string]tree_sitter.Language,
+	languageMap map[string]*tree_sitter.Language,
 	repoMap *RepoMap,
 ) error {
-	// Open the repository
-	repo, err := git.PlainOpen(root)
-	if err != nil {
-		return fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	// Get the worktree
-	wt, err := repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("failed to get worktree: %w", err)
-	}
-
-	// Get the status to find tracked files
-	status, err := wt.Status()
-	if err != nil {
-		return fmt.Errorf("failed to get repository status: %w", err)
-	}
-
-	// Process each tracked file
-	for filePath, fileStatus := range status {
-		// Skip untracked files
-		if fileStatus.Worktree == git.Untracked {
-			continue
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
-
-		// Check file extension
-		ext := filepath.Ext(filePath)
+		if info.IsDir() {
+			return nil
+		}
+		ext := filepath.Ext(path)
+		fmt.Println(ext)
 		lang, exists := languageMap[ext]
 		if !exists {
-			continue // Skip unsupported file types
+			return nil // Skip unsupported file types
 		}
-
-		// Read file content
-		fullPath := filepath.Join(root, filePath)
-		content, err := ioutil.ReadFile(fullPath)
+		content, err := os.ReadFile(path)
 		if err != nil {
-			log.Printf("Failed to read file %s: %v", fullPath, err)
-			continue
+			log.Printf("Failed to read file %s: %v", path, err)
+			return nil
 		}
-
-		processFile(fullPath, lang, content, repoMap)
-	}
-
-	return nil
+		fmt.Println(path)
+		processFile(path, ext, lang, content, repoMap)
+		return nil
+	})
 }
 
-func processFile(path string, lang tree_sitter.Language, content []byte, repoMap *RepoMap) {
+func processFile(
+	path string,
+	ext string,
+	lang *tree_sitter.Language,
+	content []byte,
+	repoMap *RepoMap,
+) {
 	var queryStr string
-	var language string
-
-	switch lang.Type() {
-	case treesitter_go.GetLanguage().Type():
+	switch ext {
+	case ".go":
 		queryStr = goFunctionQuery
-		language = "go"
-	case treesitter_javascript.GetLanguage().Type():
+	case ".js":
 		queryStr = jsClassQuery
-		language = "javascript"
 	default:
-		return // Unsupported language
+		return
 	}
-
 	results, err := executeQuery(content, lang, queryStr)
 	if err != nil {
 		log.Printf("Query execution failed for file %s: %v", path, err)
@@ -176,15 +235,15 @@ func processFile(path string, lang tree_sitter.Language, content []byte, repoMap
 	}
 
 	for _, res := range results {
-		switch language {
-		case "go":
+		switch ext {
+		case ".go":
 			funcInfo := FunctionInfo{
 				Name:       res["func_name"],
 				Parameters: parseGoParameters(res["params"]),
 				ReturnType: res["return_type"],
 			}
 			repoMap.Functions = append(repoMap.Functions, funcInfo)
-		case "javascript":
+		case ".js":
 			classInfo := ClassInfo{
 				Name: res["class_name"],
 				// You can similarly extract methods by executing another query or extending the current one
