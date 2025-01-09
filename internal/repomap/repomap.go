@@ -1,6 +1,7 @@
 package repomap
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -107,26 +108,50 @@ func traverseRepo(
 	languageMap map[string]tree_sitter.Language,
 	repoMap *RepoMap,
 ) error {
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	// Open the repository
+	repo, err := git.PlainOpen(root)
+	if err != nil {
+		return fmt.Errorf("failed to open repository: %w", err)
+	}
+
+	// Get the worktree
+	wt, err := repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("failed to get worktree: %w", err)
+	}
+
+	// Get the status to find tracked files
+	status, err := wt.Status()
+	if err != nil {
+		return fmt.Errorf("failed to get repository status: %w", err)
+	}
+
+	// Process each tracked file
+	for filePath, fileStatus := range status {
+		// Skip untracked files
+		if fileStatus.Worktree == git.Untracked {
+			continue
 		}
-		if info.IsDir() {
-			return nil
-		}
-		ext := filepath.Ext(path)
+
+		// Check file extension
+		ext := filepath.Ext(filePath)
 		lang, exists := languageMap[ext]
 		if !exists {
-			return nil // Skip unsupported file types
+			continue // Skip unsupported file types
 		}
-		content, err := ioutil.ReadFile(path)
+
+		// Read file content
+		fullPath := filepath.Join(root, filePath)
+		content, err := ioutil.ReadFile(fullPath)
 		if err != nil {
-			log.Printf("Failed to read file %s: %v", path, err)
-			return nil
+			log.Printf("Failed to read file %s: %v", fullPath, err)
+			continue
 		}
-		processFile(path, lang, content, repoMap)
-		return nil
-	})
+
+		processFile(fullPath, lang, content, repoMap)
+	}
+
+	return nil
 }
 
 func processFile(path string, lang tree_sitter.Language, content []byte, repoMap *RepoMap) {
