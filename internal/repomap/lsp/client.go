@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 )
@@ -171,6 +172,9 @@ func (c *Client) Initialize(ctx context.Context, rootURI string) error {
 	if err := c.conn.Notify(ctx, "initialized", nil); err != nil {
 		return fmt.Errorf("initialized notification failed: %w", err)
 	}
+
+	// Wait a bit for the server to be ready
+	time.Sleep(2 * time.Second)
 
 	return nil
 }

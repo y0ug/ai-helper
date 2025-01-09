@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -396,7 +397,9 @@ func (rm *RepoMap) TraverseWithLSP(root string, serverCmd string, args ...string
 					symbol.Location.Range.Start.Line,
 					symbol.Location.Range.Start.Character)
 				if err != nil {
-					log.Printf("Failed to get references for %s: %v", symbol.Name, err)
+					if !strings.Contains(err.Error(), "no identifier found") {
+						log.Printf("Failed to get references for %s: %v", symbol.Name, err)
+					}
 					continue
 				}
 				// fmt.Printf("refs: %d",
