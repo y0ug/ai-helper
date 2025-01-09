@@ -1,17 +1,20 @@
 package repomap
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"log"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	"github.com/y0ug/ai-helper/internal/repomap/lsp"
 )
 
 //go:embed queries
@@ -336,6 +339,64 @@ func (rm *RepoMap) Dump() {
 		}
 	}
 	fmt.Println("==================")
+}
+
+// TraverseWithLSP uses a language server to analyze the codebase
+func (rm *RepoMap) TraverseWithLSP(root string, serverCmd string, args ...string) error {
+	cmd := exec.Command(serverCmd, args...)
+	
+	client, err := lsp.NewClient(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to create LSP client: %w", err)
+	}
+
+	ctx := context.Background()
+	rootURI := "file://" + root
+
+	if err := client.Initialize(ctx, rootURI); err != nil {
+		return fmt.Errorf("failed to initialize LSP server: %w", err)
+	}
+	defer client.Shutdown(ctx)
+
+	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		// Filter files based on extension if needed
+		ext := filepath.Ext(path)
+		if ext != ".go" { // Add more extensions as needed
+			return nil
+		}
+
+		uri := "file://" + path
+		symbols, err := client.DocumentSymbols(ctx, uri)
+		if err != nil {
+			log.Printf("Failed to get symbols for %s: %v", path, err)
+			return nil
+		}
+
+		for _, symbol := range symbols {
+			switch symbol.Kind {
+			case 12: // Function
+				fallthrough
+			case 6:  // Method
+				fallthrough
+			case 5:  // Class/Interface
+				if rm.defines[symbol.Name] == nil {
+					rm.defines[symbol.Name] = make(map[string]bool)
+				}
+				rm.defines[symbol.Name][path] = true
+			}
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 func (rm *RepoMap) RankedFiles() []string {

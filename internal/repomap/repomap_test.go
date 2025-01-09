@@ -31,8 +31,14 @@ func TestTraverseRepo(t *testing.T) {
 		".js": tree_sitter.NewLanguage(treesitter_javascript.Language()),
 	}
 
-	// Traverse the repository
+	// Test both traversal methods
 	err = traverseRepo("/home/rick/ai-helper/", languageMap, rm)
+	if err != nil {
+		t.Fatalf("Error traversing repo with tree-sitter: %v", err)
+	}
+
+	// Test LSP traversal with gopls
+	err = rm.TraverseWithLSP("/home/rick/ai-helper/", "gopls", "serve")
 	if err != nil {
 		t.Fatalf("Error traversing repo: %v", err)
 	}
