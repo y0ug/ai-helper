@@ -410,7 +410,10 @@ func (rm *RepoMap) TraverseWithLSP(root string, serverCmd string, args ...string
 					if len(refPath) > 7 && refPath[:7] == "file://" {
 						refPath = refPath[7:]
 					}
-					rm.references[symbol.Name] = append(rm.references[symbol.Name], refPath)
+					// Skip self-references in the same file
+					if refPath != path {
+						rm.references[symbol.Name] = append(rm.references[symbol.Name], refPath)
+					}
 				}
 			}
 		}

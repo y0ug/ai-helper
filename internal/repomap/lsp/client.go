@@ -207,7 +207,6 @@ func (c *Client) References(
 		return nil, fmt.Errorf("references request failed: %w", err)
 	}
 
-	fmt.Println("locations", locations)
 	return locations, nil
 }
 
