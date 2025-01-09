@@ -35,7 +35,7 @@ func TestTraverseRepo(t *testing.T) {
 
 	// Test LSP traversal with gopls on a single file
 	rm2 := NewRepoMap()
-	err = rm2.TraverseWithLSP("/home/rick/ai-helper/internal/ai/model.go", "gopls", "serve")
+	err = rm2.TraverseWithLSP("/home/rick/ai-helper/", "gopls", "serve")
 	if err != nil {
 		t.Fatalf("Error traversing repo with LSP: %v", err)
 	}
