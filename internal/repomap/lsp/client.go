@@ -30,6 +30,9 @@ type ClientCapabilities struct {
 			DynamicRegistration bool     `json:"dynamicRegistration"`
 			SymbolKind          struct{} `json:"symbolKind"`
 		} `json:"documentSymbol"`
+		References struct {
+			DynamicRegistration bool `json:"dynamicRegistration"`
+		} `json:"references"`
 	} `json:"textDocument"`
 }
 
@@ -174,7 +177,7 @@ func (c *Client) Initialize(ctx context.Context, rootURI string) error {
 	}
 
 	// Wait a bit for the server to be ready
-	time.Sleep(20 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	return nil
 }
@@ -205,6 +208,13 @@ func (c *Client) References(
 	var locations []Location
 	if err := c.conn.Call(ctx, "textDocument/references", params, &locations); err != nil {
 		return nil, fmt.Errorf("references request failed: %w", err)
+	}
+
+	fmt.Printf("References for %s:%d:%d - Found %d locations\n", 
+		uri, line, character, len(locations))
+	for _, loc := range locations {
+		fmt.Printf("  %s:%d:%d\n", loc.URI, 
+			loc.Range.Start.Line, loc.Range.Start.Character)
 	}
 
 	return locations, nil
