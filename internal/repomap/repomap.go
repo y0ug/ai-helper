@@ -399,7 +399,7 @@ func (rm *RepoMap) TraverseWithLSP(root string, serverCmd string, args ...string
 					log.Printf("Failed to get references for %s: %v", symbol.Name, err)
 					continue
 				}
-
+				// fmt.Printf("refs: %d",
 				// Add references to the map
 				for _, ref := range refs {
 					// Convert URI to file path

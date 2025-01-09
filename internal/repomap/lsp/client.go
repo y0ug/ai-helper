@@ -187,7 +187,11 @@ func (c *Client) DocumentSymbols(ctx context.Context, uri string) ([]SymbolInfor
 	return symbols, nil
 }
 
-func (c *Client) References(ctx context.Context, uri string, line, character int) ([]Location, error) {
+func (c *Client) References(
+	ctx context.Context,
+	uri string,
+	line, character int,
+) ([]Location, error) {
 	params := ReferenceParams{}
 	params.TextDocument.URI = uri
 	params.Position.Line = line
@@ -199,6 +203,7 @@ func (c *Client) References(ctx context.Context, uri string, line, character int
 		return nil, fmt.Errorf("references request failed: %w", err)
 	}
 
+	fmt.Println("locations", locations)
 	return locations, nil
 }
 
