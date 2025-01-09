@@ -174,7 +174,7 @@ func (c *Client) Initialize(ctx context.Context, rootURI string) error {
 	}
 
 	// Wait a bit for the server to be ready
-	time.Sleep(2 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	return nil
 }
