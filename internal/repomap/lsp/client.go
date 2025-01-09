@@ -2,9 +2,8 @@ package lsp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
+	"io"
 	"os/exec"
 	"sync"
 
@@ -18,17 +17,17 @@ type Client struct {
 }
 
 type InitializeParams struct {
-	ProcessID             int                `json:"processId"`
-	RootURI              string             `json:"rootUri"`
-	Capabilities         ClientCapabilities `json:"capabilities"`
-	WorkspaceFolders     []WorkspaceFolder  `json:"workspaceFolders"`
+	ProcessID        int                `json:"processId"`
+	RootURI          string             `json:"rootUri"`
+	Capabilities     ClientCapabilities `json:"capabilities"`
+	WorkspaceFolders []WorkspaceFolder  `json:"workspaceFolders"`
 }
 
 type ClientCapabilities struct {
 	TextDocument struct {
 		DocumentSymbol struct {
 			DynamicRegistration bool     `json:"dynamicRegistration"`
-			SymbolKind         struct{} `json:"symbolKind"`
+			SymbolKind          struct{} `json:"symbolKind"`
 		} `json:"documentSymbol"`
 	} `json:"textDocument"`
 }
@@ -59,6 +58,40 @@ type SymbolInformation struct {
 	ContainerName string `json:"containerName,omitempty"`
 }
 
+type StdinStdout struct {
+	io.Reader
+	io.Writer
+}
+
+// Close method can be a no-op or handle actual closing if necessary
+func (s StdinStdout) Close() error {
+	return nil
+}
+
+type StdioStream struct {
+	reader io.Reader
+	writer io.WriteCloser
+	closer io.Closer
+}
+
+func (s *StdioStream) Read(p []byte) (int, error) {
+	return s.reader.Read(p)
+}
+
+func (s *StdioStream) Write(p []byte) (int, error) {
+	return s.writer.Write(p)
+}
+
+func (s *StdioStream) Close() error {
+	if err := s.writer.Close(); err != nil {
+		return err
+	}
+	if closer, ok := s.reader.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
 func NewClient(cmd *exec.Cmd) (*Client, error) {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -73,26 +106,29 @@ func NewClient(cmd *exec.Cmd) (*Client, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start LSP server: %w", err)
 	}
+	streamProcess := &StdioStream{
+		reader: stdout,
+		writer: stdin,
+	}
+	stream := jsonrpc2.NewBufferedStream(streamProcess, jsonrpc2.VSCodeObjectCodec{})
 
-	stream := jsonrpc2.NewBufferedStream(struct {
-		json.Encoder
-		json.Decoder
-	}{
-		Encoder: *json.NewEncoder(stdin),
-		Decoder: *json.NewDecoder(stdout),
-	}, jsonrpc2.VSCodeObjectCodec{})
-
-	conn := jsonrpc2.NewConn(context.Background(), stream, jsonrpc2.HandlerWithError(func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (interface{}, error) {
-		return nil, nil
-	}))
+	conn := jsonrpc2.NewConn(
+		context.Background(),
+		stream,
+		jsonrpc2.HandlerWithError(
+			func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request) (interface{}, error) {
+				return nil, nil
+			},
+		),
+	)
 
 	return &Client{conn: conn}, nil
 }
 
 func (c *Client) Initialize(ctx context.Context, rootURI string) error {
 	params := InitializeParams{
-		ProcessID: 1,
-		RootURI:   rootURI,
+		ProcessID:    1,
+		RootURI:      rootURI,
 		Capabilities: ClientCapabilities{},
 		WorkspaceFolders: []WorkspaceFolder{{
 			URI:  rootURI,
