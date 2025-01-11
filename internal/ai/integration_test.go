@@ -35,9 +35,16 @@ func TestIntegrationRequests(t *testing.T) {
 			prompt:   "Say hello in exactly 5 words.",
 		},
 		{
-			name:     "Gemini Integration",
-			model:    "gemini/gemini-pro",
+			name:  "Gemini Integration",
+			model: "gemini/gemini-pro",
+			// model:    "gemini/gemini-exp-1206",
 			provider: "gemini",
+			prompt:   "Say hello in exactly 5 words.",
+		},
+		{
+			name:     "DeepSeek Integration",
+			model:    "deepseek/deepseek-chat",
+			provider: "deepseek",
 			prompt:   "Say hello in exactly 5 words.",
 		},
 	}
@@ -55,22 +62,34 @@ func TestIntegrationRequests(t *testing.T) {
 				apiKey = os.Getenv(EnvOpenRouterAPIKey)
 			case "gemini":
 				apiKey = os.Getenv(EnvGeminiAPIKey)
+			case "deepseek":
+				apiKey = os.Getenv(EnvDeepSeekAPIKey)
 			}
 			if apiKey == "" {
 				t.Skipf("Skipping %s test: no API key set", tt.provider)
 			}
 
 			// Set up environment
-			os.Setenv(EnvAIModel, tt.model)
+			infoProviders, err := NewInfoProviders("")
+			if err != nil {
+				t.Fatalf("Failed to create info providers: %v", err)
+			}
+			model, err := ParseModel(tt.model, infoProviders)
+			if err != nil {
+				t.Fatalf("Failed to get model info: %v", err)
+			}
 
 			// Create client
-			client, err := NewClient()
+			client, err := NewClient(model, nil)
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}
 
 			// Send request
-			response, err := client.Generate(tt.prompt, "test")
+			response, err := client.GenerateWithMessages(
+				[]Message{*NewUserMessage(tt.prompt)},
+				"test",
+			)
 			if err != nil {
 				t.Fatalf("Failed to generate response: %v", err)
 			}

@@ -3,6 +3,7 @@ package ai
 // Request represents an AI generation request
 type Request struct {
 	Model    string    `json:"model"`
+	System   string    `json:"system,omitempty"`
 	Messages []Message `json:"messages"`
 }
 
@@ -12,12 +13,20 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+func NewUserMessage(content string) *Message {
+	return &Message{
+		Role:    "user",
+		Content: content,
+	}
+}
+
 // Response represents an AI generation response
 type Response struct {
 	Content      string
 	InputTokens  int
 	OutputTokens int
-	Cost         float64
+	CachedTokens int
+	Cost         *float64
 	Error        error
 }
 
@@ -29,21 +38,17 @@ type APIResponse struct {
 		} `json:"message"`
 	} `json:"choices"`
 	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
-}
-
-// AnthropicResponse represents Anthropic's specific response format
-type AnthropicResponse struct {
-	Content []struct {
-		Text string `json:"text"`
-		Type string `json:"type"`
-	} `json:"content"`
-	Usage struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		PromptTokens        int `json:"prompt_tokens"`
+		CompletionTokens    int `json:"completion_tokens"`
+		TotalTokens         int `json:"total_tokens"`
+		PromptTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
+		CompletionTokensDetails struct {
+			ReasoningTokens          int `json:"reasoning_tokens"`
+			AcceptedPredictionTokens int `json:"accepted_prediction_tokens"`
+			RejectedPredictionTokens int `json:"rejected_prediction_tokens"`
+		} `json:"completion_tokens_details"`
 	} `json:"usage"`
 }
 

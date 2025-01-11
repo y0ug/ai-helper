@@ -8,6 +8,7 @@ A powerful command-line tool for seamless interaction with AI providers (OpenAI,
   - OpenAI (GPT-3.5, GPT-4)
   - Anthropic (Claude)
   - Google (Gemini)
+  - DeepSeek (Chat)
   - OpenRouter (unified access to multiple models)
 - ⚙️ Rich Configuration
   - YAML and JSON support
@@ -152,13 +153,14 @@ Required environment variables:
 # Choose your AI provider/model
 export AI_MODEL="openai/gpt-3.5-turbo"  # or "openai/gpt-4", "anthropic/claude-3-sonnet-20241022", 
                                        # "google/gemini-pro", "google/gemini-exp-1206",
-                                       # "openrouter/anthropic/claude-2"
+                                       # "deepseek/chat", "openrouter/anthropic/claude-2"
 
 # Set API keys for your chosen provider
 export OPENAI_API_KEY="your-key"        # For OpenAI
 export ANTHROPIC_API_KEY="your-key"     # For Anthropic
 export GOOGLE_API_KEY="your-key"        # For Google Gemini
 export OPENROUTER_API_KEY="your-key"    # For OpenRouter
+export DEEPSEEK_API_KEY="your-key"      # For DeepSeek
 ```
 
 ## Shell Completion

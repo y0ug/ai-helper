@@ -3,6 +3,8 @@ package ai
 import (
 	"os"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 )
 
 func TestProviderEnvironmentVariables(t *testing.T) {
@@ -42,18 +44,18 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 			provider: "gemini",
 		},
 		{
+			name:     "DeepSeek Provider",
+			model:    "deepseek/deepseek-chat",
+			apiKey:   "test-deepseek-key",
+			wantErr:  false,
+			provider: "deepseek",
+		},
+		{
 			name:     "Invalid Provider",
 			model:    "invalid/model",
 			apiKey:   "test-key",
 			wantErr:  true,
 			provider: "invalid",
-		},
-		{
-			name:     "Empty Model",
-			model:    "",
-			apiKey:   "test-key",
-			wantErr:  true,
-			provider: "",
 		},
 		{
 			name:     "Empty API Key",
@@ -77,10 +79,25 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 				os.Setenv(EnvOpenRouterAPIKey, tt.apiKey)
 			case "gemini":
 				os.Setenv(EnvGeminiAPIKey, tt.apiKey)
+			case "deepseek":
+				os.Setenv(EnvDeepSeekAPIKey, tt.apiKey)
 			}
 
+			// Parse and create model
+			model, err := ParseModel(tt.model, nil)
+			if err != nil {
+				t.Fatalf("Failed to parse model: %v", err)
+			}
+
+			// Setup mock controller
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			// Create mock client
+			_ = NewMockAIClient(ctrl)
+
 			// Create new client
-			client, err := NewClient()
+			client, err := NewClient(model, nil)
 
 			// Check error cases
 			if tt.wantErr {
@@ -107,6 +124,7 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 	os.Unsetenv(EnvAnthropicAPIKey)
 	os.Unsetenv(EnvOpenAIAPIKey)
 	os.Unsetenv(EnvOpenRouterAPIKey)
+	os.Unsetenv(EnvDeepSeekAPIKey)
 }
 
 func TestModelParsing(t *testing.T) {
@@ -145,7 +163,7 @@ func TestModelParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model, err := ParseModel(tt.modelStr)
+			model, err := ParseModel(tt.modelStr, nil)
 
 			if tt.wantErr {
 				if err == nil {

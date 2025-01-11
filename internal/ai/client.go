@@ -3,8 +3,7 @@ package ai
 import (
 	"fmt"
 	"os"
-	
-	"github.com/y0ug/ai-helper/internal/cost"
+
 	"github.com/y0ug/ai-helper/internal/stats"
 )
 
@@ -14,27 +13,27 @@ const (
 	EnvOpenAIAPIKey     = "OPENAI_API_KEY"
 	EnvOpenRouterAPIKey = "OPENROUTER_API_KEY"
 	EnvGeminiAPIKey     = "GEMINI_API_KEY"
+	EnvDeepSeekAPIKey   = "DEEPSEEK_API_KEY"
 )
+
+type AIClient interface {
+	GenerateWithMessages(messages []Message, command string) (Response, error)
+}
+
+var _ AIClient = (*Client)(nil) // Optional: ensures `Client` implements `AIClient`
 
 // Client handles AI model interactions
 type Client struct {
 	provider Provider
 	model    *Model
-	tracker  *cost.Tracker
+	stats    *stats.Tracker
 }
 
 // NewClient creates a new AI client using environment variables
-func NewClient() (*Client, error) {
-	modelStr := os.Getenv(EnvAIModel)
-	if modelStr == "" {
-		return nil, fmt.Errorf("AI_MODEL environment variable not set")
-	}
-
-	model, err := ParseModel(modelStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse model: %w", err)
-	}
-
+func NewClient(
+	model *Model,
+	statsTracker *stats.Tracker,
+) (*Client, error) {
 	var apiKey string
 	switch model.Provider {
 	case "anthropic":
@@ -57,30 +56,33 @@ func NewClient() (*Client, error) {
 		if apiKey == "" {
 			return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
 		}
+	case "deepseek":
+		apiKey = os.Getenv(EnvDeepSeekAPIKey)
+		if apiKey == "" {
+			return nil, fmt.Errorf("DEEPSEEK_API_KEY environment variable not set")
+		}
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", model.Provider)
 	}
 
-	provider, err := NewProvider(model, apiKey)
+	provider, err := NewProvider(model, apiKey, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
-	}
-
-	tracker, err := cost.NewTracker()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cost tracker: %w", err)
 	}
 
 	return &Client{
 		provider: provider,
 		model:    model,
-		tracker:  tracker,
+		stats:    statsTracker,
 	}, nil
 }
 
-// Generate sends a prompt to the AI model and returns the response
-func (c *Client) Generate(prompt string, command string) (Response, error) {
-	resp, err := c.provider.GenerateResponse(prompt)
+// GenerateWithMessages sends a conversation history to the AI model and returns the response
+func (c *Client) GenerateWithMessages(
+	messages []Message,
+	command string,
+) (Response, error) {
+	resp, err := c.provider.GenerateResponse(messages)
 	if err != nil {
 		return Response{}, err
 	}
@@ -89,30 +91,39 @@ func (c *Client) Generate(prompt string, command string) (Response, error) {
 		return Response{}, resp.Error
 	}
 
-	// Calculate cost
-	cost, err := c.tracker.CalculateCost(c.model.String(), resp.InputTokens, resp.OutputTokens)
-	if err != nil {
-		// Log the error but don't fail the request
-		fmt.Fprintf(os.Stderr, "Warning: failed to calculate cost: %v\n", err)
-		cost = 0
+	// Calculate cost using model info
+	if c.model.Info != nil {
+		inputCost := float64(resp.InputTokens) * c.model.Info.InputCostPerToken
+		outputCost := float64(resp.OutputTokens) * c.model.Info.OutputCostPerToken
+		resp.Cost = float64ToPtr(inputCost + outputCost)
 	} else {
-		fmt.Fprintf(os.Stderr, "Cost: $%.4f\n", cost)
+		fmt.Fprintf(os.Stderr, "Warning: no cost info available for model\n")
 	}
 
 	// Record stats
-	statsTracker, err := stats.NewTracker()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to create stats tracker: %v\n", err)
 	} else {
-		statsTracker.RecordQuery(
-			c.model.Provider,
-			command,
-			resp.InputTokens,
-			resp.OutputTokens,
-			cost,
-			0,
-		)
+		// TODO: find a better way to handle no cost info available
+		cost := 0.0
+		if resp.Cost != nil {
+			cost = *resp.Cost
+		}
+		if c.stats != nil {
+			c.stats.RecordQuery(
+				c.model.Provider,
+				command,
+				resp.InputTokens,
+				resp.OutputTokens,
+				cost,
+				0,
+			)
+		}
 	}
 
 	return resp, nil
+}
+
+func float64ToPtr(f float64) *float64 {
+	return &f
 }
