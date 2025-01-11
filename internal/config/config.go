@@ -41,6 +41,13 @@ func (c *Config) ValidateConfig() error {
 		}
 	}
 
+	// Validate MCP server configurations if present
+	for name, server := range c.MCPServers {
+		if server.Command == "" {
+			return fmt.Errorf("empty command for MCP server '%s'", name)
+		}
+	}
+
 	return nil
 }
 
