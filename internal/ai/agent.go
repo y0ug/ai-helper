@@ -308,8 +308,43 @@ func (a *Agent) SendRequest() (Response, error) {
 		return Response{}, err
 	}
 
-	a.AddMessage("assistant", resp.Content)
+	if resp.RequiresAction && len(resp.ToolCalls) > 0 {
+		// Handle tool calls
+		for _, call := range resp.ToolCalls {
+			var args map[string]interface{}
+			if err := json.Unmarshal([]byte(call.Args), &args); err != nil {
+				return Response{}, fmt.Errorf("failed to parse tool arguments: %w", err)
+			}
 
+			// Extract server name from tool name (assuming format: "server/tool")
+			parts := strings.Split(call.Name, "/")
+			if len(parts) != 2 {
+				return Response{}, fmt.Errorf("invalid tool name format: %s", call.Name)
+			}
+			serverName, toolName := parts[0], parts[1]
+
+			// Get MCP client for this server
+			client, ok := a.MCPClient[serverName]
+			if !ok {
+				return Response{}, fmt.Errorf("MCP client not found for server: %s", serverName)
+			}
+
+			// Call the tool
+			result, err := client.CallTool(context.Background(), toolName, args)
+			if err != nil {
+				return Response{}, fmt.Errorf("failed to call tool %s: %w", call.Name, err)
+			}
+
+			// Add the tool call and result to the conversation
+			a.AddMessage("assistant", fmt.Sprintf("Called tool %s with args %s", call.Name, call.Args))
+			a.AddMessage("function", fmt.Sprintf("%v", result))
+		}
+
+		// Make another request to get the final response
+		return a.SendRequest()
+	}
+
+	a.AddMessage("assistant", resp.Content)
 	a.UpdateCosts(&resp)
 	return resp, nil
 }
