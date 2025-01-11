@@ -21,7 +21,7 @@ type Command struct {
 // MCPServer represents a single MCP server configuration
 type MCPServer struct {
 	Command string   `yaml:"command" json:"command"`
-	Args    []string `yaml:"args" json:"args"`
+	Args    []string `yaml:"args"    json:"args"`
 }
 
 // MCPServers represents a map of MCP server configurations
@@ -29,6 +29,6 @@ type MCPServers map[string]MCPServer
 
 // Config represents the root configuration structure
 type Config struct {
-	Commands    map[string]Command `yaml:"commands" json:"commands"`
-	MCPServers  MCPServers        `yaml:"mcpServers,omitempty" json:"mcpServers,omitempty"`
+	Commands   map[string]Command `yaml:"commands"             json:"commands"`
+	MCPServers MCPServers         `yaml:"mcpServers,omitempty" json:"mcpServers,omitempty"`
 }
