@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/prompt"
+	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
 type AIConversation interface {
@@ -26,6 +28,8 @@ var _ AIConversation = (*Agent)(nil) // Ensures Agent implements AIConversation
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
 	ID                string               `json:"id"`
+	MCPServerCommand  string               `json:"mcp_server_command,omitempty"`
+	MCPServerArgs     []string             `json:"mcp_server_args,omitempty"`
 	ModelName         string               `json:"model"`
 	Messages          []Message            `json:"messages"`
 	Command           *config.Command      `json:"command,omitempty"`
@@ -42,6 +46,7 @@ type Agent struct {
 	ID                string // Unique identifier for this agent/session
 	Model             *Model // The AI model being used
 	Client            AIClient
+	MCPClient         mcpclient.MCPClientInterface
 	Messages          []Message            // Conversation history
 	Command           *config.Command      // Current active command
 	TemplateData      *prompt.TemplateData // Data for template processing
@@ -82,6 +87,15 @@ func (s AgentState) MarshalJSON() ([]byte, error) {
 // LoadCommand loads a command configuration into the agent
 func (a *Agent) LoadCommand(cmd *config.Command) error {
 	a.Command = cmd
+
+	// Initialize MCP client if MCPServers are configured
+	if len(cmd.MCPServers) > 0 {
+		// For now, just use the first server config
+		serverName := cmd.MCPServers[0]
+		if err := a.InitializeMCPClient(serverName); err != nil {
+			return fmt.Errorf("failed to initialize MCP client: %w", err)
+		}
+	}
 
 	// Load environment variables
 	a.TemplateData.LoadEnvironment()
@@ -139,6 +153,36 @@ func NewAgent(id string, model *Model, client *Client) *Agent {
 }
 
 // Save persists the agent's state to a JSON file
+// InitializeMCPClient creates and initializes an MCP client for the given server name
+func (a *Agent) InitializeMCPClient(serverName string) error {
+	if a.Command == nil {
+		return fmt.Errorf("no command loaded")
+	}
+
+	// Get server config from command configuration
+	serverConfig, ok := a.Command.MCPServers[serverName]
+	if !ok {
+		return fmt.Errorf("MCP server %s not found in configuration", serverName)
+	}
+
+	// Create new MCP client
+	client, err := mcpclient.NewMCPClient(serverConfig.Command, serverConfig.Args...)
+	if err != nil {
+		return fmt.Errorf("failed to create MCP client: %w", err)
+	}
+
+	// Initialize the client
+	ctx := context.Background()
+	if _, err := client.Initialize(ctx); err != nil {
+		client.Close()
+		return fmt.Errorf("failed to initialize MCP client: %w", err)
+	}
+
+	// Store the client
+	a.MCPClient = client
+	return nil
+}
+
 func (a *Agent) Save() error {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
