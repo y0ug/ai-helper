@@ -17,6 +17,8 @@ const (
 )
 
 type AIClient interface {
+	SetMaxTokens(maxTokens int)
+	SetTools(tools []AITools)
 	GenerateWithMessages(messages []Message, command string) (Response, error)
 }
 
@@ -75,6 +77,14 @@ func NewClient(
 		model:    model,
 		stats:    statsTracker,
 	}, nil
+}
+
+func (c *Client) SetMaxTokens(maxTokens int) {
+	c.provider.SetMaxTokens(maxTokens)
+}
+
+func (c *Client) SetTools(tool []AITools) {
+	c.provider.SetTools(tool)
 }
 
 // GenerateWithMessages sends a conversation history to the AI model and returns the response

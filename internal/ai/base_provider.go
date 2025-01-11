@@ -10,9 +10,22 @@ import (
 
 // BaseProvider encapsulates common HTTP client functionalities.
 type BaseProvider struct {
-	apiKey string
-	client *http.Client
-	model  *Model
+	apiKey    string
+	client    *http.Client
+	model     *Model
+	maxTokens *int
+	tools     []AITools
+}
+
+type AIToolFunction struct {
+	Name        string      `json:"name"`
+	Description *string     `json:"description",omitempty`
+	Parameters  interface{} `json:"parameters"`
+}
+
+type AITools struct {
+	Type     string          `json:"type"`
+	Function *AIToolFunction `json:"function",omitempty`
 }
 
 // NewBaseProvider initializes a new BaseProvider.
@@ -20,11 +33,30 @@ func NewBaseProvider(model *Model, apiKey string, client *http.Client) *BaseProv
 	if client == nil {
 		client = &http.Client{}
 	}
-	return &BaseProvider{
-		apiKey: apiKey,
-		client: client,
-		model:  model,
+	var maxTokens *int
+	if model.Info != nil {
+		m := model.Info.MaxTokens
+		maxTokens = &m
 	}
+
+	return &BaseProvider{
+		apiKey:    apiKey,
+		client:    client,
+		model:     model,
+		maxTokens: maxTokens,
+	}
+}
+
+func (bp *BaseProvider) SetMaxTokens(maxTokens int) {
+	if bp.model.Info != nil && maxTokens > bp.model.Info.MaxTokens {
+		*bp.maxTokens = bp.model.Info.MaxTokens
+	} else {
+		*bp.maxTokens = maxTokens
+	}
+}
+
+func (bp *BaseProvider) SetTools(tools []AITools) {
+	bp.tools = tools
 }
 
 // makeRequest sends an HTTP request with the given parameters, serializes the request body,

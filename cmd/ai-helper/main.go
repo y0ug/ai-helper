@@ -189,7 +189,7 @@ func main() {
 	}
 
 	// Create an agent for this command
-	agent := ai.NewAgent(generateSessionID(), model, client)
+	agent := ai.NewAgent(generateSessionID(), model, client, cfg.MCPServers)
 
 	// Handle interactive mode
 	if *interactiveMode {

@@ -114,6 +114,7 @@ func (a *Agent) LoadCommand(cmd *config.Command) error {
 		a.AddSystemMessage(systemMsg)
 	}
 
+	a.setTools()
 	return nil
 }
 
@@ -155,6 +156,7 @@ func NewAgent(id string, model *Model, client *Client, mcpServersConfig config.M
 // Save persists the agent's state to a JSON file
 // InitializeMCPClient creates and initializes an MCP client for the given server name
 func (a *Agent) InitializeMCPClient(serverName string) error {
+	fmt.Printf("serverName %s", serverName)
 	if a.MCPServersConfig == nil {
 		return fmt.Errorf("no MCP servers configured")
 	}
@@ -183,6 +185,40 @@ func (a *Agent) InitializeMCPClient(serverName string) error {
 
 	// Store the client
 	a.MCPClient[serverName] = client
+	return nil
+}
+
+func (a *Agent) setTools() error {
+	aiTools := make([]AITools, 0)
+	for k, v := range a.MCPClient {
+		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
+		if err != nil {
+			fmt.Printf("fetchTools error %s:%v", k, err)
+			continue
+		}
+		for _, tool := range tools {
+			aiTool := AITools{Type: "function"}
+			var desc *string
+			if tool.Description != nil {
+				descCopy := *tool.Description
+				desc = &descCopy
+				if len(*desc) > 512 {
+					foo := descCopy[:512]
+					desc = &foo
+				}
+			}
+			aiTool.Function = &AIToolFunction{
+				Name:        tool.Name,
+				Description: desc,
+				Parameters:  tool.InputSchema,
+			}
+			aiTools = append(aiTools, aiTool)
+			fmt.Fprintf(os.Stderr, "tools %s", tool.Name)
+		}
+	}
+	if a.Client != nil {
+		a.Client.SetTools(aiTools)
+	}
 	return nil
 }
 
