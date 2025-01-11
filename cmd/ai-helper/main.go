@@ -85,7 +85,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error getting model: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println(model.Info.MaxTokens)
+
 	client, err := ai.NewClient(model, statsTracker)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
