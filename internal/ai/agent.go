@@ -335,12 +335,42 @@ func (a *Agent) SendRequest() (Response, error) {
 				return Response{}, fmt.Errorf("failed to call tool %s: %w", call.Name, err)
 			}
 
+			// Convert result to string
+			resultStr := ""
+			if result != nil {
+				resultBytes, err := json.Marshal(result)
+				if err != nil {
+					return Response{}, fmt.Errorf("failed to marshal tool result: %w", err)
+				}
+				resultStr = string(resultBytes)
+			}
+
 			// Add the tool call and result to the conversation
 			a.AddMessage("assistant", fmt.Sprintf("Called tool %s with args %s", call.Name, call.Args))
-			a.AddMessage("function", fmt.Sprintf("%v", result))
+			a.AddMessage("function", resultStr)
+
+			// Create tool output for OpenAI
+			toolOutput := ToolOutput{
+				ToolCallID: call.ID,
+				Output:     resultStr,
+			}
+			
+			// Submit tool outputs back to OpenAI
+			resp, err := a.Client.GenerateWithMessages(a.GetMessages(), "agent_name", toolOutput)
+			if err != nil {
+				return Response{}, fmt.Errorf("failed to submit tool outputs: %w", err)
+			}
+			
+			// If we get more tool calls, process them recursively
+			if resp.RequiresAction && len(resp.ToolCalls) > 0 {
+				return a.SendRequest()
+			}
+
+			// Otherwise return the final response
+			return resp, nil
 		}
 
-		// Make another request to get the final response
+		// Make another request to get the final response 
 		return a.SendRequest()
 	}
 

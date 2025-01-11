@@ -19,10 +19,16 @@ func NewOpenAIProvider(model *Model, apiKey string, client *http.Client) (*OpenA
 
 // OpenAIRequest defines the request structure specific to OpenAI.
 type OpenAIRequest struct {
-	Model     string    `json:"model"`
-	MaxTokens *int      `json:"max_tokens,omitempty"`
-	Messages  []Message `json:"messages"`
-	Tools     []AITools `json:"tools,omitempty"`
+	Model       string       `json:"model"`
+	MaxTokens   *int        `json:"max_tokens,omitempty"`
+	Messages    []Message    `json:"messages"`
+	Tools       []AITools    `json:"tools,omitempty"`
+	ToolOutputs []ToolOutput `json:"tool_outputs,omitempty"`
+}
+
+type ToolOutput struct {
+	ToolCallID string `json:"tool_call_id"`
+	Output     string `json:"output"`
 }
 
 // OpenAIResponse defines the response structure specific to OpenAI.
