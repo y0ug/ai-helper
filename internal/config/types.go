@@ -16,6 +16,7 @@ type Command struct {
 	Input        bool       `yaml:"input,omitempty"         json:"input,omitempty"`
 	InputCommand string     `yaml:"input_command,omitempty" json:"input_command,omitempty"`
 	Files        []string   `yaml:"files,omitempty"         json:"files,omitempty"`
+	MCPServers   []string   `yaml:"mcpServers,omitempty"    json:"mcpServers,omitempty"`
 }
 
 // MCPServer represents a single MCP server configuration

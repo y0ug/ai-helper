@@ -39,6 +39,13 @@ func (c *Config) ValidateConfig() error {
 		if cmd.Prompt == "" {
 			return fmt.Errorf("empty prompt for command '%s'", name)
 		}
+		
+		// Validate that referenced MCP servers exist
+		for _, serverName := range cmd.MCPServers {
+			if _, exists := c.MCPServers[serverName]; !exists {
+				return fmt.Errorf("command '%s' references non-existent MCP server '%s'", name, serverName)
+			}
+		}
 	}
 
 	// Validate MCP server configurations if present
