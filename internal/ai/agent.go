@@ -28,8 +28,6 @@ var _ AIConversation = (*Agent)(nil) // Ensures Agent implements AIConversation
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
 	ID                string               `json:"id"`
-	MCPServerCommand  string               `json:"mcp_server_command,omitempty"`
-	MCPServerArgs     []string             `json:"mcp_server_args,omitempty"`
 	ModelName         string               `json:"model"`
 	Messages          []Message            `json:"messages"`
 	Command           *config.Command      `json:"command,omitempty"`
@@ -46,7 +44,8 @@ type Agent struct {
 	ID                string // Unique identifier for this agent/session
 	Model             *Model // The AI model being used
 	Client            AIClient
-	MCPClient         mcpclient.MCPClientInterface
+	MCPClient         map[string]mcpclient.MCPClientInterface
+	MCPServersConfig  *config.MCPServers   // List of current available MCP server configuration
 	Messages          []Message            // Conversation history
 	Command           *config.Command      // Current active command
 	TemplateData      *prompt.TemplateData // Data for template processing
@@ -89,11 +88,10 @@ func (a *Agent) LoadCommand(cmd *config.Command) error {
 	a.Command = cmd
 
 	// Initialize MCP client if MCPServers are configured
-	if len(cmd.MCPServers) > 0 {
-		// For now, just use the first server config
-		serverName := cmd.MCPServers[0]
-		if err := a.InitializeMCPClient(serverName); err != nil {
-			return fmt.Errorf("failed to initialize MCP client: %w", err)
+	for _, v := range cmd.MCPServers {
+		err := a.InitializeMCPClient(v)
+		if err != nil {
+			fmt.Printf("failed to start mcp client %s %v", v, err)
 		}
 	}
 
@@ -139,39 +137,44 @@ func (a *Agent) ApplyCommand(input string) error {
 }
 
 // NewAgent creates a new Agent instance
-func NewAgent(id string, model *Model, client *Client) *Agent {
+func NewAgent(id string, model *Model, client *Client, mcpServersConfig config.MCPServers) *Agent {
 	now := time.Now()
 	return &Agent{
-		ID:           id,
-		Client:       client,
-		Model:        model,
-		Messages:     make([]Message, 0),
-		TemplateData: prompt.NewTemplateData(""),
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:               id,
+		Client:           client,
+		Model:            model,
+		MCPServersConfig: &mcpServersConfig,
+		MCPClient:        make(map[string]mcpclient.MCPClientInterface),
+		Messages:         make([]Message, 0),
+		TemplateData:     prompt.NewTemplateData(""),
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 }
 
 // Save persists the agent's state to a JSON file
 // InitializeMCPClient creates and initializes an MCP client for the given server name
 func (a *Agent) InitializeMCPClient(serverName string) error {
-	if a.Command == nil {
-		return fmt.Errorf("no command loaded")
+	if a.MCPServersConfig == nil {
+		return fmt.Errorf("no MCP servers configured")
 	}
-
-	// Get server config from command configuration
-	serverConfig, ok := a.Command.MCPServers[serverName]
+	config, ok := (*a.MCPServersConfig)[serverName]
 	if !ok {
-		return fmt.Errorf("MCP server %s not found in configuration", serverName)
+		return fmt.Errorf("MCP server '%s' not found in configuration", serverName)
+	}
+	if _, ok := a.MCPClient[serverName]; ok {
+		return fmt.Errorf("MCP client '%s' already initialized", serverName)
 	}
 
 	// Create new MCP client
-	client, err := mcpclient.NewMCPClient(serverConfig.Command, serverConfig.Args...)
+	client, err := mcpclient.NewMCPClient(config.Command, config.Args...)
 	if err != nil {
 		return fmt.Errorf("failed to create MCP client: %w", err)
 	}
 
 	// Initialize the client
+	// TODO: should do proper ctx tracking
+	// to be able to stop properly
 	ctx := context.Background()
 	if _, err := client.Initialize(ctx); err != nil {
 		client.Close()
@@ -179,7 +182,7 @@ func (a *Agent) InitializeMCPClient(serverName string) error {
 	}
 
 	// Store the client
-	a.MCPClient = client
+	a.MCPClient[serverName] = client
 	return nil
 }
 
