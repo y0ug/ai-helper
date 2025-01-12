@@ -337,10 +337,18 @@ func (p *AnthropicProvider) GenerateResponse(messages []AIMessage) (AIResponse, 
 		return nil, err
 	}
 
-	for i, content := range apiResp.GetChoice().GetMessage().GetContents() {
-		fmt.Printf("Content %d: %s\n", i, content.GetType())
-		fmt.Printf("Content %d: %s\n", i, content.String())
-		fmt.Printf("Content %d: %v\n", i, content)
+	// Ensure Content is properly initialized
+	if apiResp.Content == nil {
+		apiResp.Content = make(AnthropicMessage, 0)
 	}
+	
+	// Convert response contents to AnthropicContent array
+	for _, content := range apiResp.Content {
+		if content != nil {
+			fmt.Printf("Content type: %s\n", content.GetType())
+			fmt.Printf("Content string: %s\n", content.String())
+		}
+	}
+	
 	return apiResp, nil
 }
