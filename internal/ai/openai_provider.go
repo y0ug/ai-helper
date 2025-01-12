@@ -1,8 +1,10 @@
 package ai
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 // OpenAIProvider implements the Provider interface for OpenAI's API.
@@ -34,7 +36,7 @@ func (p *OpenAIProvider) Settings() AIModelSettings {
 }
 
 type OpenAIRequest struct {
-	Messages []AIMessage `json:"messages"`
+	Messages []OpenAIMessage `json:"messages"`
 	OpenAISettings
 }
 
@@ -222,6 +224,9 @@ func (r OpenAIResponse) GetUsage() AIUsage {
 }
 
 func (r OpenAIResponse) GetChoice() AIChoice {
+	if len(r.Choices) == 0 {
+		return nil
+	}
 	return r.Choices[0]
 }
 
@@ -283,14 +288,35 @@ func (c OpenAIMessage) Raw() interface{} {
 	return c.Content
 }
 
+func AIMessageToOpenAIMessage(m []AIMessage) []OpenAIMessage {
+	userMessages := make([]OpenAIMessage, 0)
+	for _, msg := range m {
+		switch msg := msg.(type) {
+		case OpenAIMessage:
+			userMessages = append(userMessages, msg)
+		default:
+			userMessages = append(userMessages, OpenAIMessage{
+				Role:    msg.GetRole(),
+				Content: msg.GetContent().String(),
+			})
+
+		}
+	}
+	return userMessages
+}
+
 // GenerateResponse sends a request to OpenAI's API and parses the response.
 func (p *OpenAIProvider) GenerateResponse(messages []AIMessage) (AIResponse, error) {
 	headers := map[string]string{}
 	p.setAuthorizationHeader(headers)
 
 	req := OpenAIRequest{
-		Messages:       messages,
+		Messages:       AIMessageToOpenAIMessage(messages),
 		OpenAISettings: *p.settings,
+	}
+	for _, msg := range req.Messages {
+		data, _ := json.Marshal(msg)
+		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, string(data))
 	}
 
 	var resp OpenAIResponse

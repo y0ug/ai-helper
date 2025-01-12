@@ -32,7 +32,7 @@ func (p *OpenRouterProvider) GenerateResponse(messages []AIMessage) (AIResponse,
 	p.setAuthorizationHeader(headers)
 
 	req := OpenAIRequest{
-		Messages:       messages,
+		Messages:       AIMessageToOpenAIMessage(messages),
 		OpenAISettings: *p.settings,
 	}
 

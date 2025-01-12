@@ -71,7 +71,7 @@ func (p *DeepSeekProvider) GenerateResponse(messages []AIMessage) (AIResponse, e
 	p.setAuthorizationHeader(headers)
 
 	req := OpenAIRequest{
-		Messages:       messages,
+		Messages:       AIMessageToOpenAIMessage(messages),
 		OpenAISettings: *p.settings,
 	}
 

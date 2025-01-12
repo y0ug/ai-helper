@@ -32,7 +32,7 @@ func (p *GeminiProvider) GenerateResponse(messages []AIMessage) (AIResponse, err
 	p.setAuthorizationHeader(headers)
 
 	req := OpenAIRequest{
-		Messages:       messages,
+		Messages:       AIMessageToOpenAIMessage(messages),
 		OpenAISettings: *p.settings,
 	}
 

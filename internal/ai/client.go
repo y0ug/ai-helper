@@ -135,6 +135,10 @@ func (client *Client) ProcessMessages(
 	}
 
 	choice := resp.GetChoice()
+	if choice == nil {
+		return messages, fmt.Errorf("response choice is nil")
+	}
+
 	msg := choice.GetMessage()
 
 	fmt.Fprintf(os.Stderr, "response %v msg: %v\n", resp, msg)

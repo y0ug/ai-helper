@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 // AnthropicProvider implements the Provider interface for Anthropic's API.
@@ -122,7 +123,7 @@ func (m AnthropicMessage) GetContents() []AIContent {
 type AnthropicResponse struct {
 	ID           string           `json:"id"`
 	Content      AnthropicMessage `json:"content"`
-	Role         string           `json:"role"`    // Always "assistant"
+	Role         string           `json:"role"` // Always "assistant"
 	StopReason   string           `json:"stop_reason,omitempty"`
 	StopSequence string           `json:"stop_sequence,omitempty"`
 	Type         string           `json:"type"` // Always "message"
@@ -152,7 +153,6 @@ func (r AnthropicResponse) GetFinishReason() string {
 func (r AnthropicResponse) GetUsage() AIUsage {
 	return r.Usage
 }
-
 
 type AnthropicRequest struct {
 	Messages []AnthropicMessageRequest `json:"messages"`
@@ -324,9 +324,13 @@ func (p *AnthropicProvider) GenerateResponse(messages []AIMessage) (AIResponse, 
 		})
 	}
 
-	reqPayload := AnthropicRequest{
+	req := AnthropicRequest{
 		AnthropicSettings: *p.settings,
 		Messages:          userMessages,
+	}
+	for _, msg := range req.Messages {
+		data, _ := json.Marshal(msg)
+		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, string(data))
 	}
 
 	var apiResp AnthropicResponse
@@ -336,7 +340,7 @@ func (p *AnthropicProvider) GenerateResponse(messages []AIMessage) (AIResponse, 
 		"x-api-key":         p.apiKey,
 	}
 
-	err := p.makeRequest("POST", p.baseUrl, headers, reqPayload, &apiResp)
+	err := p.makeRequest("POST", p.baseUrl, headers, req, &apiResp)
 	if err != nil {
 		return nil, err
 	}
