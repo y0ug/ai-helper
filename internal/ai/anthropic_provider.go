@@ -76,6 +76,10 @@ func (s *AnthropicSettings) SetModel(model string) {
 	s.Model = model
 }
 
+type AnthropicContent struct {
+    AIContent
+}
+
 // Should implement AIMessage interface
 type AnthropicMessage []*AnthropicContent
 

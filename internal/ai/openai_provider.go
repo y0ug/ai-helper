@@ -85,6 +85,12 @@ type OpenAIFunctionCall struct {
 	Arguments string `json:"arguments"`
 }
 
+type OpenAIToolCall struct {
+	ID       string             `json:"id"`
+	Type     string             `json:"type"`
+	Function OpenAIFunctionCall `json:"function"`
+}
+
 func toolCallToAIContent(t OpenAIToolCall) AIContent {
 	var args map[string]interface{}
 	_ = json.Unmarshal([]byte(t.Function.Arguments), &args)
