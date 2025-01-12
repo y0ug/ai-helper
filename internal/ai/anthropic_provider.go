@@ -76,12 +76,8 @@ func (s *AnthropicSettings) SetModel(model string) {
 	s.Model = model
 }
 
-type AnthropicContent struct {
-    AIContent
-}
-
 // Should implement AIMessage interface
-type AnthropicMessage []*AnthropicContent
+type AnthropicMessage []AIContent
 
 func (m AnthropicMessage) GetRole() string {
 	return "assistant"
@@ -183,7 +179,7 @@ func (r AnthropicUsage) GetCachedTokens() int {
 
 // AnthropicContent , Message and  Content
 // if we compare to
-func (cw *AnthropicContent) UnmarshalJSON(data []byte) error {
+func (m *AnthropicMessage) UnmarshalJSON(data []byte) error {
 	var temp struct {
 		Type      string                 `json:"type"`
 		Text      string                 `json:"text,omitempty"`

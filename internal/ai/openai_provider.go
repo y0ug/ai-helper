@@ -112,55 +112,6 @@ type OpenAIMessage struct {
 	ToolCallId string           `json:"tool_call_id"`
 }
 
-// type OpenAIMessage struct {
-// 	AIMessage
-// }
-//
-// type OpenAIMessageTool struct {
-// 	// role: "tool"
-// 	// content string
-// 	OpenAIMessage
-// 	ToolCallId string `json:"tool_call_id"`
-// }
-//
-// type OpenAIMessageAssistant struct {
-// 	OpenAIMessage
-// 	Refusal   string       `json:"refusal,omitempty"`
-// 	Name      string       `json:"name,omitempty"`
-// 	Audio     interface{}  `json:"audio,omitempty"`
-// 	ToolCalls []AIToolCall `json:"tool_calls,omitempty"`
-// }
-//
-// func (m *OpenAIMessage) UnmarshalJSON(data []byte) error {
-// 	// Temporary struct to get the type
-// 	var temp struct {
-// 		Role string `json:"role"`
-// 	}
-// 	if err := json.Unmarshal(data, &temp); err != nil {
-// 		return err
-// 	}
-//
-// 	// Based on the type, unmarshal into the appropriate struct
-// 	switch temp.Role {
-// 	case "tool":
-// 		var tc OpenAIMessageTool
-// 		if err := json.Unmarshal(data, &tc); err != nil {
-// 			return err
-// 		}
-// 		m.AIMessage = tc
-// 	case "assistant":
-// 		var tc OpenAIMessageAssistant
-// 		if err := json.Unmarshal(data, &tuc); err != nil {
-// 			return err
-// 		}
-// 		m.AnthropicContent = tc
-// 	// Add more cases for other content types
-// 	default:
-// 		return fmt.Errorf("unknown content type: %s", temp.Type)
-// 	}
-//
-// 	return nil
-// }
 
 // OpenAIResponse defines the response structure specific to OpenAI.
 type OpenAIResponse struct {
