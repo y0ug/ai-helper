@@ -85,9 +85,13 @@ func TestIntegrationRequests(t *testing.T) {
 				t.Fatalf("Failed to create client: %v", err)
 			}
 
+			msgReq := OpenAIMessage{
+				Role:    "user",
+				Content: tt.prompt,
+			}
 			// Send request
 			response, err := client.GenerateWithMessages(
-				[]Message{*NewUserMessage(tt.prompt)},
+				[]AIMessage{msgReq},
 				"test",
 			)
 			if err != nil {
@@ -95,11 +99,13 @@ func TestIntegrationRequests(t *testing.T) {
 			}
 
 			// Basic validation
-			if response.Content == "" {
+			choice := response.GetChoice()
+			msg := choice.GetMessage()
+			if msg.GetContent() == "" {
 				t.Error("Received empty response")
 			}
 
-			t.Logf("Response from %s: %s", tt.provider, response.Content)
+			t.Logf("Response from %s: %s", tt.provider, msg.GetContent())
 		})
 	}
 }

@@ -8,15 +8,14 @@ type ToolCall struct {
 }
 
 type Response struct {
-	Content        string     `json:"content"`
-	Message        Message    `json:"message"`
-	Error          error      `json:"-"`
-	RequiresAction bool       `json:"requires_action"`
-	ToolCalls      []ToolCall `json:"tool_calls,omitempty"`
-	InputTokens    int        `json:"input_tokens"`
-	OutputTokens   int        `json:"output_tokens"`
-	CachedTokens   int        `json:"cached_tokens"`
-	Cost           *float64   `json:"cost,omitempty"`
+	Content      string      `json:"content"`
+	Message      interface{} `json:"message"`
+	Error        error       `json:"-"`
+	FinishReason bool        `json:"finish_reason,omitempty"`
+	InputTokens  int         `json:"input_tokens"`
+	OutputTokens int         `json:"output_tokens"`
+	CachedTokens int         `json:"cached_tokens"`
+	Cost         *float64    `json:"cost,omitempty"`
 }
 
 // Request represents an AI generation request

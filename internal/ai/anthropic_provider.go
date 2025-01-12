@@ -15,9 +15,10 @@ func NewAnthropicProvider(
 	model *Model,
 	apiKey string,
 	client *http.Client,
+	apiUrl string,
 ) (*AnthropicProvider, error) {
 	return &AnthropicProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, nil, apiUrl),
 	}, nil
 }
 

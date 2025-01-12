@@ -18,8 +18,8 @@ type AIConversation interface {
 	LoadCommand(cmd *config.Command) error
 	ApplyCommand(input string) error
 	Save() error
-	SendRequest() (Response, error)
-	GetMessages() []Message
+	SendRequest() (AIResponse, error)
+	GetMessages() []AIMessage
 	AddMessage(role, content string)
 }
 
@@ -29,7 +29,7 @@ var _ AIConversation = (*Agent)(nil) // Ensures Agent implements AIConversation
 type AgentState struct {
 	ID                string               `json:"id"`
 	ModelName         string               `json:"model"`
-	Messages          []Message            `json:"messages"`
+	Messages          []AIMessage          `json:"messages"`
 	Command           *config.Command      `json:"command,omitempty"`
 	TemplateData      *prompt.TemplateData `json:"-"` // Skip normal JSON marshaling
 	CreatedAt         time.Time            `json:"created_at"`
@@ -47,7 +47,7 @@ type Agent struct {
 	MCPClient         map[string]mcpclient.MCPClientInterface
 	Tools             map[string]mcpclient.MCPClientInterface // Map of tools function to find client from function name
 	MCPServersConfig  *config.MCPServers                      // List of current available MCP server configuration
-	Messages          []Message                               // Conversation history
+	Messages          []AIMessage                             // Conversation history
 	Command           *config.Command                         // Current active command
 	TemplateData      *prompt.TemplateData                    // Data for template processing
 	CreatedAt         time.Time                               // When the agent was created
@@ -147,7 +147,7 @@ func NewAgent(id string, model *Model, client *Client, mcpServersConfig config.M
 		Model:            model,
 		MCPServersConfig: &mcpServersConfig,
 		MCPClient:        make(map[string]mcpclient.MCPClientInterface),
-		Messages:         make([]Message, 0),
+		Messages:         make([]AIMessage, 0),
 		TemplateData:     prompt.NewTemplateData(""),
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -297,45 +297,52 @@ func LoadAgent(id string, model *Model) (*Agent, error) {
 }
 
 // UpdateCosts updates the agent's token and cost tracking with a new response
-func (a *Agent) UpdateCosts(response *Response) {
-	a.TotalInputTokens += response.InputTokens
-	a.TotalOutputTokens += response.OutputTokens
-	if response.Cost != nil {
-		a.TotalCost += *response.Cost
-	}
+func (a *Agent) UpdateCosts(response AIResponse) {
+	a.TotalInputTokens += response.GetUsage().GetInputTokens()
+	a.TotalOutputTokens += response.GetUsage().GetOutputTokens()
+	// if response.Cost != nil {
+	// 	a.TotalCost += *response.Cost
+	// }
 }
 
-func (a *Agent) SendRequest() (Response, error) {
+func (a *Agent) SendRequest() (AIResponse, error) {
 	resp, err := a.Client.GenerateWithMessages(a.GetMessages(), "agent_name")
 	if err != nil {
-		return Response{}, err
+		return nil, err
 	}
 
-	a.AddMessageM(resp.Message)
+	choice := resp.GetChoice()
+	msg := choice.GetMessage()
+	a.AddMessageM(msg)
 
-	if resp.RequiresAction && len(resp.ToolCalls) > 0 {
+	if choice.GetFinishReason() == "tool_calls" {
 		// Handle tool calls
-		for _, call := range resp.ToolCalls {
+		for _, call := range msg.GetToolCalls() {
+			if call.Type != "function" {
+				fmt.Printf("tool type not supported %s", call.Type)
+				continue
+			}
+
 			var args map[string]interface{}
-			if err := json.Unmarshal([]byte(call.Args), &args); err != nil {
-				return Response{}, fmt.Errorf("failed to parse tool arguments: %w", err)
+			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
+				return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
 
 			// Get MCP client from function name
-			client, ok := a.Tools[call.Name]
+			client, ok := a.Tools[call.Function.Name]
 			if !ok {
-				fmt.Printf("MCP Client not found %s", call.Name)
+				fmt.Printf("MCP Client not found %s", call.Function.Name)
 				// return Response{}, fmt.Errorf("MCP client not found for server: %s", serverName)
 			}
 
 			// Call the tool
-			fmt.Printf("calling tool %s", call.Name)
-			result, err := client.CallTool(context.Background(), call.Name, args)
+			fmt.Printf("calling tool %s", call.Function.Name)
+			result, err := client.CallTool(context.Background(), call.Function.Name, args)
 			if err != nil {
 				fmt.Printf("error calling tool %s", err)
 			}
 			if err != nil {
-				return Response{}, fmt.Errorf("failed to call tool %s: %w", call.Name, err)
+				return nil, fmt.Errorf("failed to call tool %s: %w", call.Function.Name, err)
 			}
 
 			// Convert result to string
@@ -343,15 +350,13 @@ func (a *Agent) SendRequest() (Response, error) {
 			if result != nil {
 				resultBytes, err := json.Marshal(result)
 				if err != nil {
-					return Response{}, fmt.Errorf("failed to marshal tool result: %w", err)
+					return nil, fmt.Errorf("failed to marshal tool result: %w", err)
 				}
 				resultStr = string(resultBytes)
 			}
 
-			fmt.Printf("tool output %s", resultStr)
-
 			// Create tool output for OpenAI
-			msg := Message{
+			msg := OpenAIMessage{
 				Role:       "tool",
 				Content:    resultStr,
 				ToolCallId: call.ID,
@@ -361,15 +366,9 @@ func (a *Agent) SendRequest() (Response, error) {
 
 			resp, err := a.SendRequest()
 			if err != nil {
-				return Response{}, fmt.Errorf("failed to submit tool outputs: %w", err)
+				return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
 			}
 
-			// If we get more tool calls, process them recursively
-			if resp.RequiresAction && len(resp.ToolCalls) > 0 {
-				return a.SendRequest()
-			}
-
-			// Otherwise return the final response
 			return resp, nil
 		}
 
@@ -377,8 +376,7 @@ func (a *Agent) SendRequest() (Response, error) {
 		return a.SendRequest()
 	}
 
-	a.AddMessage("assistant", resp.Content)
-	a.UpdateCosts(&resp)
+	a.UpdateCosts(resp)
 	return resp, nil
 }
 
@@ -411,29 +409,30 @@ func ListAgents() ([]string, error) {
 
 // AddMessage adds a new message to the agent's conversation history
 func (a *Agent) AddMessage(role, content string) {
-	a.Messages = append(a.Messages, Message{
+	a.Messages = append(a.Messages, OpenAIMessage{
 		Role:    role,
 		Content: content,
 	})
 }
 
-func (a *Agent) AddMessageM(msg Message) {
+func (a *Agent) AddMessageM(msg AIMessage) {
 	a.Messages = append(a.Messages, msg)
 }
 
 // GetMessages returns the current message history
-func (a *Agent) GetMessages() []Message {
+func (a *Agent) GetMessages() []AIMessage {
 	return a.Messages
 }
 
 // AddSystemMessage adds a system message to the start of the conversation
 func (a *Agent) AddSystemMessage(content string) {
-	// If first message is already a system message, replace it
-	if len(a.Messages) > 0 && a.Messages[0].Role == "system" {
-		a.Messages[0].Content = content
-		return
-	}
-
-	// Insert system message at the beginning
-	a.Messages = append([]Message{{Role: "system", Content: content}}, a.Messages...)
+	// TODO: Implements with AIMesssage
+	// // If first message is already a system message, replace it
+	// if len(a.Messages) > 0 && a.Messages[0].Role == "system" {
+	// 	a.Messages[0].Content = content
+	// 	return
+	// }
+	//
+	// // Insert system message at the beginning
+	// a.Messages = append([]Message{{Role: "system", Content: content}}, a.Messages...)
 }

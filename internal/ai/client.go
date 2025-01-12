@@ -19,7 +19,7 @@ const (
 type AIClient interface {
 	SetMaxTokens(maxTokens int)
 	SetTools(tools []AITools)
-	GenerateWithMessages(messages []Message, command string) (Response, error)
+	GenerateWithMessages(messages []AIMessage, command string) (AIResponse, error)
 }
 
 var _ AIClient = (*Client)(nil) // Optional: ensures `Client` implements `AIClient`
@@ -87,50 +87,28 @@ func (c *Client) SetTools(tool []AITools) {
 	c.provider.SetTools(tool)
 }
 
-// GenerateWithMessages sends a conversation history to the AI model and returns the response
-func (c *Client) GenerateWithMessages(
-	messages []Message,
-	command string,
-) (Response, error) {
-	resp, err := c.provider.GenerateResponse(messages)
-	if err != nil {
-		return Response{}, err
-	}
-
-	if resp.Error != nil {
-		return Response{}, resp.Error
-	}
-
-	// Calculate cost using model info
+func (c *Client) GetResponseCost(r AIResponse) *float64 {
+	var cost *float64
 	if c.model.Info != nil {
-		inputCost := float64(resp.InputTokens) * c.model.Info.InputCostPerToken
-		outputCost := float64(resp.OutputTokens) * c.model.Info.OutputCostPerToken
-		resp.Cost = float64ToPtr(inputCost + outputCost)
+		inputCost := float64(r.GetUsage().GetInputTokens()) * c.model.Info.InputCostPerToken
+		outputCost := float64(r.GetUsage().GetOutputTokens()) * c.model.Info.OutputCostPerToken
+		cost = float64ToPtr(inputCost + outputCost)
+		// resp.Cost = float64ToPtr(inputCost + outputCost)
 	} else {
 		fmt.Fprintf(os.Stderr, "Warning: no cost info available for model\n")
 	}
+	return cost
+}
 
-	// Record stats
+// GenerateWithMessages sends a conversation history to the AI model and returns the response
+func (c *Client) GenerateWithMessages(
+	messages []AIMessage,
+	command string,
+) (AIResponse, error) {
+	resp, err := c.provider.GenerateResponse(messages)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to create stats tracker: %v\n", err)
-	} else {
-		// TODO: find a better way to handle no cost info available
-		cost := 0.0
-		if resp.Cost != nil {
-			cost = *resp.Cost
-		}
-		if c.stats != nil {
-			c.stats.RecordQuery(
-				c.model.Provider,
-				command,
-				resp.InputTokens,
-				resp.OutputTokens,
-				cost,
-				0,
-			)
-		}
+		return nil, err
 	}
-
 	return resp, nil
 }
 

@@ -11,11 +11,11 @@ import (
 
 // BaseProvider encapsulates common HTTP client functionalities.
 type BaseProvider struct {
-	apiKey    string
-	client    *http.Client
-	model     *Model
-	maxTokens *int
-	tools     []AITools
+	apiKey   string
+	client   *http.Client
+	baseUrl  string
+	model    *Model
+	settings AIModelSettings
 }
 
 type AIToolFunction struct {
@@ -29,37 +29,88 @@ type AITools struct {
 	Function *AIToolFunction `json:"function",omitempty`
 }
 
-type RoleToolMessage struct{}
+type AIResponse interface {
+	GetChoice() AIChoice
+	GetFinishReason() string
+	GetUsage() AIUsage
+}
+
+type AIUsage interface {
+	GetInputTokens() int
+	GetOutputTokens() int
+	GetCachedTokens() int
+}
+
+type AIChoice interface {
+	GetMessage() AIMessage
+	GetFinishReason() string
+}
+
+type AIMessage interface {
+	GetRole() string
+	GetContent() string
+	GetToolCalls() []AIToolCall
+}
+
+type AIModelSettings interface {
+	SetMaxTokens(int)
+	SetTools([]AITools)
+	SetStream(bool)
+	SetModel(string)
+}
+
+type AIFunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
 
 // NewBaseProvider initializes a new BaseProvider.
-func NewBaseProvider(model *Model, apiKey string, client *http.Client) *BaseProvider {
+func NewBaseProvider(
+	model *Model,
+	apiKey string,
+	client *http.Client,
+	setting AIModelSettings,
+	url string,
+) *BaseProvider {
 	if client == nil {
 		client = &http.Client{}
 	}
-	var maxTokens *int
-	if model.Info != nil {
-		m := model.Info.MaxTokens
-		maxTokens = &m
+
+	base := &BaseProvider{
+		apiKey:   apiKey,
+		client:   client,
+		model:    model,
+		settings: setting,
+		baseUrl:  url,
 	}
 
-	return &BaseProvider{
-		apiKey:    apiKey,
-		client:    client,
-		model:     model,
-		maxTokens: maxTokens,
+	base.SetModel(model)
+	return base
+}
+
+func (bp *BaseProvider) SetModel(model *Model) {
+	bp.model = model
+	if bp.settings != nil {
+		bp.settings.SetModel(model.Name)
 	}
 }
 
 func (bp *BaseProvider) SetMaxTokens(maxTokens int) {
-	if bp.model.Info != nil && maxTokens > bp.model.Info.MaxTokens {
-		*bp.maxTokens = bp.model.Info.MaxTokens
-	} else {
-		*bp.maxTokens = maxTokens
+	if bp.settings != nil {
+		bp.settings.SetMaxTokens(maxTokens)
 	}
 }
 
 func (bp *BaseProvider) SetTools(tools []AITools) {
-	bp.tools = tools
+	if bp.settings != nil {
+		bp.settings.SetTools(tools)
+	}
+}
+
+func (bp *BaseProvider) SetStream(stream bool) {
+	if bp.settings != nil {
+		bp.settings.SetStream(stream)
+	}
 }
 
 // makeRequest sends an HTTP request with the given parameters, serializes the request body,

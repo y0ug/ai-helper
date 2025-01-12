@@ -8,6 +8,7 @@ import (
 // OpenRouterProvider implements the Provider interface for OpenRouter's API.
 type OpenRouterProvider struct {
 	BaseProvider
+	settings OpenAISettings
 }
 
 // NewOpenRouterProvider creates a new instance of OpenRouterProvider.
@@ -15,62 +16,32 @@ func NewOpenRouterProvider(
 	model *Model,
 	apiKey string,
 	client *http.Client,
+	apiUrl string,
 ) (*OpenRouterProvider, error) {
+	settings := OpenAISettings{
+		Model: model.Name,
+	}
 	return &OpenRouterProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, settings, apiUrl),
 	}, nil
 }
 
-// OpenRouterRequest defines the request structure specific to OpenRouter.
-type OpenRouterRequest struct {
-	Model     string    `json:"model"`
-	MaxTokens int       `json:"max_tokens"`
-	Messages  []Message `json:"messages"`
-}
-
-// OpenRouterResponse defines the response structure specific to OpenRouter.
-type OpenRouterResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Usage struct {
-		PromptTokens        int `json:"prompt_tokens"`
-		CompletionTokens    int `json:"completion_tokens"`
-		TotalTokens         int `json:"total_tokens"`
-		PromptTokensDetails struct {
-			CachedTokens int `json:"cached_tokens"`
-		} `json:"prompt_tokens_details"`
-	} `json:"usage"`
-}
-
-// GenerateResponse sends a request to OpenRouter's API and parses the response.
-func (p *OpenRouterProvider) GenerateResponse(messages []Message) (Response, error) {
-	reqPayload := OpenRouterRequest{
-		Model:     p.model.Name,
-		MaxTokens: 1024,
-		Messages:  messages,
-	}
-
-	var apiResp OpenRouterResponse
-
+func (p *OpenRouterProvider) GenerateResponse(messages []AIMessage) (AIResponse, error) {
 	headers := map[string]string{}
 	p.setAuthorizationHeader(headers)
 
-	err := p.makeRequest("POST", openRouterAPIURL, headers, reqPayload, &apiResp)
+	req := OpenAIRequest{
+		Messages:       messages,
+		OpenAISettings: p.settings,
+	}
+
+	fmt.Println(p.model.Name)
+	var resp OpenAIResponse
+	err := p.makeRequest("POST", p.baseUrl, headers, req, &resp)
 	if err != nil {
-		return Response{Error: err}, nil
+		return nil, err
 	}
 
-	if len(apiResp.Choices) == 0 {
-		return Response{Error: fmt.Errorf("empty response from OpenRouter API")}, nil
-	}
-
-	return Response{
-		Content:      apiResp.Choices[0].Message.Content,
-		InputTokens:  apiResp.Usage.PromptTokens,
-		OutputTokens: apiResp.Usage.CompletionTokens,
-		CachedTokens: apiResp.Usage.PromptTokensDetails.CachedTokens,
-	}, nil
+	fmt.Println(resp)
+	return resp, nil
 }

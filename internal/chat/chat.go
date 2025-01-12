@@ -85,24 +85,25 @@ func (c *Chat) Start() error {
 			continue
 		}
 
-		fmt.Printf("\n%s\n", resp.Content)
+		fmt.Printf("\n%s\n", resp.GetChoice().GetMessage().GetContent())
 		// Update session stats
-		c.stats.SentTokens += resp.InputTokens
-		c.stats.ReceivedTokens += resp.OutputTokens
+		usage := resp.GetUsage()
+		c.stats.SentTokens += usage.GetInputTokens()
+		c.stats.ReceivedTokens += usage.GetOutputTokens()
 
-		if resp.Cost != nil {
-			c.stats.MessageCost = *resp.Cost
-			c.stats.TotalCost += *resp.Cost
-		}
+		// if resp.Cost != nil {
+		// 	c.stats.MessageCost = *resp.Cost
+		// 	c.stats.TotalCost += *resp.Cost
+		// }
 
 		// Calculate cache metrics
-		newCacheHits := 0
-		if resp.InputTokens >= 1024 {
-			// Round down to nearest 128 token increment
-			newCacheHits = (resp.CachedTokens / 128) * 128
-		}
-		c.stats.CacheHitTokens += newCacheHits
-		c.stats.CacheWriteTokens += resp.InputTokens - newCacheHits
+		// newCacheHits := 0
+		// if resp.InputTokens >= 1024 {
+		// 	// Round down to nearest 128 token increment
+		// 	newCacheHits = (resp.CachedTokens / 128) * 128
+		// }
+		// c.stats.CacheHitTokens += newCacheHits
+		// c.stats.CacheWriteTokens += resp.InputTokens - newCacheHits
 
 		fmt.Printf("\nModel %s | Tokens: %d sent (%d cached), %d received\n",
 			c.agent.Model.Name,
@@ -127,10 +128,10 @@ func (c *Chat) handleCommand(cmd string) error {
 	case "/history":
 		fmt.Println("\nChat History:")
 		for _, h := range c.agent.Messages {
-			if h.Role == "user" {
+			if h.GetRole() == "user" {
 				fmt.Printf("> ")
 			}
-			fmt.Printf("%s\n", h.Content)
+			fmt.Printf("%s\n", h.GetContent())
 		}
 
 	case "/sessions":

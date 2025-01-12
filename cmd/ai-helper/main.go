@@ -347,7 +347,7 @@ func main() {
 	if *showPrompt {
 		msgs := agent.GetMessages()
 		for _, v := range msgs {
-			fmt.Printf("%s: %s\n", v.Role, v.Content)
+			fmt.Printf("%s: %s\n", v.GetRole(), v.GetContent())
 		}
 		os.Exit(1)
 	}
@@ -364,14 +364,14 @@ func main() {
 		fmt.Fprintf(
 			os.Stderr,
 			"Tokens - Input: %d, Output: %d\n",
-			resp.InputTokens,
-			resp.OutputTokens,
+			resp.GetUsage().GetInputTokens(),
+			resp.GetUsage().GetOutputTokens(),
 		)
 	}
 	cost := "N/A"
-	if resp.Cost != nil {
-		cost = fmt.Sprintf("$%.4f", *resp.Cost)
-	}
+	// if resp.Cost != nil {
+	// 	cost = fmt.Sprintf("$%.4f", *resp.Cost)
+	// }
 	fmt.Fprintf(
 		os.Stderr,
 		"Session: %s | Model: %s | Estimated cost: %s\n",
@@ -389,7 +389,7 @@ func main() {
 	}
 
 	// Write output
-	if err := io.WriteOutput(resp.Content, *outputFile); err != nil {
+	if err := io.WriteOutput(resp.GetChoice().GetMessage().GetContent(), *outputFile); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
 		os.Exit(1)
 	}

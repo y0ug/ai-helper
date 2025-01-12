@@ -3,5 +3,6 @@ package ai
 type Provider interface {
 	SetMaxTokens(maxTokens int)
 	SetTools(tool []AITools)
-	GenerateResponse(messages []Message) (Response, error)
+	SetStream(stream bool)
+	GenerateResponse(messages []AIMessage) (AIResponse, error)
 }
