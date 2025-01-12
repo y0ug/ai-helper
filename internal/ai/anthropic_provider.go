@@ -87,7 +87,7 @@ func (m AnthropicMessage) GetContent() AIContent {
 }
 
 func (m AnthropicMessage) GetContents() []AIContent {
-	contents := make([]AIContent, 0, len(m))
+	contents := make([]AIContent, 0)
 	for _, c := range m {
 		if c != nil && c.AIContent != nil {
 			contents = append(contents, c.AIContent)
@@ -210,7 +210,7 @@ func (t AnthropicContentToolUse) GetType() string {
 }
 
 func (t AnthropicContentToolUse) String() string {
-	return t.Name
+	return fmt.Sprintf("%s:%s: %v", t.ID, t.Name, t.Input)
 }
 
 func (t AnthropicContentToolUse) Raw() interface{} {
@@ -246,14 +246,12 @@ func (cw *AnthropicContent) UnmarshalJSON(data []byte) error {
 	// Based on the type, unmarshal into the appropriate struct
 	switch temp.Type {
 	case "text":
-		fmt.Println("loading text")
 		var tc AnthropicContentText
 		if err := json.Unmarshal(data, &tc); err != nil {
 			return err
 		}
 		cw.AIContent = tc
 	case "tool_use":
-		fmt.Println("loading tool_use")
 		var tuc AnthropicContentToolUse
 		if err := json.Unmarshal(data, &tuc); err != nil {
 			return err
@@ -339,18 +337,5 @@ func (p *AnthropicProvider) GenerateResponse(messages []AIMessage) (AIResponse, 
 		return nil, err
 	}
 
-	// Ensure Content is properly initialized
-	if apiResp.Content == nil {
-		apiResp.Content = make(AnthropicMessage, 0)
-	}
-	
-	// Convert response contents to AnthropicContent array
-	for _, content := range apiResp.Content {
-		if content != nil {
-			fmt.Printf("Content type: %s\n", content.GetType())
-			fmt.Printf("Content string: %s\n", content.String())
-		}
-	}
-	
 	return apiResp, nil
 }
