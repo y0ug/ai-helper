@@ -121,12 +121,20 @@ func (m AnthropicMessage) GetContents() []AIContent {
 
 type AnthropicResponse struct {
 	ID           string           `json:"id"`
-	Content      AnthropicMessage `json:"content"` // It's an [] of AnthropicContent that we wrap in AnthropicMessage to be similar to openAI
+	Content      AnthropicMessage `json:"content"`
 	Role         string           `json:"role"`    // Always "assistant"
 	StopReason   string           `json:"stop_reason,omitempty"`
 	StopSequence string           `json:"stop_sequence,omitempty"`
 	Type         string           `json:"type"` // Always "message"
 	Usage        AnthropicUsage   `json:"usage"`
+	Model        string           `json:"model"`
+}
+
+func (r *AnthropicResponse) GetMessage() AIMessage {
+	return AnthropicMessageRequest{
+		Role:    r.Role,
+		Content: r.Content.GetContents(),
+	}
 }
 
 // AnthropicResponse Implement AIResponse interface
@@ -145,10 +153,6 @@ func (r AnthropicResponse) GetUsage() AIUsage {
 	return r.Usage
 }
 
-// AnthropicResponse Implement AIChoice interface
-func (r AnthropicResponse) GetMessage() AIMessage {
-	return r.Content
-}
 
 type AnthropicRequest struct {
 	Messages []AnthropicMessageRequest `json:"messages"`
