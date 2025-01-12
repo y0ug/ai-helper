@@ -299,6 +299,5 @@ func (p *OpenAIProvider) GenerateResponse(messages []AIMessage) (AIResponse, err
 		return nil, err
 	}
 
-	fmt.Println(resp)
 	return resp, nil
 }

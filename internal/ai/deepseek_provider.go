@@ -1,7 +1,6 @@
 package ai
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -79,6 +78,5 @@ func (p *DeepSeekProvider) GenerateResponse(messages []AIMessage) (AIResponse, e
 		return nil, err
 	}
 
-	fmt.Println(resp)
 	return resp, nil
 }

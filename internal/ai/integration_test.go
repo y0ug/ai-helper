@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -121,7 +122,10 @@ func TestFunctionExecution(t *testing.T) {
 			msgReq := BaseMessage{
 				Role: "user",
 				Content: []AIContent{
-					AnthropicContentText{Type: "text", Text: "What time is it at Paris?"},
+					AnthropicContentText{
+						Type: "text",
+						Text: "What time is it at Paris?",
+					},
 				},
 			}
 
@@ -130,8 +134,11 @@ func TestFunctionExecution(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to generate response: %v", err)
 			}
+
+			fmt.Println("Messages:")
 			for _, mm := range messages {
-				fmt.Println(mm)
+				data, _ := json.Marshal(mm)
+				fmt.Printf("%s\n", data)
 			}
 		})
 	}
@@ -238,6 +245,7 @@ func TestIntegrationRequests(t *testing.T) {
 			// 	t.Error("Received empty response")
 			// }
 
+			fmt.Println("Content:")
 			for _, v := range msg.GetContents() {
 				fmt.Println(v)
 			}

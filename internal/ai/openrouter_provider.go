@@ -1,7 +1,6 @@
 package ai
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -43,6 +42,5 @@ func (p *OpenRouterProvider) GenerateResponse(messages []AIMessage) (AIResponse,
 		return nil, err
 	}
 
-	fmt.Println(resp)
 	return resp, nil
 }

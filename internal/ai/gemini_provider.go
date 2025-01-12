@@ -1,7 +1,6 @@
 package ai
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -43,6 +42,5 @@ func (p *GeminiProvider) GenerateResponse(messages []AIMessage) (AIResponse, err
 		return nil, err
 	}
 
-	fmt.Println(resp)
 	return resp, nil
 }

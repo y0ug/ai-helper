@@ -123,6 +123,8 @@ func (client *Client) ProcessMessages(
 	messages []AIMessage,
 	mcpClient mcpclient.MCPClientInterface,
 ) ([]AIMessage, error) {
+	fmt.Fprintf(os.Stderr, "Sending message\n%s\n", messages)
+
 	resp, err := client.GenerateWithMessages(messages, "agent_name")
 	if err != nil {
 		return nil, err
@@ -131,9 +133,13 @@ func (client *Client) ProcessMessages(
 	choice := resp.GetChoice()
 	msg := choice.GetMessage()
 
+	fmt.Fprintf(os.Stderr, "New message\n")
+	fmt.Fprintf(os.Stderr, "msg %v\n", msg)
+	fmt.Fprintf(os.Stderr, "msg %s\n", msg.GetRole())
+
 	messages = append(messages, msg)
 
-	fmt.Printf("choice.GetFinishReason() %s\n", choice.GetFinishReason())
+	// fmt.Fprintf(os.Stderr, "choice.GetFinishReason() %s\n", choice.GetFinishReason())
 
 	if choice.GetFinishReason() == "tool_calls" {
 		// Handle tool calls
@@ -157,12 +163,7 @@ func (client *Client) ProcessMessages(
 					return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 				}
 
-				// Call the tool
-				fmt.Printf("calling tool %s", c.GetName())
 				result, err := mcpClient.CallTool(context.Background(), c.GetName(), args)
-				if err != nil {
-					fmt.Printf("error calling tool %s", err)
-				}
 				if err != nil {
 					return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
 				}
@@ -176,6 +177,9 @@ func (client *Client) ProcessMessages(
 					}
 					resultStr = string(resultBytes)
 				}
+
+				fmt.Fprintf(os.Stderr, "tools: %s: %s\n", c.GetName(), resultStr)
+
 				// Create tool output for OpenAI
 				switch content.(type) {
 				case OpenAIToolCall:
@@ -213,7 +217,7 @@ func (client *Client) ProcessMessages(
 				}
 				return messages, nil
 			default:
-				fmt.Printf("default %s\n", c)
+				fmt.Printf("Txt Message: %s\n", c)
 			}
 		}
 	}
