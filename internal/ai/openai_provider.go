@@ -85,38 +85,10 @@ type OpenAIFunctionCall struct {
 	Arguments string `json:"arguments"`
 }
 
-type OpenAIToolCall struct {
-	ID       string             `json:"id"`
-	Type     string             `json:"type"`
-	Function OpenAIFunctionCall `json:"function"`
-}
-
-func (t OpenAIToolCall) GetID() string {
-	return t.ID
-}
-
-func (t OpenAIToolCall) GetCallType() string {
-	return t.Type
-}
-
-func (t OpenAIToolCall) GetName() string {
-	return t.Function.Name
-}
-
-func (t OpenAIToolCall) GetArguments() string {
-	return t.Function.Arguments
-}
-
-func (t OpenAIToolCall) GetType() string {
-	return "tool_calls"
-}
-
-func (t OpenAIToolCall) String() string {
-	return fmt.Sprintf("ToolCall %s: %s", t.ID, t.Function.Name)
-}
-
-func (t OpenAIToolCall) Raw() interface{} {
-	return t
+func toolCallToAIContent(t OpenAIToolCall) AIContent {
+	var args map[string]interface{}
+	_ = json.Unmarshal([]byte(t.Function.Arguments), &args)
+	return NewToolUseContent(t.ID, t.Function.Name, args)
 }
 
 type OpenAIChoice struct {
@@ -244,48 +216,20 @@ func (m OpenAIMessage) GetRole() string {
 
 func (m OpenAIMessage) GetContent() AIContent {
 	if len(m.ToolCalls) > 0 {
-		return m.ToolCalls[0]
+		return toolCallToAIContent(m.ToolCalls[0])
 	}
-	return m
+	return NewTextContent(m.Content)
 }
 
 func (m OpenAIMessage) GetContents() []AIContent {
 	if len(m.ToolCalls) > 0 {
-		content := make([]AIContent, len(m.ToolCalls))
-		for _, tc := range m.ToolCalls {
-			content = append(content, tc)
+		contents := make([]AIContent, len(m.ToolCalls))
+		for i, tc := range m.ToolCalls {
+			contents[i] = toolCallToAIContent(tc)
 		}
-		return content
+		return contents
 	}
-	return []AIContent{m}
-}
-
-// OpenAIMessage import AIContent
-func (c OpenAIMessage) GetType() string {
-	if c.Role == "assistant" {
-		if len(c.ToolCalls) > 0 {
-			return "tool_calls"
-		}
-	}
-	return "text"
-}
-
-func (c OpenAIMessage) String() string {
-	if c.Role == "assistant" {
-		if len(c.ToolCalls) > 0 {
-			return "tool_calls"
-		}
-	}
-	return c.Content
-}
-
-func (c OpenAIMessage) Raw() interface{} {
-	if c.Role == "assistant" {
-		if len(c.ToolCalls) > 0 {
-			return c.ToolCalls
-		}
-	}
-	return c.Content
+	return []AIContent{NewTextContent(m.Content)}
 }
 
 func AIMessageToOpenAIMessage(m []AIMessage) []OpenAIMessage {

@@ -156,19 +156,12 @@ func (client *Client) ProcessMessages(
 			continue
 		}
 
-		switch c := content.(type) {
-		case AIFunctionCall:
-			if c.GetCallType() != "function" {
-				fmt.Printf("tool type not supported %s", c.GetCallType())
-				continue
-			}
-
-			var args map[string]interface{}
-			if err := json.Unmarshal([]byte(c.GetArguments()), &args); err != nil {
-				return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
-			}
-
-			result, err := mcpClient.CallTool(context.Background(), c.GetName(), args)
+		if content.GetType() == string(ContentTypeToolUse) {
+			result, err := mcpClient.CallTool(
+				context.Background(),
+				content.ToolName,
+				content.Arguments,
+			)
 			if err != nil {
 				return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
 			}

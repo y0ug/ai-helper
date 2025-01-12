@@ -179,112 +179,32 @@ func (r AnthropicUsage) GetCachedTokens() int {
 
 // AnthropicContent , Message and  Content
 // if we compare to
-type AnthropicContent struct {
-	AIContent
-}
-
-// TextContent represents the "text" type content
-type AnthropicContentText struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-func (t AnthropicContentText) GetType() string {
-	return t.Type
-}
-
-func (t AnthropicContentText) String() string {
-	return t.Text
-}
-
-func (t AnthropicContentText) Raw() interface{} {
-	return t
-}
-
-// ToolUseContent represents the "tool_use" type content
-type AnthropicContentToolUse struct {
-	Type  string                 `json:"type"`
-	ID    string                 `json:"id"`
-	Name  string                 `json:"name"`
-	Input map[string]interface{} `json:"input"`
-}
-
-func (t AnthropicContentToolUse) GetType() string {
-	return t.Type
-}
-
-func (t AnthropicContentToolUse) String() string {
-	return fmt.Sprintf("%s:%s: %v", t.ID, t.Name, t.Input)
-}
-
-func (t AnthropicContentToolUse) Raw() interface{} {
-	return t
-}
-
-func (t AnthropicContentToolUse) GetID() string {
-	return t.ID
-}
-
-func (t AnthropicContentToolUse) GetName() string {
-	return t.Name
-}
-
-func (t AnthropicContentToolUse) GetCallType() string {
-	return "function"
-}
-
-func (t AnthropicContentToolUse) GetArguments() string {
-	args, _ := json.Marshal(t.Input)
-	return string(args)
-}
-
 func (cw *AnthropicContent) UnmarshalJSON(data []byte) error {
-	// Temporary struct to get the type
 	var temp struct {
-		Type string `json:"type"`
+		Type      string                 `json:"type"`
+		Text      string                 `json:"text,omitempty"`
+		ID        string                 `json:"id,omitempty"`
+		Name      string                 `json:"name,omitempty"`
+		Input     map[string]interface{} `json:"input,omitempty"`
+		ToolUseId string                 `json:"tool_use_id,omitempty"`
+		Content   string                 `json:"content,omitempty"`
 	}
 	if err := json.Unmarshal(data, &temp); err != nil {
 		return err
 	}
 
-	// Based on the type, unmarshal into the appropriate struct
 	switch temp.Type {
 	case "text":
-		var tc AnthropicContentText
-		if err := json.Unmarshal(data, &tc); err != nil {
-			return err
-		}
-		cw.AIContent = tc
+		cw.AIContent = NewTextContent(temp.Text)
 	case "tool_use":
-		var tuc AnthropicContentToolUse
-		if err := json.Unmarshal(data, &tuc); err != nil {
-			return err
-		}
-		cw.AIContent = tuc
-	// Add more cases for other content types
+		cw.AIContent = NewToolUseContent(temp.ID, temp.Name, temp.Input)
+	case "tool_result":
+		cw.AIContent = NewToolResultContent(temp.ToolUseId, temp.Content)
 	default:
 		return fmt.Errorf("unknown content type: %s", temp.Type)
 	}
 
 	return nil
-}
-
-type AnthropicContentToolResult struct {
-	Type      string `json:"type"` // tool_result
-	ToolUseId string `json:"tool_use_id"`
-	Content   string `json:"content"`
-}
-
-func (t AnthropicContentToolResult) GetType() string {
-	return t.Type
-}
-
-func (t AnthropicContentToolResult) String() string {
-	return t.Content
-}
-
-func (t AnthropicContentToolResult) Raw() interface{} {
-	return t
 }
 
 // OpenAIResponse defines the response structure specific to OpenAI.
