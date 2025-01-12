@@ -45,15 +45,16 @@ type Agent struct {
 	Model             *Model // The AI model being used
 	Client            AIClient
 	MCPClient         map[string]mcpclient.MCPClientInterface
-	MCPServersConfig  *config.MCPServers   // List of current available MCP server configuration
-	Messages          []Message            // Conversation history
-	Command           *config.Command      // Current active command
-	TemplateData      *prompt.TemplateData // Data for template processing
-	CreatedAt         time.Time            // When the agent was created
-	UpdatedAt         time.Time            // Last time the agent was updated
-	TotalInputTokens  int                  // Total tokens used in inputs
-	TotalOutputTokens int                  // Total tokens used in outputs
-	TotalCost         float64              // Total cost accumulated
+	Tools             map[string]mcpclient.MCPClientInterface // Map of tools function to find client from function name
+	MCPServersConfig  *config.MCPServers                      // List of current available MCP server configuration
+	Messages          []Message                               // Conversation history
+	Command           *config.Command                         // Current active command
+	TemplateData      *prompt.TemplateData                    // Data for template processing
+	CreatedAt         time.Time                               // When the agent was created
+	UpdatedAt         time.Time                               // Last time the agent was updated
+	TotalInputTokens  int                                     // Total tokens used in inputs
+	TotalOutputTokens int                                     // Total tokens used in outputs
+	TotalCost         float64                                 // Total cost accumulated
 }
 
 // MarshalJSON implements custom JSON marshaling for AgentState
@@ -189,6 +190,7 @@ func (a *Agent) InitializeMCPClient(serverName string) error {
 }
 
 func (a *Agent) setTools() error {
+	a.Tools = make(map[string]mcpclient.MCPClientInterface)
 	aiTools := make([]AITools, 0)
 	for k, v := range a.MCPClient {
 		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
@@ -213,6 +215,7 @@ func (a *Agent) setTools() error {
 				Parameters:  tool.InputSchema,
 			}
 			aiTools = append(aiTools, aiTool)
+			a.Tools[tool.Name] = v
 			fmt.Fprintf(os.Stderr, "tools %s", tool.Name)
 		}
 	}
@@ -308,6 +311,8 @@ func (a *Agent) SendRequest() (Response, error) {
 		return Response{}, err
 	}
 
+	a.AddMessageM(resp.Message)
+
 	if resp.RequiresAction && len(resp.ToolCalls) > 0 {
 		// Handle tool calls
 		for _, call := range resp.ToolCalls {
@@ -316,21 +321,19 @@ func (a *Agent) SendRequest() (Response, error) {
 				return Response{}, fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
 
-			// Extract server name from tool name (assuming format: "server/tool")
-			parts := strings.Split(call.Name, "/")
-			if len(parts) != 2 {
-				return Response{}, fmt.Errorf("invalid tool name format: %s", call.Name)
-			}
-			serverName, toolName := parts[0], parts[1]
-
-			// Get MCP client for this server
-			client, ok := a.MCPClient[serverName]
+			// Get MCP client from function name
+			client, ok := a.Tools[call.Name]
 			if !ok {
-				return Response{}, fmt.Errorf("MCP client not found for server: %s", serverName)
+				fmt.Printf("MCP Client not found %s", call.Name)
+				// return Response{}, fmt.Errorf("MCP client not found for server: %s", serverName)
 			}
 
 			// Call the tool
-			result, err := client.CallTool(context.Background(), toolName, args)
+			fmt.Printf("calling tool %s", call.Name)
+			result, err := client.CallTool(context.Background(), call.Name, args)
+			if err != nil {
+				fmt.Printf("error calling tool %s", err)
+			}
 			if err != nil {
 				return Response{}, fmt.Errorf("failed to call tool %s: %w", call.Name, err)
 			}
@@ -345,22 +348,22 @@ func (a *Agent) SendRequest() (Response, error) {
 				resultStr = string(resultBytes)
 			}
 
-			// Add the tool call and result to the conversation
-			a.AddMessage("assistant", fmt.Sprintf("Called tool %s with args %s", call.Name, call.Args))
-			a.AddMessage("function", resultStr)
+			fmt.Printf("tool output %s", resultStr)
 
 			// Create tool output for OpenAI
-			toolOutput := ToolOutput{
-				ToolCallID: call.ID,
-				Output:     resultStr,
+			msg := Message{
+				Role:       "tool",
+				Content:    resultStr,
+				ToolCallId: call.ID,
 			}
-			
-			// Submit tool outputs back to OpenAI
-			resp, err := a.Client.GenerateWithMessages(a.GetMessages(), "agent_name", toolOutput)
+
+			a.AddMessageM(msg)
+
+			resp, err := a.SendRequest()
 			if err != nil {
 				return Response{}, fmt.Errorf("failed to submit tool outputs: %w", err)
 			}
-			
+
 			// If we get more tool calls, process them recursively
 			if resp.RequiresAction && len(resp.ToolCalls) > 0 {
 				return a.SendRequest()
@@ -370,7 +373,7 @@ func (a *Agent) SendRequest() (Response, error) {
 			return resp, nil
 		}
 
-		// Make another request to get the final response 
+		// Make another request to get the final response
 		return a.SendRequest()
 	}
 
@@ -412,6 +415,10 @@ func (a *Agent) AddMessage(role, content string) {
 		Role:    role,
 		Content: content,
 	})
+}
+
+func (a *Agent) AddMessageM(msg Message) {
+	a.Messages = append(a.Messages, msg)
 }
 
 // GetMessages returns the current message history

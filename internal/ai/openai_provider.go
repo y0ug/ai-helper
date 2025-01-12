@@ -20,7 +20,7 @@ func NewOpenAIProvider(model *Model, apiKey string, client *http.Client) (*OpenA
 // OpenAIRequest defines the request structure specific to OpenAI.
 type OpenAIRequest struct {
 	Model       string       `json:"model"`
-	MaxTokens   *int        `json:"max_tokens,omitempty"`
+	MaxTokens   *int         `json:"max_tokens,omitempty"`
 	Messages    []Message    `json:"messages"`
 	Tools       []AITools    `json:"tools,omitempty"`
 	ToolOutputs []ToolOutput `json:"tool_outputs,omitempty"`
@@ -33,28 +33,23 @@ type ToolOutput struct {
 
 // OpenAIResponse defines the response structure specific to OpenAI.
 type OpenAIResponse struct {
-	ID     string `json:"id"`
-	Status string `json:"status,omitempty"`
+	ID string `json:"id"`
 
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-
-	RequiredAction *struct {
-		SubmitToolOutputs struct {
+			Role      string `json:"role"`
+			Content   string `json:"content"`
 			ToolCalls []struct {
 				ID       string `json:"id"`
+				Type     string `json:"type"`
 				Function struct {
 					Name      string `json:"name"`
 					Arguments string `json:"arguments"`
 				} `json:"function"`
-				Type string `json:"type"`
 			} `json:"tool_calls"`
-		} `json:"submit_tool_outputs"`
-		Type string `json:"type"`
-	} `json:"required_action,omitempty"`
+		} `json:"message"`
+		FinishReason string `json:"finish_reason,omitempty"`
+	} `json:"choices"`
 
 	Usage struct {
 		PromptTokens        int `json:"prompt_tokens"`
@@ -91,18 +86,29 @@ func (p *OpenAIProvider) GenerateResponse(messages []Message) (Response, error) 
 		return Response{Error: err}, nil
 	}
 
-	if apiResp.Status == "requires_action" && apiResp.RequiredAction != nil {
+	fmt.Println(apiResp)
+	if apiResp.Choices[0].FinishReason == "tool_calls" {
 		// Handle function calls
 		var toolCalls []ToolCall
-		for _, call := range apiResp.RequiredAction.SubmitToolOutputs.ToolCalls {
+		for _, call := range apiResp.Choices[0].Message.ToolCalls {
+			fmt.Printf("tool call: %v\n", call)
 			toolCalls = append(toolCalls, ToolCall{
-				ID:       call.ID,
-				Name:     call.Function.Name,
-				Args:     call.Function.Arguments,
-				Type:     call.Type,
+				ID:   call.ID,
+				Name: call.Function.Name,
+				Args: call.Function.Arguments,
+				Type: call.Type,
 			})
 		}
+
+		m := apiResp.Choices[0].Message
+		msg := Message{
+			Role:    m.Role,
+			Content: m.Content,
+		}
+
 		return Response{
+			Content:        apiResp.Choices[0].Message.Content,
+			Message:        msg,
 			RequiresAction: true,
 			ToolCalls:      toolCalls,
 			InputTokens:    apiResp.Usage.PromptTokens,
