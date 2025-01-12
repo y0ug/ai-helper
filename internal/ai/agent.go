@@ -320,33 +320,20 @@ func (a *Agent) SendRequest() (AIResponse, error) {
 		var anthropicContent []AIContent
 
 		for _, content := range msg.GetContents() {
-			switch c := content.(type) {
-			case AIFunctionCall:
-				if c.GetCallType() != "function" {
-					fmt.Printf("tool type not supported %s", c.GetCallType())
+			if content.GetType() == string(ContentTypeToolUse) {
+				// Get MCP client from function name
+				client, ok := a.Tools[content.ToolName]
+				if !ok {
+					fmt.Printf("MCP Client not found %s", content.ToolName)
 					continue
 				}
 
-				var args map[string]interface{}
-				if err := json.Unmarshal([]byte(c.GetArguments()), &args); err != nil {
-					return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
-				}
-
-				// Get MCP client from function name
-				client, ok := a.Tools[c.GetName()]
-				if !ok {
-					fmt.Printf("MCP Client not found %s", c.GetName())
-					// return Response{}, fmt.Errorf("MCP client not found for server: %s", serverName)
-				}
-
 				// Call the tool
-				fmt.Printf("calling tool %s", c.GetName())
-				result, err := client.CallTool(context.Background(), c.GetName(), args)
+				fmt.Printf("calling tool %s", content.ToolName)
+				result, err := client.CallTool(context.Background(), content.ToolName, content.Arguments)
 				if err != nil {
 					fmt.Printf("error calling tool %s", err)
-				}
-				if err != nil {
-					return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
+					continue
 				}
 
 				// Convert result to string
@@ -358,22 +345,14 @@ func (a *Agent) SendRequest() (AIResponse, error) {
 					}
 					resultStr = string(resultBytes)
 				}
-				// Create tool output for OpenAI
-				switch content.(type) {
-				case OpenAIToolCall:
-					msg := OpenAIMessage{
-						Role:       "tool",
-						Content:    resultStr,
-						ToolCallId: c.GetID(),
-					}
-					a.AddMessageM(msg)
 
-				case AnthropicContentToolUse:
-					anthropicContent = append(anthropicContent, AnthropicContentToolResult{
-						Type:      "tool_result",
-						ToolUseId: c.GetID(),
-						Content:   resultStr,
-					})
+				// Create tool result message
+				toolResultContent := NewToolResultContent(content.ToolID, resultStr)
+				toolResultMsg := BaseMessage{
+					Role:    "tool",
+					Content: []AIContent{toolResultContent},
+				}
+				a.AddMessageM(toolResultMsg)
 					// msg := AnthropicMessageRequest{
 					// 	Role: "user",
 					// 	Content: AnthropicContentToolResult{
@@ -442,7 +421,7 @@ func (a *Agent) AddMessage(role, content string) {
 	fmt.Printf("AddMessage %s, %s\n", role, content)
 	a.Messages = append(a.Messages, BaseMessage{
 		Role:    role,
-		Content: []AIContent{AnthropicContentText{Type: "text", Text: content}},
+		Content: []AIContent{NewTextContent(content)},
 	})
 }
 
