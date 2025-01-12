@@ -87,9 +87,11 @@ func (m AnthropicMessage) GetContent() AIContent {
 }
 
 func (m AnthropicMessage) GetContents() []AIContent {
-	contents := make([]AIContent, len(m))
+	contents := make([]AIContent, 0, len(m))
 	for _, c := range m {
-		contents = append(contents, c)
+		if c != nil && c.AIContent != nil {
+			contents = append(contents, c.AIContent)
+		}
 	}
 	return contents
 }

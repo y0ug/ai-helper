@@ -139,8 +139,11 @@ func (client *Client) ProcessMessages(
 		// Handle tool calls
 		var anthropicContent []AIContent
 
-		for _, content := range msg.GetContents() {
-			fmt.Printf("content %s \n", content)
+		contents := msg.GetContents()
+		for _, content := range contents {
+			if content == nil {
+				continue
+			}
 
 			switch c := content.(type) {
 			case AIFunctionCall:
