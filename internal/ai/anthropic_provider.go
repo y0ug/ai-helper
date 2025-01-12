@@ -130,7 +130,7 @@ type AnthropicResponse struct {
 	Model        string           `json:"model"`
 }
 
-func (r *AnthropicResponse) GetMessage() AIMessage {
+func (r AnthropicResponse) GetMessage() AIMessage {
 	return AnthropicMessageRequest{
 		Role:    r.Role,
 		Content: r.Content.GetContents(),
