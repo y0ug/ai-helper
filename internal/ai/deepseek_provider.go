@@ -1,7 +1,10 @@
 package ai
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 )
 
 // DeepSeekProvider implements the Provider interface for DeepSeek's API.
@@ -72,6 +75,10 @@ func (p *DeepSeekProvider) GenerateResponse(messages []AIMessage) (AIResponse, e
 		OpenAISettings: *p.settings,
 	}
 
+	for _, msg := range req.Messages {
+		data, _ := json.Marshal(msg)
+		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, string(data))
+	}
 	var resp DeepSeekResponse
 	err := p.makeRequest("POST", p.baseUrl, headers, req, &resp)
 	if err != nil {

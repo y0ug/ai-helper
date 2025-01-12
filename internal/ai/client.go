@@ -125,7 +125,8 @@ func (client *Client) ProcessMessages(
 ) ([]AIMessage, error) {
 	fmt.Fprintf(os.Stderr, "ProcessMessages\n")
 	for _, msg := range messages {
-		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, msg)
+		data, _ := json.Marshal(msg)
+		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, string(data))
 	}
 
 	resp, err := client.GenerateWithMessages(messages, "agent_name")
