@@ -196,11 +196,19 @@ func AIMessageToOpenAIMessage(m []AIMessage) []OpenAIMessage {
 		case OpenAIMessage:
 			userMessages = append(userMessages, msg)
 		default:
-			userMessages = append(userMessages, OpenAIMessage{
-				Role:    msg.GetRole(),
-				Content: msg.GetContent().String(),
-			})
-
+			content := msg.GetContent()
+			if content.Type == ContentTypeToolResult {
+				userMessages = append(userMessages, OpenAIMessage{
+					Role:       "tool",
+					Content:    content.Result,
+					ToolCallId: content.ToolUseID,
+				})
+			} else {
+				userMessages = append(userMessages, OpenAIMessage{
+					Role:    msg.GetRole(),
+					Content: content.String(),
+				})
+			}
 		}
 	}
 	return userMessages
