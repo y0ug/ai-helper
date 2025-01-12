@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -8,6 +9,7 @@ import (
 // AnthropicProvider implements the Provider interface for Anthropic's API.
 type AnthropicProvider struct {
 	BaseProvider
+	settings *AnthropicSettings
 }
 
 // NewAnthropicProvider creates a new instance of AnthropicProvider.
@@ -18,48 +20,309 @@ func NewAnthropicProvider(
 	apiUrl string,
 ) (*AnthropicProvider, error) {
 	return &AnthropicProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, nil, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		settings:     &AnthropicSettings{Model: model.Name},
 	}, nil
 }
 
-// AnthropicRequest defines the request structure specific to Anthropic.
-type AnthropicRequest struct {
-	Model     string    `json:"model"`
-	System    string    `json:"system,omitempty"`
-	MaxTokens int       `json:"max_tokens"`
-	Messages  []Message `json:"messages"`
+func (p *AnthropicProvider) Settings() AIModelSettings {
+	return p.settings
 }
 
-// AnthropicResponse defines the response structure specific to Anthropic.
+type AnthropicTool struct {
+	Name        string      `json:"name"`
+	Description *string     `json:"description",omitempty`
+	InputSchema interface{} `json:"input_schema"`
+}
+
+func (v *AITools) ToAntropicTool() *AnthropicTool {
+	return &AnthropicTool{
+		Name:        v.Function.Name,
+		Description: v.Function.Description,
+		InputSchema: v.Function.Parameters,
+	}
+}
+
+type AnthropicSettings struct {
+	MaxTokens     int      `json:"max_tokens,omitempty"`
+	Model         string   `json:"model"`
+	StopSequences []string `json:"stop_sequences,omitempty"`
+	Stream        bool     `json:"stream,omitempty"`
+	System        string   `json:"system,omitempty"`
+
+	Temperature int             `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	Tools       []AnthropicTool `json:"tools,omitempty"`
+	ToolChoice  interface{}     `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
+}
+
+func (s *AnthropicSettings) SetMaxTokens(maxTokens int) {
+	s.MaxTokens = maxTokens
+}
+
+func (s *AnthropicSettings) SetTools(tools []AITools) {
+	s.Tools = []AnthropicTool{}
+	for _, t := range tools {
+		s.Tools = append(s.Tools, *t.ToAntropicTool())
+	}
+	// s.ParallelToolCalls = true
+}
+
+func (s *AnthropicSettings) SetStream(stream bool) {
+	s.Stream = stream
+}
+
+func (s *AnthropicSettings) SetModel(model string) {
+	s.Model = model
+}
+
+// Should implement AIMessage interface
+type AnthropicMessage []*AnthropicContent
+
+func (m AnthropicMessage) GetRole() string {
+	return "assistant"
+}
+
+func (m AnthropicMessage) GetContent() AIContent {
+	return m[0]
+}
+
+func (m AnthropicMessage) GetContents() []AIContent {
+	contents := make([]AIContent, len(m))
+	for _, c := range m {
+		contents = append(contents, c)
+	}
+	return contents
+}
+
+// func (m AnthropicMessage) GetToolCalls() []AIToolCall {
+// 	AIToolCalls := []AIToolCall{}
+// 	for _, cw := range m {
+// 		switch c := cw.(type) {
+// 		case AnthropicContentToolUse:
+// 			args, _ := json.Marshal(c.Input)
+// 			AIToolCalls = append(AIToolCalls, AIToolCall{
+// 				ID:   c.ID,
+// 				Type: "function",
+// 				Function: AIFunctionCall{
+// 					Name:      c.Name,
+// 					Arguments: string(args),
+// 				},
+// 			})
+// 		}
+// 	}
+// 	return AIToolCalls
+// }
+
+// Antropic response compare to openAPI
+// Choice[0] is the array Content field of the response
+// A response can have more then one content
+
 type AnthropicResponse struct {
-	Content []struct {
-		Text string `json:"text"`
+	ID           string           `json:"id"`
+	Content      AnthropicMessage `json:"content"` // It's an [] of AnthropicContent that we wrap in AnthropicMessage to be similar to openAI
+	Role         string           `json:"role"`    // Always "assistant"
+	StopReason   string           `json:"stop_reason,omitempty"`
+	StopSequence string           `json:"stop_sequence,omitempty"`
+	Type         string           `json:"type"` // Always "message"
+	Usage        AnthropicUsage   `json:"usage"`
+}
+
+// AnthropicResponse Implement AIResponse interface
+func (r AnthropicResponse) GetChoice() AIChoice {
+	return r
+}
+
+func (r AnthropicResponse) GetFinishReason() string {
+	if r.StopReason == "tool_use" {
+		return "tool_calls"
+	}
+	return r.StopReason
+}
+
+func (r AnthropicResponse) GetUsage() AIUsage {
+	return r.Usage
+}
+
+// AnthropicResponse Implement AIChoice interface
+func (r AnthropicResponse) GetMessage() AIMessage {
+	return r.Content
+}
+
+type AnthropicRequest struct {
+	Messages []AnthropicMessageRequest `json:"messages"`
+	AnthropicSettings
+}
+
+// Implement AIUsage interface
+type AnthropicUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+}
+
+func (r AnthropicUsage) GetInputTokens() int {
+	return r.InputTokens
+}
+
+func (r AnthropicUsage) GetOutputTokens() int {
+	return r.OutputTokens
+}
+
+func (r AnthropicUsage) GetCachedTokens() int {
+	return 0
+}
+
+// AnthropicContent , Message and  Content
+// if we compare to
+type AnthropicContent struct {
+	AIContent
+}
+
+// TextContent represents the "text" type content
+type AnthropicContentText struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+func (t AnthropicContentText) GetType() string {
+	return t.Type
+}
+
+func (t AnthropicContentText) String() string {
+	return t.Text
+}
+
+func (t AnthropicContentText) Raw() interface{} {
+	return t
+}
+
+// ToolUseContent represents the "tool_use" type content
+type AnthropicContentToolUse struct {
+	Type  string                 `json:"type"`
+	ID    string                 `json:"id"`
+	Name  string                 `json:"name"`
+	Input map[string]interface{} `json:"input"`
+}
+
+func (t AnthropicContentToolUse) GetType() string {
+	return t.Type
+}
+
+func (t AnthropicContentToolUse) String() string {
+	return t.Name
+}
+
+func (t AnthropicContentToolUse) Raw() interface{} {
+	return t
+}
+
+func (t AnthropicContentToolUse) GetID() string {
+	return t.ID
+}
+
+func (t AnthropicContentToolUse) GetName() string {
+	return t.Name
+}
+
+func (t AnthropicContentToolUse) GetCallType() string {
+	return "function"
+}
+
+func (t AnthropicContentToolUse) GetArguments() string {
+	args, _ := json.Marshal(t.Input)
+	return string(args)
+}
+
+func (cw *AnthropicContent) UnmarshalJSON(data []byte) error {
+	// Temporary struct to get the type
+	var temp struct {
 		Type string `json:"type"`
-	} `json:"content"`
-	Usage struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
-	} `json:"usage"`
+	}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Based on the type, unmarshal into the appropriate struct
+	switch temp.Type {
+	case "text":
+		fmt.Println("loading text")
+		var tc AnthropicContentText
+		if err := json.Unmarshal(data, &tc); err != nil {
+			return err
+		}
+		cw.AIContent = tc
+	case "tool_use":
+		fmt.Println("loading tool_use")
+		var tuc AnthropicContentToolUse
+		if err := json.Unmarshal(data, &tuc); err != nil {
+			return err
+		}
+		cw.AIContent = tuc
+	// Add more cases for other content types
+	default:
+		return fmt.Errorf("unknown content type: %s", temp.Type)
+	}
+
+	return nil
+}
+
+type AnthropicContentToolResult struct {
+	Type      string `json:"type"` // tool_result
+	ToolUseId string `json:"tool_use_id"`
+	Content   string `json:"content"`
+}
+
+func (t AnthropicContentToolResult) GetType() string {
+	return t.Type
+}
+
+func (t AnthropicContentToolResult) String() string {
+	return t.Content
+}
+
+func (t AnthropicContentToolResult) Raw() interface{} {
+	return t
+}
+
+// OpenAIResponse defines the response structure specific to OpenAI.
+
+type AnthropicMessageRequest struct {
+	Role    string      `json:"role"`
+	Content []AIContent `json:"content"`
+}
+
+func (m AnthropicMessageRequest) GetRole() string {
+	return m.Role
+}
+
+func (m AnthropicMessageRequest) GetContent() AIContent {
+	return m.Content[0]
+}
+
+func (m AnthropicMessageRequest) GetContents() []AIContent {
+	return m.Content
 }
 
 // GenerateResponse sends a request to Anthropic's API and parses the response.
-func (p *AnthropicProvider) GenerateResponse(messages []Message) (Response, error) {
-	var systemPrompt string
-	var userMessages []Message
+func (p *AnthropicProvider) GenerateResponse(messages []AIMessage) (AIResponse, error) {
+	if p.settings.MaxTokens == 0 {
+		p.settings.MaxTokens = 4096
+	}
+	var userMessages []AnthropicMessageRequest
 
 	for _, msg := range messages {
-		if msg.Role == "system" {
-			systemPrompt = msg.Content
-		} else {
-			userMessages = append(userMessages, msg)
+		if msg.GetRole() == "system" {
+			p.settings.System = msg.GetContent().String()
+			continue
 		}
+		userMessages = append(userMessages, AnthropicMessageRequest{
+			Role:    msg.GetRole(),
+			Content: msg.GetContents(),
+		})
 	}
 
 	reqPayload := AnthropicRequest{
-		Model:     p.model.Name,
-		System:    systemPrompt,
-		MaxTokens: 1024,
-		Messages:  userMessages,
+		AnthropicSettings: *p.settings,
+		Messages:          userMessages,
 	}
 
 	var apiResp AnthropicResponse
@@ -69,18 +332,15 @@ func (p *AnthropicProvider) GenerateResponse(messages []Message) (Response, erro
 		"x-api-key":         p.apiKey,
 	}
 
-	err := p.makeRequest("POST", anthropicAPIURL, headers, reqPayload, &apiResp)
+	err := p.makeRequest("POST", p.baseUrl, headers, reqPayload, &apiResp)
 	if err != nil {
-		return Response{Error: err}, nil
+		return nil, err
 	}
 
-	if len(apiResp.Content) == 0 {
-		return Response{Error: fmt.Errorf("empty response from Anthropic API")}, nil
+	for i, content := range apiResp.GetChoice().GetMessage().GetContents() {
+		fmt.Printf("Content %d: %s\n", i, content.GetType())
+		fmt.Printf("Content %d: %s\n", i, content.String())
+		fmt.Printf("Content %d: %v\n", i, content)
 	}
-
-	return Response{
-		Content:      apiResp.Content[0].Text,
-		InputTokens:  apiResp.Usage.InputTokens,
-		OutputTokens: apiResp.Usage.OutputTokens,
-	}, nil
+	return apiResp, nil
 }

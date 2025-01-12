@@ -27,9 +27,8 @@ type Request struct {
 
 // Message represents a chat message
 type Message struct {
-	Role       string `json:"role"`
-	Content    string `json:"content"`
-	ToolCallId string `json:"tool_call_id,omitempty"`
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 func NewUserMessage(content string) *Message {

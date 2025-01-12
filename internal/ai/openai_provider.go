@@ -8,7 +8,7 @@ import (
 // OpenAIProvider implements the Provider interface for OpenAI's API.
 type OpenAIProvider struct {
 	BaseProvider
-	settings OpenAISettings
+	settings *OpenAISettings
 }
 
 type OpenAIResponseFormat struct {
@@ -23,13 +23,14 @@ func NewOpenAIProvider(
 	client *http.Client,
 	apiUrl string,
 ) (*OpenAIProvider, error) {
-	settings := OpenAISettings{
-		Model: model.Name,
-	}
-
 	return &OpenAIProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, &settings, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
+}
+
+func (p *OpenAIProvider) Settings() AIModelSettings {
+	return p.settings
 }
 
 type OpenAIRequest struct {
@@ -49,14 +50,14 @@ type OpenAISettings struct {
 	ResponseFormat   *OpenAIResponseFormat `json:"response_format,omitempty"`
 	Stop             *string               `json:"stop,omitempty"`   // Up to 4 sequences where the API will stop generating further tokens.
 	Stream           bool                  `json:"stream,omitempty"` // If true, the API will return a response as soon as it becomes available, even if the completion is not finished.
-	StreamOptions    struct {
+	StreamOptions    *struct {
 		IncludeUsage bool `json:"include_usage,omitempty"`
 	} `json:"stream_options,omitempty"`
-	Temperature       int       `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
-	TopP              int       `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
-	Tools             []AITools `json:"tools,omitempty"`
-	ToolChoice        string    `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
-	ParallelToolCalls bool      `json:"parallel_tool_calls"`
+	Temperature int         `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	TopP        int         `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
+	Tools       []AITools   `json:"tools,omitempty"`
+	ToolChoice  interface{} `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
+	// ParallelToolCalls bool      `json:"parallel_tool_calls"`
 }
 
 func (s *OpenAISettings) SetMaxTokens(maxTokens int) {
@@ -65,7 +66,7 @@ func (s *OpenAISettings) SetMaxTokens(maxTokens int) {
 
 func (s *OpenAISettings) SetTools(tools []AITools) {
 	s.Tools = tools
-	s.ParallelToolCalls = true
+	// s.ParallelToolCalls = true
 }
 
 func (s *OpenAISettings) SetStream(stream bool) {
@@ -77,10 +78,43 @@ func (s *OpenAISettings) SetModel(model string) {
 	s.Model = model
 }
 
-type AIToolCall struct {
-	ID       string         `json:"id"`
-	Type     string         `json:"type"`
-	Function AIFunctionCall `json:"function"`
+type OpenAIFunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type OpenAIToolCall struct {
+	ID       string             `json:"id"`
+	Type     string             `json:"type"`
+	Function OpenAIFunctionCall `json:"function"`
+}
+
+func (t OpenAIToolCall) GetID() string {
+	return t.ID
+}
+
+func (t OpenAIToolCall) GetCallType() string {
+	return t.Type
+}
+
+func (t OpenAIToolCall) GetName() string {
+	return t.Function.Name
+}
+
+func (t OpenAIToolCall) GetArguments() string {
+	return t.Function.Arguments
+}
+
+func (t OpenAIToolCall) GetType() string {
+	return "tool_calls"
+}
+
+func (t OpenAIToolCall) String() string {
+	return fmt.Sprintf("ToolCall %s: %s", t.ID, t.Function.Name)
+}
+
+func (t OpenAIToolCall) Raw() interface{} {
+	return t
 }
 
 type OpenAIChoice struct {
@@ -89,11 +123,64 @@ type OpenAIChoice struct {
 }
 
 type OpenAIMessage struct {
-	Role       string       `json:"role"`
-	Content    string       `json:"content"`
-	ToolCalls  []AIToolCall `json:"tool_calls,omitempty"`
-	ToolCallId string       `json:"tool_call_id,omitempty"`
+	Role       string           `json:"role"`
+	Refusal    string           `json:"refusal,omitempty"`
+	Name       string           `json:"name,omitempty"`
+	Audio      interface{}      `json:"audio,omitempty"`
+	ToolCalls  []OpenAIToolCall `json:"tool_calls,omitempty"`
+	Content    string           `json:"content"`
+	ToolCallId string           `json:"tool_call_id"`
 }
+
+// type OpenAIMessage struct {
+// 	AIMessage
+// }
+//
+// type OpenAIMessageTool struct {
+// 	// role: "tool"
+// 	// content string
+// 	OpenAIMessage
+// 	ToolCallId string `json:"tool_call_id"`
+// }
+//
+// type OpenAIMessageAssistant struct {
+// 	OpenAIMessage
+// 	Refusal   string       `json:"refusal,omitempty"`
+// 	Name      string       `json:"name,omitempty"`
+// 	Audio     interface{}  `json:"audio,omitempty"`
+// 	ToolCalls []AIToolCall `json:"tool_calls,omitempty"`
+// }
+//
+// func (m *OpenAIMessage) UnmarshalJSON(data []byte) error {
+// 	// Temporary struct to get the type
+// 	var temp struct {
+// 		Role string `json:"role"`
+// 	}
+// 	if err := json.Unmarshal(data, &temp); err != nil {
+// 		return err
+// 	}
+//
+// 	// Based on the type, unmarshal into the appropriate struct
+// 	switch temp.Role {
+// 	case "tool":
+// 		var tc OpenAIMessageTool
+// 		if err := json.Unmarshal(data, &tc); err != nil {
+// 			return err
+// 		}
+// 		m.AIMessage = tc
+// 	case "assistant":
+// 		var tc OpenAIMessageAssistant
+// 		if err := json.Unmarshal(data, &tuc); err != nil {
+// 			return err
+// 		}
+// 		m.AnthropicContent = tc
+// 	// Add more cases for other content types
+// 	default:
+// 		return fmt.Errorf("unknown content type: %s", temp.Type)
+// 	}
+//
+// 	return nil
+// }
 
 // OpenAIResponse defines the response structure specific to OpenAI.
 type OpenAIResponse struct {
@@ -134,14 +221,6 @@ func (r OpenAIResponse) GetUsage() AIUsage {
 	return r.Usage
 }
 
-func (r OpenAIResponse) GetContent() string {
-	return r.Choices[0].Message.Content
-}
-
-func (r OpenAIResponse) GetFinishReason() string {
-	return r.Choices[0].FinishReason
-}
-
 func (r OpenAIResponse) GetChoice() AIChoice {
 	return r.Choices[0]
 }
@@ -158,12 +237,50 @@ func (m OpenAIMessage) GetRole() string {
 	return m.Role
 }
 
-func (m OpenAIMessage) GetContent() string {
-	return m.Content
+func (m OpenAIMessage) GetContent() AIContent {
+	if len(m.ToolCalls) > 0 {
+		return m.ToolCalls[0]
+	}
+	return m
 }
 
-func (m OpenAIMessage) GetToolCalls() []AIToolCall {
-	return m.ToolCalls
+func (m OpenAIMessage) GetContents() []AIContent {
+	if len(m.ToolCalls) > 0 {
+		content := make([]AIContent, len(m.ToolCalls))
+		for _, tc := range m.ToolCalls {
+			content = append(content, tc)
+		}
+		return content
+	}
+	return []AIContent{m}
+}
+
+// OpenAIMessage import AIContent
+func (c OpenAIMessage) GetType() string {
+	if c.Role == "assistant" {
+		if len(c.ToolCalls) > 0 {
+			return "tool_calls"
+		}
+	}
+	return "text"
+}
+
+func (c OpenAIMessage) String() string {
+	if c.Role == "assistant" {
+		if len(c.ToolCalls) > 0 {
+			return "tool_calls"
+		}
+	}
+	return c.Content
+}
+
+func (c OpenAIMessage) Raw() interface{} {
+	if c.Role == "assistant" {
+		if len(c.ToolCalls) > 0 {
+			return c.ToolCalls
+		}
+	}
+	return c.Content
 }
 
 // GenerateResponse sends a request to OpenAI's API and parses the response.
@@ -173,7 +290,7 @@ func (p *OpenAIProvider) GenerateResponse(messages []AIMessage) (AIResponse, err
 
 	req := OpenAIRequest{
 		Messages:       messages,
-		OpenAISettings: p.settings,
+		OpenAISettings: *p.settings,
 	}
 
 	var resp OpenAIResponse

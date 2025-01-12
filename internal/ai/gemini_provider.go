@@ -8,7 +8,7 @@ import (
 // GeminiProvider implements the Provider interface for Gemini's API.
 type GeminiProvider struct {
 	BaseProvider
-	settings OpenAISettings
+	settings *OpenAISettings
 }
 
 // NewGeminiProvider creates a new instance of GeminiProvider.
@@ -18,12 +18,14 @@ func NewGeminiProvider(
 	client *http.Client,
 	apiUrl string,
 ) (*GeminiProvider, error) {
-	settings := OpenAISettings{
-		Model: model.Name,
-	}
 	return &GeminiProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, settings, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
+}
+
+func (p *GeminiProvider) Settings() AIModelSettings {
+	return p.settings
 }
 
 func (p *GeminiProvider) GenerateResponse(messages []AIMessage) (AIResponse, error) {
@@ -32,7 +34,7 @@ func (p *GeminiProvider) GenerateResponse(messages []AIMessage) (AIResponse, err
 
 	req := OpenAIRequest{
 		Messages:       messages,
-		OpenAISettings: p.settings,
+		OpenAISettings: *p.settings,
 	}
 
 	var resp OpenAIResponse

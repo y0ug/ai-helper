@@ -16,8 +16,8 @@ const (
 // ProviderFactory creates a provider instance based on the model
 func NewProvider(model *Model, apiKey string, client *http.Client) (Provider, error) {
 	switch model.Provider {
-	// case "anthropic":
-	// 	return NewAnthropicProvider(model, apiKey, client)
+	case "anthropic":
+		return NewAnthropicProvider(model, apiKey, client, anthropicAPIURL)
 	case "openrouter":
 		return NewOpenRouterProvider(model, apiKey, client, openRouterAPIURL)
 	case "openai":

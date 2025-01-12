@@ -1,10 +1,13 @@
 package ai
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/y0ug/ai-helper/internal/stats"
+	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
 const (
@@ -80,11 +83,11 @@ func NewClient(
 }
 
 func (c *Client) SetMaxTokens(maxTokens int) {
-	c.provider.SetMaxTokens(maxTokens)
+	c.provider.Settings().SetMaxTokens(maxTokens)
 }
 
 func (c *Client) SetTools(tool []AITools) {
-	c.provider.SetTools(tool)
+	c.provider.Settings().SetTools(tool)
 }
 
 func (c *Client) GetResponseCost(r AIResponse) *float64 {
@@ -114,4 +117,102 @@ func (c *Client) GenerateWithMessages(
 
 func float64ToPtr(f float64) *float64 {
 	return &f
+}
+
+func (client *Client) ProcessMessages(
+	messages []AIMessage,
+	mcpClient mcpclient.MCPClientInterface,
+) ([]AIMessage, error) {
+	resp, err := client.GenerateWithMessages(messages, "agent_name")
+	if err != nil {
+		return nil, err
+	}
+
+	choice := resp.GetChoice()
+	msg := choice.GetMessage()
+
+	messages = append(messages, msg)
+
+	fmt.Printf("choice.GetFinishReason() %s\n", choice.GetFinishReason())
+
+	if choice.GetFinishReason() == "tool_calls" {
+		// Handle tool calls
+		var anthropicContent []AIContent
+
+		for _, content := range msg.GetContents() {
+			fmt.Printf("content %s \n", content)
+
+			switch c := content.(type) {
+			case AIFunctionCall:
+				if c.GetCallType() != "function" {
+					fmt.Printf("tool type not supported %s", c.GetCallType())
+					continue
+				}
+
+				var args map[string]interface{}
+				if err := json.Unmarshal([]byte(c.GetArguments()), &args); err != nil {
+					return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+				}
+
+				// Call the tool
+				fmt.Printf("calling tool %s", c.GetName())
+				result, err := mcpClient.CallTool(context.Background(), c.GetName(), args)
+				if err != nil {
+					fmt.Printf("error calling tool %s", err)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
+				}
+
+				// Convert result to string
+				resultStr := ""
+				if result != nil {
+					resultBytes, err := json.Marshal(result)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal tool result: %w", err)
+					}
+					resultStr = string(resultBytes)
+				}
+				// Create tool output for OpenAI
+				switch content.(type) {
+				case OpenAIToolCall:
+					msg := OpenAIMessage{
+						Role:       "tool",
+						Content:    resultStr,
+						ToolCallId: c.GetID(),
+					}
+					messages = append(messages, msg)
+
+				case AnthropicContentToolUse:
+					anthropicContent = append(anthropicContent, AnthropicContentToolResult{
+						Type:      "tool_result",
+						ToolUseId: c.GetID(),
+						Content:   resultStr,
+					})
+					// msg := AnthropicMessageRequest{
+					// 	Role: "user",
+					// 	Content: AnthropicContentToolResult{
+					// 		Type:      "tool_result",
+					// 		ToolUseId: c.GetID(),
+					// 		Content:   resultStr,
+					// 	},
+					// }
+				}
+				if len(anthropicContent) > 0 {
+					messages = append(messages, AnthropicMessageRequest{
+						Role:    "user",
+						Content: anthropicContent,
+					})
+				}
+				messages, err = client.ProcessMessages(messages, mcpClient)
+				if err != nil {
+					return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
+				}
+				return messages, nil
+			default:
+				fmt.Printf("default %s\n", c)
+			}
+		}
+	}
+	return messages, nil
 }

@@ -317,59 +317,89 @@ func (a *Agent) SendRequest() (AIResponse, error) {
 
 	if choice.GetFinishReason() == "tool_calls" {
 		// Handle tool calls
-		for _, call := range msg.GetToolCalls() {
-			if call.Type != "function" {
-				fmt.Printf("tool type not supported %s", call.Type)
-				continue
-			}
+		var anthropicContent []AIContent
 
-			var args map[string]interface{}
-			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
-				return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
-			}
-
-			// Get MCP client from function name
-			client, ok := a.Tools[call.Function.Name]
-			if !ok {
-				fmt.Printf("MCP Client not found %s", call.Function.Name)
-				// return Response{}, fmt.Errorf("MCP client not found for server: %s", serverName)
-			}
-
-			// Call the tool
-			fmt.Printf("calling tool %s", call.Function.Name)
-			result, err := client.CallTool(context.Background(), call.Function.Name, args)
-			if err != nil {
-				fmt.Printf("error calling tool %s", err)
-			}
-			if err != nil {
-				return nil, fmt.Errorf("failed to call tool %s: %w", call.Function.Name, err)
-			}
-
-			// Convert result to string
-			resultStr := ""
-			if result != nil {
-				resultBytes, err := json.Marshal(result)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal tool result: %w", err)
+		for _, content := range msg.GetContents() {
+			switch c := content.(type) {
+			case AIFunctionCall:
+				if c.GetCallType() != "function" {
+					fmt.Printf("tool type not supported %s", c.GetCallType())
+					continue
 				}
-				resultStr = string(resultBytes)
-			}
 
-			// Create tool output for OpenAI
-			msg := OpenAIMessage{
-				Role:       "tool",
-				Content:    resultStr,
-				ToolCallId: call.ID,
-			}
+				var args map[string]interface{}
+				if err := json.Unmarshal([]byte(c.GetArguments()), &args); err != nil {
+					return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+				}
 
+				// Get MCP client from function name
+				client, ok := a.Tools[c.GetName()]
+				if !ok {
+					fmt.Printf("MCP Client not found %s", c.GetName())
+					// return Response{}, fmt.Errorf("MCP client not found for server: %s", serverName)
+				}
+
+				// Call the tool
+				fmt.Printf("calling tool %s", c.GetName())
+				result, err := client.CallTool(context.Background(), c.GetName(), args)
+				if err != nil {
+					fmt.Printf("error calling tool %s", err)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
+				}
+
+				// Convert result to string
+				resultStr := ""
+				if result != nil {
+					resultBytes, err := json.Marshal(result)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal tool result: %w", err)
+					}
+					resultStr = string(resultBytes)
+				}
+				// Create tool output for OpenAI
+				switch content.(type) {
+				case OpenAIToolCall:
+					msg := OpenAIMessage{
+						Role:       "tool",
+						Content:    resultStr,
+						ToolCallId: c.GetID(),
+					}
+					a.AddMessageM(msg)
+
+				case AnthropicContentToolUse:
+					anthropicContent = append(anthropicContent, AnthropicContentToolResult{
+						Type:      "tool_result",
+						ToolUseId: c.GetID(),
+						Content:   resultStr,
+					})
+					// msg := AnthropicMessageRequest{
+					// 	Role: "user",
+					// 	Content: AnthropicContentToolResult{
+					// 		Type:      "tool_result",
+					// 		ToolUseId: c.GetID(),
+					// 		Content:   resultStr,
+					// 	},
+					// }
+				}
+
+				resp, err := a.SendRequest()
+				if err != nil {
+					return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
+				}
+				return resp, nil
+			default:
+				fmt.Printf("default %s", c)
+			}
+		}
+
+		if len(anthropicContent) > 0 {
+			msg := AnthropicMessageRequest{
+				Role:    "user",
+				Content: anthropicContent,
+			}
 			a.AddMessageM(msg)
-
-			resp, err := a.SendRequest()
-			if err != nil {
-				return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
-			}
-
-			return resp, nil
 		}
 
 		// Make another request to get the final response
@@ -409,13 +439,15 @@ func ListAgents() ([]string, error) {
 
 // AddMessage adds a new message to the agent's conversation history
 func (a *Agent) AddMessage(role, content string) {
-	a.Messages = append(a.Messages, OpenAIMessage{
+	fmt.Printf("AddMessage %s, %s\n", role, content)
+	a.Messages = append(a.Messages, BaseMessage{
 		Role:    role,
-		Content: content,
+		Content: []AIContent{AnthropicContentText{Type: "text", Text: content}},
 	})
 }
 
 func (a *Agent) AddMessageM(msg AIMessage) {
+	fmt.Printf("AddMessageM %s, %s\n", msg.GetRole(), msg.GetContent())
 	a.Messages = append(a.Messages, msg)
 }
 

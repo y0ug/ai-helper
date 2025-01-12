@@ -8,7 +8,7 @@ import (
 // OpenRouterProvider implements the Provider interface for OpenRouter's API.
 type OpenRouterProvider struct {
 	BaseProvider
-	settings OpenAISettings
+	settings *OpenAISettings
 }
 
 // NewOpenRouterProvider creates a new instance of OpenRouterProvider.
@@ -18,12 +18,14 @@ func NewOpenRouterProvider(
 	client *http.Client,
 	apiUrl string,
 ) (*OpenRouterProvider, error) {
-	settings := OpenAISettings{
-		Model: model.Name,
-	}
 	return &OpenRouterProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, settings, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
+}
+
+func (p *OpenRouterProvider) Settings() AIModelSettings {
+	return p.settings
 }
 
 func (p *OpenRouterProvider) GenerateResponse(messages []AIMessage) (AIResponse, error) {
@@ -32,10 +34,9 @@ func (p *OpenRouterProvider) GenerateResponse(messages []AIMessage) (AIResponse,
 
 	req := OpenAIRequest{
 		Messages:       messages,
-		OpenAISettings: p.settings,
+		OpenAISettings: *p.settings,
 	}
 
-	fmt.Println(p.model.Name)
 	var resp OpenAIResponse
 	err := p.makeRequest("POST", p.baseUrl, headers, req, &resp)
 	if err != nil {

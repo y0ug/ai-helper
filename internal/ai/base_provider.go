@@ -31,7 +31,6 @@ type AITools struct {
 
 type AIResponse interface {
 	GetChoice() AIChoice
-	GetFinishReason() string
 	GetUsage() AIUsage
 }
 
@@ -48,8 +47,14 @@ type AIChoice interface {
 
 type AIMessage interface {
 	GetRole() string
-	GetContent() string
-	GetToolCalls() []AIToolCall
+	GetContents() []AIContent
+	GetContent() AIContent
+}
+
+type AIContent interface {
+	GetType() string
+	String() string
+	Raw() interface{}
 }
 
 type AIModelSettings interface {
@@ -59,9 +64,29 @@ type AIModelSettings interface {
 	SetModel(string)
 }
 
-type AIFunctionCall struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+type AIFunctionCall interface {
+	AIContent
+	GetID() string
+	GetCallType() string
+	GetName() string
+	GetArguments() string
+}
+
+type BaseMessage struct {
+	Role    string      `json:"role"`
+	Content []AIContent `json:"content"`
+}
+
+func (m BaseMessage) GetRole() string {
+	return m.Role
+}
+
+func (m BaseMessage) GetContents() []AIContent {
+	return m.Content
+}
+
+func (m BaseMessage) GetContent() AIContent {
+	return m.Content[0]
 }
 
 // NewBaseProvider initializes a new BaseProvider.
@@ -69,7 +94,6 @@ func NewBaseProvider(
 	model *Model,
 	apiKey string,
 	client *http.Client,
-	setting AIModelSettings,
 	url string,
 ) *BaseProvider {
 	if client == nil {
@@ -77,41 +101,40 @@ func NewBaseProvider(
 	}
 
 	base := &BaseProvider{
-		apiKey:   apiKey,
-		client:   client,
-		model:    model,
-		settings: setting,
-		baseUrl:  url,
+		apiKey:  apiKey,
+		client:  client,
+		model:   model,
+		baseUrl: url,
 	}
 
-	base.SetModel(model)
+	// base.SetModel(model)
 	return base
 }
 
-func (bp *BaseProvider) SetModel(model *Model) {
-	bp.model = model
-	if bp.settings != nil {
-		bp.settings.SetModel(model.Name)
-	}
-}
-
-func (bp *BaseProvider) SetMaxTokens(maxTokens int) {
-	if bp.settings != nil {
-		bp.settings.SetMaxTokens(maxTokens)
-	}
-}
-
-func (bp *BaseProvider) SetTools(tools []AITools) {
-	if bp.settings != nil {
-		bp.settings.SetTools(tools)
-	}
-}
-
-func (bp *BaseProvider) SetStream(stream bool) {
-	if bp.settings != nil {
-		bp.settings.SetStream(stream)
-	}
-}
+// func (bp *BaseProvider) SetModel(model *Model) {
+// 	bp.model = model
+// 	if bp.settings != nil {
+// 		bp.settings.SetModel(model.Name)
+// 	}
+// }
+//
+// func (bp *BaseProvider) SetMaxTokens(maxTokens int) {
+// 	if bp.settings != nil {
+// 		bp.settings.SetMaxTokens(maxTokens)
+// 	}
+// }
+//
+// func (bp *BaseProvider) SetTools(tools []AITools) {
+// 	if bp.settings != nil {
+// 		bp.settings.SetTools(tools)
+// 	}
+// }
+//
+// func (bp *BaseProvider) SetStream(stream bool) {
+// 	if bp.settings != nil {
+// 		bp.settings.SetStream(stream)
+// 	}
+// }
 
 // makeRequest sends an HTTP request with the given parameters, serializes the request body,
 // and deserializes the response into respBody.
@@ -123,7 +146,7 @@ func (bp *BaseProvider) makeRequest(
 ) error {
 	var buf io.Reader
 	if reqBody != nil {
-		jsonData, err := json.Marshal(reqBody)
+		jsonData, err := json.MarshalIndent(reqBody, "", "    ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal request body: %w", err)
 		}

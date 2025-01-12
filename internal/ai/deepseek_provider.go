@@ -8,7 +8,7 @@ import (
 // DeepSeekProvider implements the Provider interface for DeepSeek's API.
 type DeepSeekProvider struct {
 	BaseProvider
-	settings OpenAISettings
+	settings *OpenAISettings
 }
 
 // NewDeepSeekProvider creates a new instance of DeepSeekProvider.
@@ -18,12 +18,14 @@ func NewDeepSeekProvider(
 	client *http.Client,
 	apiUrl string,
 ) (*DeepSeekProvider, error) {
-	settings := &OpenAISettings{
-		Model: model.Name,
-	}
 	return &DeepSeekProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, settings, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
+}
+
+func (p *DeepSeekProvider) Settings() AIModelSettings {
+	return p.settings
 }
 
 // DeepSeekRequest defines the request structure specific to DeepSeek.
@@ -68,7 +70,7 @@ func (p *DeepSeekProvider) GenerateResponse(messages []AIMessage) (AIResponse, e
 
 	req := OpenAIRequest{
 		Messages:       messages,
-		OpenAISettings: p.settings,
+		OpenAISettings: *p.settings,
 	}
 
 	var resp DeepSeekResponse
