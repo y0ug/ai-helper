@@ -18,7 +18,7 @@ func NewDeepSeekProvider(
 	client *http.Client,
 	apiUrl string,
 ) (*DeepSeekProvider, error) {
-	settings := OpenAISettings{
+	settings := &OpenAISettings{
 		Model: model.Name,
 	}
 	return &DeepSeekProvider{
