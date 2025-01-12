@@ -88,13 +88,7 @@ func (m AnthropicMessage) GetContent() AIContent {
 }
 
 func (m AnthropicMessage) GetContents() []AIContent {
-	contents := make([]AIContent, 0)
-	for _, c := range m {
-		if c != nil && c.AIContent != nil {
-			contents = append(contents, c.AIContent)
-		}
-	}
-	return contents
+	return m
 }
 
 // func (m AnthropicMessage) GetToolCalls() []AIToolCall {
@@ -180,7 +174,7 @@ func (r AnthropicUsage) GetCachedTokens() int {
 // AnthropicContent , Message and  Content
 // if we compare to
 func (m *AnthropicMessage) UnmarshalJSON(data []byte) error {
-	var temp struct {
+	var contents []struct {
 		Type      string                 `json:"type"`
 		Text      string                 `json:"text,omitempty"`
 		ID        string                 `json:"id,omitempty"`
@@ -189,19 +183,24 @@ func (m *AnthropicMessage) UnmarshalJSON(data []byte) error {
 		ToolUseId string                 `json:"tool_use_id,omitempty"`
 		Content   string                 `json:"content,omitempty"`
 	}
-	if err := json.Unmarshal(data, &temp); err != nil {
+	if err := json.Unmarshal(data, &contents); err != nil {
 		return err
 	}
 
-	switch temp.Type {
-	case "text":
-		cw.AIContent = NewTextContent(temp.Text)
-	case "tool_use":
-		cw.AIContent = NewToolUseContent(temp.ID, temp.Name, temp.Input)
-	case "tool_result":
-		cw.AIContent = NewToolResultContent(temp.ToolUseId, temp.Content)
-	default:
-		return fmt.Errorf("unknown content type: %s", temp.Type)
+	*m = make(AnthropicMessage, 0, len(contents))
+	for _, temp := range contents {
+		var content AIContent
+		switch temp.Type {
+		case "text":
+			content = NewTextContent(temp.Text)
+		case "tool_use":
+			content = NewToolUseContent(temp.ID, temp.Name, temp.Input)
+		case "tool_result":
+			content = NewToolResultContent(temp.ToolUseId, temp.Content)
+		default:
+			return fmt.Errorf("unknown content type: %s", temp.Type)
+		}
+		*m = append(*m, content)
 	}
 
 	return nil
