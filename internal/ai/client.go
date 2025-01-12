@@ -163,7 +163,7 @@ func (client *Client) ProcessMessages(
 				content.Arguments,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
+				return nil, fmt.Errorf("failed to call tool %s: %w", content.ToolName, err)
 			}
 
 			// Convert result to string
@@ -176,46 +176,24 @@ func (client *Client) ProcessMessages(
 				resultStr = string(resultBytes)
 			}
 
-			fmt.Fprintf(os.Stderr, "tools: %s: %s\n", c.GetName(), resultStr)
+			fmt.Fprintf(os.Stderr, "tools: %s: %s\n", content.ToolName, resultStr)
 
-			// Create tool output for OpenAI
-			switch content.(type) {
-			case OpenAIToolCall:
-				msg := OpenAIMessage{
-					Role:       "tool",
-					Content:    resultStr,
-					ToolCallId: c.GetID(),
-				}
-				messages = append(messages, msg)
+			// Create tool result message
+			toolResultContent := NewToolResultContent(content.ToolID, resultStr)
+			toolResultMsg := BaseMessage{
+				Role:    "tool",
+				Content: []AIContent{toolResultContent},
+			}
+			messages = append(messages, toolResultMsg)
 
-			case AnthropicContentToolUse:
-				anthropicContent = append(anthropicContent, AnthropicContentToolResult{
-					Type:      "tool_result",
-					ToolUseId: c.GetID(),
-					Content:   resultStr,
-				})
-				// msg := AnthropicMessageRequest{
-				// 	Role: "user",
-				// 	Content: AnthropicContentToolResult{
-				// 		Type:      "tool_result",
-				// 		ToolUseId: c.GetID(),
-				// 		Content:   resultStr,
-				// 	},
-				// }
-			}
-			if len(anthropicContent) > 0 {
-				messages = append(messages, AnthropicMessageRequest{
-					Role:    "user",
-					Content: anthropicContent,
-				})
-			}
+			// Recursively process messages
 			messages, err = client.ProcessMessages(messages, mcpClient)
 			if err != nil {
 				return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
 			}
 			return messages, nil
-		default:
-			fmt.Printf("Txt Message: %s\n", c)
+		} else {
+			fmt.Printf("Text Message: %s\n", content.String())
 		}
 	}
 	// }
