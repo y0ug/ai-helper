@@ -51,30 +51,16 @@ type AIMessage interface {
 	GetContent() AIContent
 }
 
-type AIContent interface {
-	GetType() string
-	String() string
-	Raw() interface{}
-}
-
 type AIModelSettings interface {
-	SetMaxTokens(int)
-	SetTools([]AITools)
-	SetStream(bool)
-	SetModel(string)
-}
-
-type AIFunctionCall interface {
-	AIContent
-	GetID() string
-	GetCallType() string
-	GetName() string
-	GetArguments() string
+    SetMaxTokens(int)
+    SetTools([]AITools)
+    SetStream(bool)
+    SetModel(string)
 }
 
 type BaseMessage struct {
-	Role    string      `json:"role"`
-	Content []AIContent `json:"content"`
+    Role    string      `json:"role"`
+    Content []AIContent `json:"content"`
 }
 
 func (m BaseMessage) GetRole() string {
