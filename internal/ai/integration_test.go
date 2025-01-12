@@ -57,6 +57,25 @@ func TestFunctionExecution(t *testing.T) {
 			provider: "openai",
 			prompt:   "Say hello in exactly 5 words.",
 		},
+		{
+			name:     "OpenRouter Integration",
+			model:    "openrouter/openai/gpt-3.5-turbo",
+			provider: "openrouter",
+			prompt:   "Say hello in exactly 5 words.",
+		},
+		{
+			name: "Gemini Integration",
+			// model: "gemini/gemini-pro",
+			model:    "gemini/gemini-exp-1206",
+			provider: "gemini",
+			prompt:   "Say hello in exactly 5 words.",
+		},
+		{
+			name:     "DeepSeek Integration",
+			model:    "deepseek/deepseek-chat",
+			provider: "deepseek",
+			prompt:   "Say hello in exactly 5 words.",
+		},
 	}
 
 	config := &config.MCPServer{

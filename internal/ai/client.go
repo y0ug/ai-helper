@@ -123,7 +123,10 @@ func (client *Client) ProcessMessages(
 	messages []AIMessage,
 	mcpClient mcpclient.MCPClientInterface,
 ) ([]AIMessage, error) {
-	fmt.Fprintf(os.Stderr, "Sending message\n%s\n", messages)
+	fmt.Fprintf(os.Stderr, "ProcessMessages\n")
+	for _, msg := range messages {
+		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, msg)
+	}
 
 	resp, err := client.GenerateWithMessages(messages, "agent_name")
 	if err != nil {
@@ -133,93 +136,90 @@ func (client *Client) ProcessMessages(
 	choice := resp.GetChoice()
 	msg := choice.GetMessage()
 
-	fmt.Fprintf(os.Stderr, "New message\n")
-	fmt.Fprintf(os.Stderr, "msg %v\n", msg)
-	fmt.Fprintf(os.Stderr, "msg %s\n", msg.GetRole())
-
+	fmt.Fprintf(os.Stderr, "response %v msg: %v\n", resp, msg)
 	messages = append(messages, msg)
 
-	// fmt.Fprintf(os.Stderr, "choice.GetFinishReason() %s\n", choice.GetFinishReason())
+	fmt.Fprintf(os.Stderr, "choice.GetFinishReason() %s\n", choice.GetFinishReason())
 
-	if choice.GetFinishReason() == "tool_calls" {
-		// Handle tool calls
-		var anthropicContent []AIContent
+	// if choice.GetFinishReason() == "tool_calls" {
+	// Handle tool calls
+	var anthropicContent []AIContent
 
-		contents := msg.GetContents()
-		for _, content := range contents {
-			if content == nil {
+	contents := msg.GetContents()
+	for _, content := range contents {
+		if content == nil {
+			continue
+		}
+
+		switch c := content.(type) {
+		case AIFunctionCall:
+			if c.GetCallType() != "function" {
+				fmt.Printf("tool type not supported %s", c.GetCallType())
 				continue
 			}
 
-			switch c := content.(type) {
-			case AIFunctionCall:
-				if c.GetCallType() != "function" {
-					fmt.Printf("tool type not supported %s", c.GetCallType())
-					continue
-				}
-
-				var args map[string]interface{}
-				if err := json.Unmarshal([]byte(c.GetArguments()), &args); err != nil {
-					return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
-				}
-
-				result, err := mcpClient.CallTool(context.Background(), c.GetName(), args)
-				if err != nil {
-					return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
-				}
-
-				// Convert result to string
-				resultStr := ""
-				if result != nil {
-					resultBytes, err := json.Marshal(result)
-					if err != nil {
-						return nil, fmt.Errorf("failed to marshal tool result: %w", err)
-					}
-					resultStr = string(resultBytes)
-				}
-
-				fmt.Fprintf(os.Stderr, "tools: %s: %s\n", c.GetName(), resultStr)
-
-				// Create tool output for OpenAI
-				switch content.(type) {
-				case OpenAIToolCall:
-					msg := OpenAIMessage{
-						Role:       "tool",
-						Content:    resultStr,
-						ToolCallId: c.GetID(),
-					}
-					messages = append(messages, msg)
-
-				case AnthropicContentToolUse:
-					anthropicContent = append(anthropicContent, AnthropicContentToolResult{
-						Type:      "tool_result",
-						ToolUseId: c.GetID(),
-						Content:   resultStr,
-					})
-					// msg := AnthropicMessageRequest{
-					// 	Role: "user",
-					// 	Content: AnthropicContentToolResult{
-					// 		Type:      "tool_result",
-					// 		ToolUseId: c.GetID(),
-					// 		Content:   resultStr,
-					// 	},
-					// }
-				}
-				if len(anthropicContent) > 0 {
-					messages = append(messages, AnthropicMessageRequest{
-						Role:    "user",
-						Content: anthropicContent,
-					})
-				}
-				messages, err = client.ProcessMessages(messages, mcpClient)
-				if err != nil {
-					return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
-				}
-				return messages, nil
-			default:
-				fmt.Printf("Txt Message: %s\n", c)
+			var args map[string]interface{}
+			if err := json.Unmarshal([]byte(c.GetArguments()), &args); err != nil {
+				return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
+
+			result, err := mcpClient.CallTool(context.Background(), c.GetName(), args)
+			if err != nil {
+				return nil, fmt.Errorf("failed to call tool %s: %w", c.GetName(), err)
+			}
+
+			// Convert result to string
+			resultStr := ""
+			if result != nil {
+				resultBytes, err := json.Marshal(result)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal tool result: %w", err)
+				}
+				resultStr = string(resultBytes)
+			}
+
+			fmt.Fprintf(os.Stderr, "tools: %s: %s\n", c.GetName(), resultStr)
+
+			// Create tool output for OpenAI
+			switch content.(type) {
+			case OpenAIToolCall:
+				msg := OpenAIMessage{
+					Role:       "tool",
+					Content:    resultStr,
+					ToolCallId: c.GetID(),
+				}
+				messages = append(messages, msg)
+
+			case AnthropicContentToolUse:
+				anthropicContent = append(anthropicContent, AnthropicContentToolResult{
+					Type:      "tool_result",
+					ToolUseId: c.GetID(),
+					Content:   resultStr,
+				})
+				// msg := AnthropicMessageRequest{
+				// 	Role: "user",
+				// 	Content: AnthropicContentToolResult{
+				// 		Type:      "tool_result",
+				// 		ToolUseId: c.GetID(),
+				// 		Content:   resultStr,
+				// 	},
+				// }
+			}
+			if len(anthropicContent) > 0 {
+				messages = append(messages, AnthropicMessageRequest{
+					Role:    "user",
+					Content: anthropicContent,
+				})
+			}
+			messages, err = client.ProcessMessages(messages, mcpClient)
+			if err != nil {
+				return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
+			}
+			return messages, nil
+		default:
+			fmt.Printf("Txt Message: %s\n", c)
 		}
 	}
+	// }
 	return messages, nil
 }

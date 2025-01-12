@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -182,7 +183,7 @@ func (bp *BaseProvider) makeRequest(
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// log.Printf("Received response with status %d: %s", resp.StatusCode, string(responseBody))
+	log.Printf("Received response with status %d: %s", resp.StatusCode, string(responseBody))
 
 	if resp.StatusCode != http.StatusOK {
 		return NewAPIError(resp.StatusCode, string(responseBody))
