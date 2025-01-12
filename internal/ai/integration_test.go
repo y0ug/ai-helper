@@ -141,10 +141,7 @@ func TestFunctionExecution(t *testing.T) {
 			msgReq := BaseMessage{
 				Role: "user",
 				Content: []AIContent{
-					AnthropicContentText{
-						Type: "text",
-						Text: "What time is it at Paris?",
-					},
+					NewTextContent("What time is it at Paris?"),
 				},
 			}
 
@@ -245,7 +242,7 @@ func TestIntegrationRequests(t *testing.T) {
 
 			msgReq := BaseMessage{
 				Role:    "user",
-				Content: []AIContent{AnthropicContentText{Type: "text", Text: tt.prompt}},
+				Content: []AIContent{NewTextContent(tt.prompt)},
 			}
 
 			// Send request

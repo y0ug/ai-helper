@@ -147,12 +147,9 @@ func (client *Client) ProcessMessages(
 	fmt.Fprintf(os.Stderr, "choice.GetFinishReason() %s\n", choice.GetFinishReason())
 
 	// if choice.GetFinishReason() == "tool_calls" {
-	// Handle tool calls
-	var anthropicContent []AIContent
-
 	contents := msg.GetContents()
 	for _, content := range contents {
-		if content == nil {
+		if content.GetType() == "" {
 			continue
 		}
 
