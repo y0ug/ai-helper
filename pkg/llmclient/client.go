@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rs/zerolog"
 	"github.com/y0ug/ai-helper/internal/stats"
 	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
@@ -54,6 +55,7 @@ type Client struct {
 func NewClient(
 	model *Model,
 	statsTracker *stats.Tracker,
+	logger *zerolog.Logger,
 ) (*Client, error) {
 	var apiKey string
 	switch model.Provider {
@@ -86,7 +88,7 @@ func NewClient(
 		return nil, fmt.Errorf("unsupported provider: %s", model.Provider)
 	}
 
-	provider, err := NewProvider(model, apiKey, nil)
+	provider, err := NewProvider(model, apiKey, nil, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}

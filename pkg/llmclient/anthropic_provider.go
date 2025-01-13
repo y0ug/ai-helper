@@ -18,9 +18,10 @@ func NewAnthropicProvider(
 	apiKey string,
 	client *http.Client,
 	apiUrl string,
+	logger *zerolog.Logger,
 ) (*AnthropicProvider, error) {
 	return &AnthropicProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl, logger),
 		settings:     &AnthropicSettings{Model: model.Name},
 	}, nil
 }

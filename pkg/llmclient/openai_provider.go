@@ -22,9 +22,10 @@ func NewOpenAIProvider(
 	apiKey string,
 	client *http.Client,
 	apiUrl string,
+	logger *zerolog.Logger,
 ) (*OpenAIProvider, error) {
 	return &OpenAIProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl, logger),
 		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
 }

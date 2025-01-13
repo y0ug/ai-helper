@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/rs/zerolog"
 	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
@@ -17,6 +18,7 @@ type BaseProvider struct {
 	baseUrl  string
 	model    *Model
 	settings AIModelSettings
+	logger   zerolog.Logger
 }
 
 // Type from MCP server protocol
@@ -111,9 +113,17 @@ func NewBaseProvider(
 	apiKey string,
 	client *http.Client,
 	url string,
+	logger *zerolog.Logger,
 ) *BaseProvider {
 	if client == nil {
 		client = &http.Client{}
+	}
+
+	var log zerolog.Logger
+	if logger != nil {
+		log = *logger
+	} else {
+		log = zerolog.Nop()
 	}
 
 	base := &BaseProvider{
@@ -121,6 +131,7 @@ func NewBaseProvider(
 		client:  client,
 		model:   model,
 		baseUrl: url,
+		logger:  log,
 	}
 
 	// base.SetModel(model)
@@ -156,12 +167,13 @@ func (bp *BaseProvider) makeRequest(
 		req.Header.Set(key, value)
 	}
 
-	// log.Printf(
-	// 	"Sending %s request to %s with body: %s",
-	// 	method,
-	// 	url,
-	// 	string(bytes.TrimSpace(buf.(*bytes.Buffer).Bytes())),
-	// )
+	if buf != nil {
+		bp.logger.Debug().
+			Str("method", method).
+			Str("url", url).
+			RawJSON("request_body", buf.(*bytes.Buffer).Bytes()).
+			Msg("sending request")
+	}
 
 	resp, err := bp.client.Do(req)
 	if err != nil {
@@ -174,7 +186,10 @@ func (bp *BaseProvider) makeRequest(
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// log.Printf("Received response with status %d: %s", resp.StatusCode, string(responseBody))
+	bp.logger.Debug().
+		Int("status_code", resp.StatusCode).
+		RawJSON("response_body", responseBody).
+		Msg("received response")
 
 	if resp.StatusCode != http.StatusOK {
 		return NewAPIError(resp.StatusCode, string(responseBody))
