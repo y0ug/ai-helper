@@ -10,6 +10,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/y0ug/ai-helper/internal/ai"
 	"github.com/y0ug/ai-helper/internal/chat"
 	"github.com/y0ug/ai-helper/internal/config"
@@ -55,6 +56,9 @@ func main() {
 	interactiveMode := flag.Bool("i", false, "Interactive chat mode")
 	flag.Parse()
 
+	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+	logger := zerolog.New(output).With().Timestamp().Logger()
+
 	// Create AI client early as it's needed for multiple features
 	configDir, err := os.UserHomeDir()
 	if err != nil {
@@ -87,7 +91,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	client, err := llmclient.NewClient(model, statsTracker)
+	client, err := llmclient.NewClient(model, statsTracker, &logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
 		os.Exit(1)

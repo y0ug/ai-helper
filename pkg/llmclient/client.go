@@ -42,7 +42,7 @@ type AIClient interface {
 	) ([]AIMessage, []AIResponse, error)
 }
 
-var _ AIClient = (*Client)(nil) // Optional: ensures `Client` implements `AIClient`
+var _ AIClient = (*Client)(nil)
 
 // Client handles AI model interactions
 type Client struct {
