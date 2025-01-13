@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
 )
 
 func getDefaultHeaders() map[string]string {
@@ -333,7 +333,7 @@ func (cfg *RequestConfig) Execute() (err error) {
 		res.Body = io.NopCloser(bytes.NewBuffer(contents))
 
 		// Load the contents into the error format if it is provided.
-		aerr := openai.Error{Request: cfg.Request, Response: res, StatusCode: res.StatusCode}
+		aerr := apierror.Error{Request: cfg.Request, Response: res, StatusCode: res.StatusCode}
 		err = aerr.UnmarshalJSON(contents)
 		if err != nil {
 			return err
