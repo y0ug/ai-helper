@@ -1,20 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
 	"html/template"
-	io2 "io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/reeflective/console"
 	"github.com/rs/zerolog"
-	"github.com/spf13/cobra"
 	"github.com/y0ug/ai-helper/internal/ai"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
@@ -45,28 +41,6 @@ func GetEnvAIModel(infoProviders *llmclient.InfoProviders) (*llmclient.Model, er
 	return model, nil
 }
 
-func StartConsole(agent *ai.Agent) {
-	app := console.New("example")
-
-	app.NewlineBefore = true
-	app.NewlineAfter = true
-	menu := app.ActiveMenu()
-	menu.AddInterrupt(io2.EOF, exitCtrlD)
-	menu.SetCommands(mainMenuCommands(app, agent))
-	app.Start()
-}
-
-func exitCtrlD(c *console.Console) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Confirm exit (Y/y): ")
-	text, _ := reader.ReadString('\n')
-	answer := strings.TrimSpace(text)
-
-	if (answer == "Y") || (answer == "y") {
-		os.Exit(0)
-	}
-}
-
 func main() {
 	// Parse command line flags
 	outputFile := flag.String("output", "", "Output file path")
@@ -82,7 +56,7 @@ func main() {
 	flag.Parse()
 
 	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
-	logger := zerolog.New(output).With().Timestamp().Logger()
+	logger := zerolog.New(output).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
 	// Create AI client early as it's needed for multiple features
 	configDir, err := os.UserHomeDir()
@@ -435,57 +409,4 @@ func generateBashCompletion() string {
     fi
 }
 complete -F _ai_helper ai-helper`
-}
-
-func mainMenuCommands(app *console.Console, agent *ai.Agent) console.Commands {
-	return func() *cobra.Command {
-		rootCmd := &cobra.Command{}
-
-		versionCmd := &cobra.Command{
-			Use:   "version",
-			Short: "Print the version number of Hugo",
-			Long:  `All software has versions. This is Hugo's`,
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Hugo Static Site Generator v0.9 -- HEAD")
-			},
-		}
-
-		sessionCmd := &cobra.Command{
-			Use: "session",
-			Run: func(cmd *cobra.Command, args []string) {
-				sessions, err := ai.ListAgents()
-				if err != nil {
-					fmt.Printf("%w\n", err)
-				}
-				for _, v := range sessions {
-					fmt.Println(v)
-				}
-			},
-		}
-
-		setCmd := &cobra.Command{
-			Use:   "set",
-			Short: "Set a variable name",
-			Args:  cobra.ExactArgs(2),
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Setting variable", args[0], "to", args[1])
-				// store[args[0]] = args[1]
-			},
-		}
-
-		printCmd := &cobra.Command{
-			Use:  "print",
-			Args: cobra.ExactArgs(1),
-			Run: func(cmd *cobra.Command, args []string) {
-				// fmt.Println(store)
-			},
-		}
-
-		rootCmd.AddCommand(versionCmd)
-		rootCmd.AddCommand(setCmd)
-		rootCmd.AddCommand(printCmd)
-		rootCmd.AddCommand(sessionCmd)
-
-		return rootCmd
-	}
 }

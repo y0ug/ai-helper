@@ -7,6 +7,7 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/ssestream"
 )
 
 type ChatCompletionChoice struct {
@@ -14,6 +15,23 @@ type ChatCompletionChoice struct {
 	Index        int64                 `json:"index,required"`
 	Message      ChatCompletionMessage `json:"message,required"`
 	JSON         string                `json:"-"`
+}
+
+type ChatCompletionChunkChoice struct {
+	FinishReason string                          `json:"finish_reason,omitempty"`
+	Index        int64                           `json:"index,omitempty"`
+	Delta        ChatCompletionChunkChoicesDelta `json:"delta,omitempty"`
+}
+
+type ChatCompletionChunkChoicesDelta struct {
+	Role       string        `json:"role"`
+	Refusal    string        `json:"refusal,omitempty"`
+	Name       string        `json:"name,omitempty"`
+	Audio      interface{}   `json:"audio,omitempty"`
+	ToolCalls  []interface{} `json:"tool_calls,omitempty"`
+	Content    string        `json:"content,omitempty"`
+	ToolCallId string        `json:"tool_call_id,omitempty"`
+	JSON       string        `json:"-"`
 }
 
 func (r *ChatCompletionChoice) UnmarshalJSON(data []byte) (err error) {
@@ -62,6 +80,29 @@ type ChatCompletion struct {
 	// Usage statistics for the completion request.
 	Usage CompletionUsage `json:"usage"`
 	JSON  string          `json:"-"`
+}
+
+type ChatCompletionChunk struct {
+	Choices []ChatCompletionChunkChoice `json:"choices"`
+	ID      string                      `json:"id,required"`
+	// A list of chat completion choices. Can be more than one if `n` is greater
+	// than 1.
+	// The Unix timestamp (in seconds) of when the chat completion was created.
+	Created int64 `json:"created,required"`
+	// The model used for the chat completion.
+	Model string `json:"model,required"`
+	// The object type, which is always `chat.completion`.
+	Object string `json:"object,required"`
+	// The service tier used for processing the request. This field is only included if
+	// the `service_tier` parameter is specified in the request.
+	ServiceTier interface{} `json:"service_tier,nullable"`
+	// This fingerprint represents the backend configuration that the model runs with.
+	//
+	// Can be used in conjunction with the `seed` request parameter to understand when
+	// backend changes have been made that might impact determinism.
+	SystemFingerprint string `json:"system_fingerprint"`
+	// Usage statistics for the completion request.
+	Usage CompletionUsage `json:"usage"`
 }
 
 func (r *ChatCompletion) UnmarshalJSON(data []byte) (err error) {
@@ -119,6 +160,22 @@ func (r *ChatCompletionService) New(
 	path := "chat/completions"
 	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
 	return
+}
+
+func (r *ChatCompletionService) NewStreaming(
+	ctx context.Context,
+	body ChatCompletionNewParams,
+	opts ...requestoption.RequestOption,
+) (stream *ssestream.Stream[ChatCompletionChunk]) {
+	var (
+		raw *http.Response
+		err error
+	)
+	opts = append(r.Options[:], opts...)
+	opts = append([]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)}, opts...)
+	path := "chat/completions"
+	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, opts...)
+	return ssestream.NewStream[ChatCompletionChunk](ssestream.NewDecoder(raw), err)
 }
 
 // Creates a model response for the given chat conversation. Learn more in the

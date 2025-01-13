@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -14,6 +15,35 @@ func skipIfNoAPIKey(t *testing.T) {
 	if os.Getenv("OPENAI_API_KEY") == "" {
 		t.Skip("Skipping integration test because OPENAI_API_KEY is not set")
 	}
+}
+
+func TestClientStreamIntegration(t *testing.T) {
+	skipIfNoAPIKey(t)
+
+	client := NewClient()
+	// requestoption.WithMiddleware(middleware.LoggingMiddleware()))
+	ctx := context.Background()
+
+	t.Run("ChatCompletion", func(t *testing.T) {
+		params := ChatCompletionNewParams{
+			Model: "gpt-3.5-turbo",
+			Messages: []ChatCompletionMessageParam{
+				{
+					Role:    "user",
+					Content: "Write a 2048 word essay on the topic of artificial intelligence",
+				},
+			},
+			Temperature: 0,
+		}
+		stream := client.Chat.NewStreaming(ctx, params)
+		for stream.Next() {
+			evt := stream.Current()
+			if len(evt.Choices) == 0 {
+				continue
+			}
+			print(fmt.Sprintf("%s", evt.Choices[0].Delta.Content))
+		}
+	})
 }
 
 func TestClientIntegration(t *testing.T) {
