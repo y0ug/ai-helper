@@ -156,11 +156,11 @@ func (client *Client) ProcessMessages(
 		if content.GetType() == string(ContentTypeToolUse) {
 			result, err := mcpClient.CallTool(
 				context.Background(),
-				content.ToolName,
-				content.Arguments,
+				content.Name,
+				content.Input,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("failed to call tool %s: %w", content.ToolName, err)
+				return nil, fmt.Errorf("failed to call tool %s: %w", content.Name, err)
 			}
 
 			// Convert result to string
@@ -173,12 +173,12 @@ func (client *Client) ProcessMessages(
 				resultStr = string(resultBytes)
 			}
 
-			fmt.Fprintf(os.Stderr, "tools: %s: %s\n", content.ToolName, resultStr)
+			fmt.Fprintf(os.Stderr, "tools: %s: %s\n", content.Name, resultStr)
 
 			// Create tool result message
-			toolResultContent := NewToolResultContent(content.ToolID, resultStr)
+			toolResultContent := NewToolResultContent(content.ID, resultStr)
 			toolResultMsg := BaseMessage{
-				Role:    "tool",
+				Role:    "user",
 				Content: []AIContent{toolResultContent},
 			}
 			messages = append(messages, toolResultMsg)

@@ -52,15 +52,15 @@ type AIMessage interface {
 }
 
 type AIModelSettings interface {
-    SetMaxTokens(int)
-    SetTools([]AITools)
-    SetStream(bool)
-    SetModel(string)
+	SetMaxTokens(int)
+	SetTools([]AITools)
+	SetStream(bool)
+	SetModel(string)
 }
 
 type BaseMessage struct {
-    Role    string      `json:"role"`
-    Content []AIContent `json:"content"`
+	Role    string      `json:"role"`
+	Content []AIContent `json:"content"`
 }
 
 func (m BaseMessage) GetRole() string {
@@ -93,34 +93,8 @@ func NewBaseProvider(
 		baseUrl: url,
 	}
 
-	// base.SetModel(model)
 	return base
 }
-
-// func (bp *BaseProvider) SetModel(model *Model) {
-// 	bp.model = model
-// 	if bp.settings != nil {
-// 		bp.settings.SetModel(model.Name)
-// 	}
-// }
-//
-// func (bp *BaseProvider) SetMaxTokens(maxTokens int) {
-// 	if bp.settings != nil {
-// 		bp.settings.SetMaxTokens(maxTokens)
-// 	}
-// }
-//
-// func (bp *BaseProvider) SetTools(tools []AITools) {
-// 	if bp.settings != nil {
-// 		bp.settings.SetTools(tools)
-// 	}
-// }
-//
-// func (bp *BaseProvider) SetStream(stream bool) {
-// 	if bp.settings != nil {
-// 		bp.settings.SetStream(stream)
-// 	}
-// }
 
 // makeRequest sends an HTTP request with the given parameters, serializes the request body,
 // and deserializes the response into respBody.

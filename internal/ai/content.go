@@ -1,6 +1,9 @@
 package ai
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // ContentType enumerates possible content types we handle
 type ContentType string
@@ -19,13 +22,13 @@ type AIContent struct {
 	Text string `json:"text,omitempty"`
 
 	// Relevant for tool usage calls (like "function calls")
-	ToolID     string                 `json:"tool_id,omitempty"`     // Unique identifier for this tool call
-	ToolName   string                 `json:"tool_name,omitempty"`   // Name of the tool to call
-	Arguments  map[string]interface{} `json:"arguments,omitempty"`   // Arguments to pass to the tool
+	ID    string                 `json:"id,omitempty"`    // Unique identifier for this tool call
+	Name  string                 `json:"name,omitempty"`  // Name of the tool to call
+	Input map[string]interface{} `json:"input,omitempty"` // Arguments to pass to the tool
 
 	// Relevant for tool results
 	ToolUseID string `json:"tool_use_id,omitempty"` // ID of the tool call this result is for
-	Result    string `json:"result,omitempty"`       // Result returned from the tool
+	Content   string `json:"content,omitempty"`     // Result returned from the tool
 }
 
 // NewTextContent creates a text content message
@@ -39,10 +42,10 @@ func NewTextContent(text string) AIContent {
 // NewToolUseContent creates a tool use content message
 func NewToolUseContent(id, name string, args map[string]interface{}) AIContent {
 	return AIContent{
-		Type:      ContentTypeToolUse,
-		ToolID:    id,
-		ToolName:  name,
-		Arguments: args,
+		Type:  ContentTypeToolUse,
+		ID:    id,
+		Name:  name,
+		Input: args,
 	}
 }
 
@@ -51,7 +54,7 @@ func NewToolResultContent(toolUseID, result string) AIContent {
 	return AIContent{
 		Type:      ContentTypeToolResult,
 		ToolUseID: toolUseID,
-		Result:    result,
+		Content:   result,
 	}
 }
 
@@ -66,10 +69,10 @@ func (c AIContent) String() string {
 	case ContentTypeText:
 		return c.Text
 	case ContentTypeToolUse:
-		args, _ := json.Marshal(c.Arguments)
-		return fmt.Sprintf("%s:%s => %s", c.ToolID, c.ToolName, string(args))
+		args, _ := json.Marshal(c.Input)
+		return fmt.Sprintf("%s:%s => %s", c.ToolUseID, c.Name, string(args))
 	case ContentTypeToolResult:
-		return fmt.Sprintf("Result[%s]: %s", c.ToolUseID, c.Result)
+		return fmt.Sprintf("Result[%s]: %s", c.ToolUseID, c.Content)
 	default:
 		return fmt.Sprintf("unknown content type: %s", c.Type)
 	}

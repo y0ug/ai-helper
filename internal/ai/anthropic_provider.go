@@ -91,29 +91,6 @@ func (m AnthropicMessage) GetContents() []AIContent {
 	return m
 }
 
-// func (m AnthropicMessage) GetToolCalls() []AIToolCall {
-// 	AIToolCalls := []AIToolCall{}
-// 	for _, cw := range m {
-// 		switch c := cw.(type) {
-// 		case AnthropicContentToolUse:
-// 			args, _ := json.Marshal(c.Input)
-// 			AIToolCalls = append(AIToolCalls, AIToolCall{
-// 				ID:   c.ID,
-// 				Type: "function",
-// 				Function: AIFunctionCall{
-// 					Name:      c.Name,
-// 					Arguments: string(args),
-// 				},
-// 			})
-// 		}
-// 	}
-// 	return AIToolCalls
-// }
-
-// Antropic response compare to openAPI
-// Choice[0] is the array Content field of the response
-// A response can have more then one content
-
 type AnthropicResponse struct {
 	ID           string           `json:"id"`
 	Content      AnthropicMessage `json:"content"`

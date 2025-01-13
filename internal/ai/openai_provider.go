@@ -112,7 +112,6 @@ type OpenAIMessage struct {
 	ToolCallId string           `json:"tool_call_id"`
 }
 
-
 // OpenAIResponse defines the response structure specific to OpenAI.
 type OpenAIResponse struct {
 	ID      string         `json:"id"`
@@ -200,7 +199,7 @@ func AIMessageToOpenAIMessage(m []AIMessage) []OpenAIMessage {
 			if content.Type == ContentTypeToolResult {
 				userMessages = append(userMessages, OpenAIMessage{
 					Role:       "tool",
-					Content:    content.Result,
+					Content:    content.Content,
 					ToolCallId: content.ToolUseID,
 				})
 			} else {

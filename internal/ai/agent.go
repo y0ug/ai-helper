@@ -306,87 +306,80 @@ func (a *Agent) UpdateCosts(response AIResponse) {
 }
 
 func (a *Agent) SendRequest() (AIResponse, error) {
-	resp, err := a.Client.GenerateWithMessages(a.GetMessages(), "agent_name")
-	if err != nil {
-		return nil, err
-	}
-
-	choice := resp.GetChoice()
-	msg := choice.GetMessage()
-	a.AddMessageM(msg)
-
-	if choice.GetFinishReason() == "tool_calls" {
-		// Handle tool calls
-		var anthropicContent []AIContent
-
-		for _, content := range msg.GetContents() {
-			if content.GetType() == string(ContentTypeToolUse) {
-				// Get MCP client from function name
-				client, ok := a.Tools[content.ToolName]
-				if !ok {
-					fmt.Printf("MCP Client not found %s", content.ToolName)
-					continue
-				}
-
-				// Call the tool
-				fmt.Printf("calling tool %s", content.ToolName)
-				result, err := client.CallTool(context.Background(), content.ToolName, content.Arguments)
-				if err != nil {
-					fmt.Printf("error calling tool %s", err)
-					continue
-				}
-
-				// Convert result to string
-				resultStr := ""
-				if result != nil {
-					resultBytes, err := json.Marshal(result)
-					if err != nil {
-						return nil, fmt.Errorf("failed to marshal tool result: %w", err)
-					}
-					resultStr = string(resultBytes)
-				}
-
-				// Create tool result message
-				toolResultContent := NewToolResultContent(content.ToolID, resultStr)
-				toolResultMsg := BaseMessage{
-					Role:    "tool",
-					Content: []AIContent{toolResultContent},
-				}
-				a.AddMessageM(toolResultMsg)
-					// msg := AnthropicMessageRequest{
-					// 	Role: "user",
-					// 	Content: AnthropicContentToolResult{
-					// 		Type:      "tool_result",
-					// 		ToolUseId: c.GetID(),
-					// 		Content:   resultStr,
-					// 	},
-					// }
-				}
-
-				resp, err := a.SendRequest()
-				if err != nil {
-					return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
-				}
-				return resp, nil
-			default:
-				fmt.Printf("default %s", c)
-			}
-		}
-
-		if len(anthropicContent) > 0 {
-			msg := AnthropicMessageRequest{
-				Role:    "user",
-				Content: anthropicContent,
-			}
-			a.AddMessageM(msg)
-		}
-
-		// Make another request to get the final response
-		return a.SendRequest()
-	}
-
-	a.UpdateCosts(resp)
-	return resp, nil
+	return nil, nil
+	// resp, err := a.Client.GenerateWithMessages(a.GetMessages(), "agent_name")
+	//
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//
+	// choice := resp.GetChoice()
+	// msg := choice.GetMessage()
+	// a.AddMessageM(msg)
+	//
+	//	if choice.GetFinishReason() == "tool_calls" {
+	//		// Handle tool calls
+	//		var anthropicContent []AIContent
+	//
+	//		for _, content := range msg.GetContents() {
+	//			if content.GetType() == string(ContentTypeToolUse) {
+	//				// Get MCP client from function name
+	//				client, ok := a.Tools[content.ToolName]
+	//				if !ok {
+	//					fmt.Printf("MCP Client not found %s", content.ToolName)
+	//					continue
+	//				}
+	//
+	//				// Call the tool
+	//				fmt.Printf("calling tool %s", content.ToolName)
+	//				result, err := client.CallTool(
+	//					context.Background(),
+	//					content.ToolName,
+	//					content.Arguments,
+	//				)
+	//				if err != nil {
+	//					fmt.Printf("error calling tool %s", err)
+	//					continue
+	//				}
+	//
+	//				// Convert result to string
+	//				resultStr := ""
+	//				if result != nil {
+	//					resultBytes, err := json.Marshal(result)
+	//					if err != nil {
+	//						return nil, fmt.Errorf("failed to marshal tool result: %w", err)
+	//					}
+	//					resultStr = string(resultBytes)
+	//				}
+	//
+	//				// Create tool result message
+	//				toolResultContent := NewToolResultContent(content.ToolID, resultStr)
+	//				toolResultMsg := BaseMessage{
+	//					Role:    "tool",
+	//					Content: []AIContent{toolResultContent},
+	//				}
+	//				a.AddMessageM(toolResultMsg)
+	//				// msg := AnthropicMessageRequest{
+	//				// 	Role: "user",
+	//				// 	Content: AnthropicContentToolResult{
+	//				// 		Type:      "tool_result",
+	//				// 		ToolUseId: c.GetID(),
+	//				// 		Content:   resultStr,
+	//				// 	},
+	//				// }
+	//			}
+	//
+	//			resp, err := a.SendRequest()
+	//			if err != nil {
+	//				return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
+	//			}
+	//			return resp, nil
+	//		}
+	//
+	// }
+	//
+	// a.UpdateCosts(resp)
+	// return resp, nil
 }
 
 // ListAgents returns a list of all saved agent IDs
