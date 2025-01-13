@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
 )
@@ -22,7 +23,10 @@ type Client struct {
 // passed in as arguments are applied after these default arguments, and all option
 // will be passed down to the services and requests that this client makes.
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
-	defaults := []requestoption.RequestOption{requestoption.WithEnvironmentProduction()}
+	defaults := []requestoption.RequestOption{
+		requestoption.WithEnvironmentProduction(),
+		requestoption.WithMiddleware(middleware.LoggingMiddleware()),
+	}
 	if o, ok := os.LookupEnv("OPENAI_API_KEY"); ok {
 		defaults = append(defaults, requestoption.WithAPIKey(o))
 	}
