@@ -59,14 +59,14 @@ func (s *AnthropicSettings) SetModel(model string) {
 }
 
 type AnthropicResponse struct {
-	ID           string         `json:"id"`
-	Content      []*AIContent   `json:"content"`
-	Role         string         `json:"role"` // Always "assistant"
-	StopReason   string         `json:"stop_reason,omitempty"`
-	StopSequence string         `json:"stop_sequence,omitempty"`
-	Type         string         `json:"type"` // Always "message"
-	Usage        AnthropicUsage `json:"usage"`
-	Model        string         `json:"model"`
+	ID           string          `json:"id"`
+	Content      []*AIContent    `json:"content"`
+	Role         string          `json:"role"` // Always "assistant"
+	StopReason   string          `json:"stop_reason,omitempty"`
+	StopSequence string          `json:"stop_sequence,omitempty"`
+	Type         string          `json:"type"` // Always "message"
+	Usage        *AnthropicUsage `json:"usage"`
+	Model        string          `json:"model"`
 }
 
 func (r AnthropicResponse) GetMessage() AIMessage {
@@ -99,8 +99,9 @@ type AnthropicRequest struct {
 
 // Implement AIUsage interface
 type AnthropicUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens  int     `json:"input_tokens"`
+	OutputTokens int     `json:"output_tokens"`
+	Cost         float64 `json:"cost,omitempty"` // No  in API we compute at the end
 }
 
 func (r AnthropicUsage) GetInputTokens() int {
@@ -113,6 +114,14 @@ func (r AnthropicUsage) GetOutputTokens() int {
 
 func (r AnthropicUsage) GetCachedTokens() int {
 	return 0
+}
+
+func (r AnthropicUsage) GetCost() float64 {
+	return r.Cost
+}
+
+func (r *AnthropicUsage) SetCost(cost float64) {
+	r.Cost = cost
 }
 
 // GenerateResponse sends a request to Anthropic's API and parses the response.

@@ -19,10 +19,26 @@ const (
 	EnvDeepSeekAPIKey   = "DEEPSEEK_API_KEY"
 )
 
+type ToolHandler func(ctx context.Context, input map[string]interface{}) ([]interface{}, error)
+
+func GetToolHandler(c mcpclient.MCPClientInterface, name string) ToolHandler {
+	return func(ctx context.Context, input map[string]interface{}) ([]interface{}, error) {
+		result, err := c.CallTool(context.Background(), name, input)
+		if err != nil {
+			return nil, err
+		}
+		return result.Content, nil
+	}
+}
+
 type AIClient interface {
 	SetMaxTokens(maxTokens int)
 	SetTools(tools []AITools)
 	GenerateWithMessages(messages ...AIMessage) (AIResponse, error)
+	ProcessMessages(
+		toolHandlers map[string]ToolHandler,
+		messages ...AIMessage,
+	) ([]AIMessage, []AIResponse, error)
 }
 
 var _ AIClient = (*Client)(nil) // Optional: ensures `Client` implements `AIClient`
@@ -109,6 +125,8 @@ func (c *Client) GenerateWithMessages(
 	messages ...AIMessage,
 ) (AIResponse, error) {
 	resp, err := c.provider.GenerateResponse(messages)
+	cost := c.GetResponseCost(resp)
+	resp.GetUsage().SetCost(*cost)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +134,7 @@ func (c *Client) GenerateWithMessages(
 }
 
 func (client *Client) ProcessMessages(
-	mcpClient mcpclient.MCPClientInterface,
+	toolHandlers map[string]ToolHandler,
 	messages ...AIMessage,
 ) ([]AIMessage, []AIResponse, error) {
 	responses := make([]AIResponse, 0)
@@ -147,11 +165,13 @@ func (client *Client) ProcessMessages(
 		}
 
 		if content.GetType() == string(ContentTypeToolUse) {
-			result, err := mcpClient.CallTool(
-				context.Background(),
-				content.Name,
-				content.Input,
-			)
+			fn, ok := toolHandlers[content.Name]
+
+			if !ok {
+				fmt.Fprintf(os.Stderr, "tool %s not found\n", content.Name)
+				continue
+			}
+			result, err := fn(context.Background(), content.Input)
 			if err != nil {
 				return messages, responses, fmt.Errorf(
 					"failed to call tool %s: %w",
@@ -179,13 +199,13 @@ func (client *Client) ProcessMessages(
 			flush = true
 
 		} else {
-			fmt.Printf("Text Message: %s\n", content.String())
+			// fmt.Printf("Text Message: %s\n", content.String())
 		}
 	}
 
 	// Recursively process messages, if we have add new
 	if flush {
-		messages, responses, err = client.ProcessMessages(mcpClient, messages...)
+		messages, responses, err = client.ProcessMessages(toolHandlers, messages...)
 		if err != nil {
 			return messages, responses, fmt.Errorf("failed to submit tool outputs: %w", err)
 		}

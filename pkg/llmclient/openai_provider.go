@@ -153,7 +153,7 @@ type OpenAIMessage struct {
 type OpenAIResponse struct {
 	ID      string         `json:"id"`
 	Choices []OpenAIChoice `json:"choices"`
-	Usage   OpenAIUsage    `json:"usage"`
+	Usage   *OpenAIUsage   `json:"usage"`
 }
 
 type OpenAIUsage struct {
@@ -170,6 +170,7 @@ type OpenAIUsage struct {
 		CachedTokens int `json:"cached_tokens"`
 		AutdioTokens int `json:"audio_tokens"`
 	} `json:"prompt_tokens_details"`
+	Cost float64 `json:"cost,omitempty"`
 }
 
 func (u OpenAIUsage) GetInputTokens() int {
@@ -182,6 +183,14 @@ func (u OpenAIUsage) GetOutputTokens() int {
 
 func (u OpenAIUsage) GetCachedTokens() int {
 	return u.PromptTokensDetails.CachedTokens
+}
+
+func (u OpenAIUsage) GetCost() float64 {
+	return u.Cost
+}
+
+func (u *OpenAIUsage) SetCost(cost float64) {
+	u.Cost = cost
 }
 
 func (r OpenAIResponse) GetUsage() AIUsage {

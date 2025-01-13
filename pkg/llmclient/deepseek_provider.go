@@ -35,16 +35,17 @@ type DeepSeekRequest struct {
 }
 
 type DeepSeekUsage struct {
-	PromptTokens          int `json:"prompt_tokens"`
-	CompletionTokens      int `json:"completion_tokens"`
-	TotalTokens           int `json:"total_tokens"`
-	PromptCacheHitTokens  int `json:"prompt_cache_hit_tokens"`
-	PromptCacheMissTokens int `json:"prompt_cache_miss_tokens"`
+	PromptTokens          int     `json:"prompt_tokens"`
+	CompletionTokens      int     `json:"completion_tokens"`
+	TotalTokens           int     `json:"total_tokens"`
+	PromptCacheHitTokens  int     `json:"prompt_cache_hit_tokens"`
+	PromptCacheMissTokens int     `json:"prompt_cache_miss_tokens"`
+	Cost                  float64 `json:"cost,omitempty"` // computed field
 }
 
 type DeepSeekResponse struct {
 	OpenAIResponse
-	Usage DeepSeekUsage `json:"usage"`
+	Usage *DeepSeekUsage `json:"usage"`
 }
 
 func (u DeepSeekUsage) GetInputTokens() int {
@@ -61,6 +62,14 @@ func (u DeepSeekUsage) GetCachedTokens() int {
 
 func (r DeepSeekResponse) GetUsage() AIUsage {
 	return r.Usage
+}
+
+func (r DeepSeekUsage) GetCost() float64 {
+	return r.Cost
+}
+
+func (r *DeepSeekUsage) SetCost(cost float64) {
+	r.Cost = cost
 }
 
 func (p *DeepSeekProvider) GenerateResponse(messages []AIMessage) (AIResponse, error) {

@@ -35,6 +35,8 @@ type AIUsage interface {
 	GetInputTokens() int
 	GetOutputTokens() int
 	GetCachedTokens() int
+	GetCost() float64
+	SetCost(float64)
 }
 
 type AIChoice interface {

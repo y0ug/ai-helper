@@ -5,17 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/y0ug/ai-helper/internal/ai"
 )
-
-type ChatHistory struct {
-	SessionID string       `json:"session_id"`
-	Messages  []ai.Message `json:"messages"`
-	Date      time.Time    `json:"date"`
-	Model     string       `json:"model"`
-}
 
 type SessionStats struct {
 	SentTokens       int
@@ -78,18 +70,22 @@ func (c *Chat) Start() error {
 		c.agent.AddMessage("user", input)
 
 		// Generate response using the agent
-		resp, err := c.agent.SendRequest()
+		_, responses, err := c.agent.SendRequest()
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			fmt.Print("\n> ")
 			continue
 		}
 
-		fmt.Printf("\n%s\n", resp.GetChoice().GetMessage().GetContent())
-		// Update session stats
-		usage := resp.GetUsage()
-		c.stats.SentTokens += usage.GetInputTokens()
-		c.stats.ReceivedTokens += usage.GetOutputTokens()
+		for _, resp := range responses {
+			fmt.Printf("\n%s\n", resp.GetChoice().GetMessage().GetContent())
+			// Update session stats
+			usage := resp.GetUsage()
+			c.stats.SentTokens += usage.GetInputTokens()
+			c.stats.ReceivedTokens += usage.GetOutputTokens()
+			c.stats.MessageCost = usage.GetCost()
+			c.stats.TotalCost += usage.GetCost()
+		}
 
 		// if resp.Cost != nil {
 		// 	c.stats.MessageCost = *resp.Cost

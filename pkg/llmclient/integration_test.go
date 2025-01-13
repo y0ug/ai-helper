@@ -115,7 +115,11 @@ func TestFunctionExecution(t *testing.T) {
 			msgReq := NewBaseMessage("user", NewTextContent(prompt))
 
 			// Send request
-			messages, _, err := client.ProcessMessages(mcpClient, msgReq)
+			toolsHandlers := map[string]ToolHandler{}
+			for _, tool := range aiTools {
+				toolsHandlers[tool.Name] = GetToolHandler(mcpClient, tool.Name)
+			}
+			messages, _, err := client.ProcessMessages(toolsHandlers, msgReq)
 			if err != nil {
 				t.Fatalf("Failed to generate response: %v", err)
 			}

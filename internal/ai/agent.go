@@ -19,8 +19,8 @@ type AIConversation interface {
 	LoadCommand(cmd *config.Command) error
 	ApplyCommand(input string) error
 	Save() error
-	SendRequest() (llmclient.AIResponse, error)
-	GetMessages() []llmclient.BaseMessage
+	SendRequest() ([]llmclient.AIMessage, []llmclient.AIResponse, error)
+	GetMessages() []llmclient.AIMessage
 	AddMessage(role, content string)
 }
 
@@ -28,16 +28,16 @@ var _ AIConversation = (*Agent)(nil) // Ensures Agent implements AIConversation
 
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
-	ID                string                  `json:"id"`
-	ModelName         string                  `json:"model"`
-	Messages          []llmclient.BaseMessage `json:"messages"`
-	Command           *config.Command         `json:"command,omitempty"`
-	TemplateData      *prompt.TemplateData    `json:"-"` // Skip normal JSON marshaling
-	CreatedAt         time.Time               `json:"created_at"`
-	UpdatedAt         time.Time               `json:"updated_at"`
-	TotalInputTokens  int                     `json:"total_input_tokens"`
-	TotalOutputTokens int                     `json:"total_output_tokens"`
-	TotalCost         float64                 `json:"total_cost"`
+	ID                string                `json:"id"`
+	ModelName         string                `json:"model"`
+	Messages          []llmclient.AIMessage `json:"messages"`
+	Command           *config.Command       `json:"command,omitempty"`
+	TemplateData      *prompt.TemplateData  `json:"-"` // Skip normal JSON marshaling
+	CreatedAt         time.Time             `json:"created_at"`
+	UpdatedAt         time.Time             `json:"updated_at"`
+	TotalInputTokens  int                   `json:"total_input_tokens"`
+	TotalOutputTokens int                   `json:"total_output_tokens"`
+	TotalCost         float64               `json:"total_cost"`
 }
 
 // Agent represents an AI conversation agent that maintains state and history
@@ -46,16 +46,16 @@ type Agent struct {
 	Model             *llmclient.Model // The AI model being used
 	Client            llmclient.AIClient
 	MCPClient         map[string]mcpclient.MCPClientInterface
-	Tools             map[string]mcpclient.MCPClientInterface // Map of tools function to find client from function name
-	MCPServersConfig  *config.MCPServers                      // List of current available MCP server configuration
-	Messages          []llmclient.BaseMessage                 // Conversation history
-	Command           *config.Command                         // Current active command
-	TemplateData      *prompt.TemplateData                    // Data for template processing
-	CreatedAt         time.Time                               // When the agent was created
-	UpdatedAt         time.Time                               // Last time the agent was updated
-	TotalInputTokens  int                                     // Total tokens used in inputs
-	TotalOutputTokens int                                     // Total tokens used in outputs
-	TotalCost         float64                                 // Total cost accumulated
+	Tools             map[string]llmclient.ToolHandler // Map of tools function to find client from function name
+	MCPServersConfig  *config.MCPServers               // List of current available MCP server configuration
+	Messages          []llmclient.AIMessage            // Conversation history
+	Command           *config.Command                  // Current active command
+	TemplateData      *prompt.TemplateData             // Data for template processing
+	CreatedAt         time.Time                        // When the agent was created
+	UpdatedAt         time.Time                        // Last time the agent was updated
+	TotalInputTokens  int                              // Total tokens used in inputs
+	TotalOutputTokens int                              // Total tokens used in outputs
+	TotalCost         float64                          // Total cost accumulated
 }
 
 // MarshalJSON implements custom JSON marshaling for AgentState
@@ -153,7 +153,7 @@ func NewAgent(
 		Model:            model,
 		MCPServersConfig: &mcpServersConfig,
 		MCPClient:        make(map[string]mcpclient.MCPClientInterface),
-		Messages:         make([]llmclient.BaseMessage, 0),
+		Messages:         make([]llmclient.AIMessage, 0),
 		TemplateData:     prompt.NewTemplateData(""),
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -196,7 +196,7 @@ func (a *Agent) InitializeMCPClient(serverName string) error {
 }
 
 func (a *Agent) setTools() error {
-	a.Tools = make(map[string]mcpclient.MCPClientInterface)
+	a.Tools = make(map[string]llmclient.ToolHandler)
 	aiTools := make([]llmclient.AITools, 0)
 	for k, v := range a.MCPClient {
 		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
@@ -206,7 +206,7 @@ func (a *Agent) setTools() error {
 		}
 		aiTools = append(aiTools, llmclient.ToAITools(tools)...)
 		for _, tool := range tools {
-			a.Tools[tool.Name] = v
+			a.Tools[tool.Name] = llmclient.GetToolHandler(v, tool.Name)
 		}
 	}
 	if a.Client != nil {
@@ -296,8 +296,9 @@ func (a *Agent) UpdateCosts(response llmclient.AIResponse) {
 	// }
 }
 
-func (a *Agent) SendRequest() (llmclient.AIResponse, error) {
-	return nil, nil
+func (a *Agent) SendRequest() ([]llmclient.AIMessage, []llmclient.AIResponse, error) {
+	message, response, err := a.Client.ProcessMessages(a.Tools, a.Messages...)
+	return message, response, err
 }
 
 // ListAgents returns a list of all saved agent IDs
@@ -335,12 +336,12 @@ func (a *Agent) AddMessage(role, content string) {
 	)
 }
 
-func (a *Agent) AddMessageM(msg llmclient.BaseMessage) {
+func (a *Agent) AddMessageM(msg llmclient.AIMessage) {
 	a.Messages = append(a.Messages, msg)
 }
 
 // GetMessages returns the current message history
-func (a *Agent) GetMessages() []llmclient.BaseMessage {
+func (a *Agent) GetMessages() []llmclient.AIMessage {
 	return a.Messages
 }
 

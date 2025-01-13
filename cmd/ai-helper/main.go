@@ -16,6 +16,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/stats"
 	"github.com/y0ug/ai-helper/internal/version"
+	"github.com/y0ug/ai-helper/pkg/llmclient"
 )
 
 const (
@@ -26,13 +27,13 @@ func generateSessionID() string {
 	return fmt.Sprintf("%x", time.Now().UnixNano())
 }
 
-func GetEnvAIModel(infoProviders *ai.InfoProviders) (*ai.Model, error) {
+func GetEnvAIModel(infoProviders *llmclient.InfoProviders) (*llmclient.Model, error) {
 	modelStr := os.Getenv(EnvAIModel)
 	if modelStr == "" {
 		return nil, fmt.Errorf("AI_MODEL environment variable not set")
 	}
 
-	model, err := ai.ParseModel(modelStr, infoProviders)
+	model, err := llmclient.ParseModel(modelStr, infoProviders)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse model: %w", err)
 	}
@@ -75,7 +76,7 @@ func main() {
 	statsTracker, err := stats.NewTracker(cacheDir)
 
 	infoProviderCacheFile := filepath.Join(configDir, "provider_cache.json")
-	infoProviders, err := ai.NewInfoProviders(infoProviderCacheFile)
+	infoProviders, err := llmclient.NewInfoProviders(infoProviderCacheFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating info providers: %v\n", err)
 		os.Exit(1)
@@ -86,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	client, err := ai.NewClient(model, statsTracker)
+	client, err := llmclient.NewClient(model, statsTracker)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
 		os.Exit(1)
@@ -353,45 +354,44 @@ func main() {
 	}
 
 	// Generate response using the agent
-	resp, err := agent.SendRequest()
+	_, responses, err := agent.SendRequest()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Print token usage and cost to stderr
-	if *verbose {
+	for _, resp := range responses {
+		// Print token usage and cost to stderr
+		if *verbose {
+			fmt.Fprintf(
+				os.Stderr,
+				"Tokens - Input: %d, Output: %d\n",
+				resp.GetUsage().GetInputTokens(),
+				resp.GetUsage().GetOutputTokens(),
+			)
+		}
+		cost := fmt.Sprintf("$%.4f", resp.GetUsage().GetCost())
 		fmt.Fprintf(
 			os.Stderr,
-			"Tokens - Input: %d, Output: %d\n",
-			resp.GetUsage().GetInputTokens(),
-			resp.GetUsage().GetOutputTokens(),
+			"Session: %s | Model: %s | Estimated cost: %s\n",
+			agent.ID,
+			agent.Model.Name,
+			cost,
 		)
-	}
-	cost := "N/A"
-	// if resp.Cost != nil {
-	// 	cost = fmt.Sprintf("$%.4f", *resp.Cost)
-	// }
-	fmt.Fprintf(
-		os.Stderr,
-		"Session: %s | Model: %s | Estimated cost: %s\n",
-		agent.ID,
-		agent.Model.Name,
-		cost,
-	)
 
-	// Ensure output directory exists if writing to file
-	if *outputFile != "" {
-		if err := io.EnsureDirectory(*outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
+		// Ensure output directory exists if writing to file
+		if *outputFile != "" {
+			if err := io.EnsureDirectory(*outputFile); err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
+				os.Exit(1)
+			}
+		}
+
+		// Write output
+		if err := io.WriteOutput(resp.GetChoice().GetMessage().GetContent().String(), *outputFile); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
 			os.Exit(1)
 		}
-	}
-
-	// Write output
-	if err := io.WriteOutput(resp.GetChoice().GetMessage().GetContent(), *outputFile); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
-		os.Exit(1)
 	}
 
 	agent.Save()
