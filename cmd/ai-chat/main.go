@@ -53,9 +53,8 @@ func main() {
 	menu.AddInterrupt(io.EOF, exitCtrlD)
 
 	// Make a command yielder for our main menu.
-	// menu.SetCommands(makeflagsCommands(app))
-	// Thanks ChatGPT for generating this for us!
 	menu.SetCommands(mainMenuCommands(app))
+	menu.AddCommands(makeChatCommands(app))
 
 	// Client Menu Setup -------------------------------------------- //
 
