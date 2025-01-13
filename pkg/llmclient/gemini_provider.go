@@ -2,6 +2,8 @@ package llmclient
 
 import (
 	"net/http"
+
+	"github.com/rs/zerolog"
 )
 
 // GeminiProvider implements the Provider interface for Gemini's API.
@@ -16,9 +18,11 @@ func NewGeminiProvider(
 	apiKey string,
 	client *http.Client,
 	apiUrl string,
+
+	logger *zerolog.Logger,
 ) (*GeminiProvider, error) {
 	return &GeminiProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl, logger),
 		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
 }

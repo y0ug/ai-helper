@@ -105,7 +105,7 @@ func TestFunctionExecution(t *testing.T) {
 			}
 
 			// Create client
-			client, err := NewClient(model, nil)
+			client, err := NewClient(model, nil, &testLogger)
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}
@@ -208,7 +208,7 @@ func TestIntegrationRequests(t *testing.T) {
 			}
 
 			// Create client
-			client, err := NewClient(model, nil)
+			client, err := NewClient(model, nil, &testLogger)
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}

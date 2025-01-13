@@ -2,6 +2,8 @@ package llmclient
 
 import (
 	"net/http"
+
+	"github.com/rs/zerolog"
 )
 
 // OpenRouterProvider implements the Provider interface for OpenRouter's API.
@@ -16,9 +18,10 @@ func NewOpenRouterProvider(
 	apiKey string,
 	client *http.Client,
 	apiUrl string,
+	logger *zerolog.Logger,
 ) (*OpenRouterProvider, error) {
 	return &OpenRouterProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl, logger),
 		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/rs/zerolog"
 )
 
 // AnthropicProvider implements the Provider interface for Anthropic's API.

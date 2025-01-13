@@ -4,6 +4,7 @@ go 1.23.3
 
 require (
 	github.com/pkg/errors v0.9.1
+	github.com/rs/zerolog v1.26.1
 	go.uber.org/mock v0.5.0
 	golang.org/x/exp/jsonrpc2 v0.0.0-20250106191152-7588d65b2ba8
 	gopkg.in/yaml.v3 v3.0.1

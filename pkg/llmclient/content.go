@@ -63,6 +63,7 @@ func NewSourceContent(sourceType string, mediaType string, data []byte) *AIConte
 	case "image":
 		contentType = ContentTypeImage
 	default:
+		// TODO: remove this log
 		log.Printf("Unknown source type: %s", sourceType)
 		contentType = ContentType("contentType")
 	}

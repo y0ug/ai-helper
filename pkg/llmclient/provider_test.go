@@ -97,7 +97,7 @@ func TestProviderEnvironmentVariables(t *testing.T) {
 			_ = NewMockAIClient(ctrl)
 
 			// Create new client
-			client, err := NewClient(model, nil)
+			client, err := NewClient(model, nil, &testLogger)
 
 			// Check error cases
 			if tt.wantErr {

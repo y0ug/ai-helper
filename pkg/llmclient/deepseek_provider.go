@@ -2,6 +2,8 @@ package llmclient
 
 import (
 	"net/http"
+
+	"github.com/rs/zerolog"
 )
 
 // DeepSeekProvider implements the Provider interface for DeepSeek's API.
@@ -16,9 +18,10 @@ func NewDeepSeekProvider(
 	apiKey string,
 	client *http.Client,
 	apiUrl string,
+	logger *zerolog.Logger,
 ) (*DeepSeekProvider, error) {
 	return &DeepSeekProvider{
-		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl),
+		BaseProvider: *NewBaseProvider(model, apiKey, client, apiUrl, logger),
 		settings:     &OpenAISettings{Model: model.Name},
 	}, nil
 }
@@ -29,9 +32,9 @@ func (p *DeepSeekProvider) Settings() AIModelSettings {
 
 // DeepSeekRequest defines the request structure specific to DeepSeek.
 type DeepSeekRequest struct {
-	Model     string    `json:"model"`
-	MaxTokens int       `json:"max_tokens"`
-	Messages  []Message `json:"messages"`
+	Model     string          `json:"model"`
+	MaxTokens int             `json:"max_tokens"`
+	Messages  []OpenAIMessage `json:"messages"`
 }
 
 type DeepSeekUsage struct {

@@ -3,6 +3,8 @@ package llmclient
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/rs/zerolog"
 )
 
 // OpenAIProvider implements the Provider interface for OpenAI's API.
