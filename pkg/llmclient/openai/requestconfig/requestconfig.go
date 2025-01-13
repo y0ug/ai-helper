@@ -72,7 +72,6 @@ func NewRequestConfig(
 	}
 
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Stainless-Retry-Count", "0")
 	for k, v := range getDefaultHeaders() {
 		req.Header.Add(k, v)
 	}

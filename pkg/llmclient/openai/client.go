@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
@@ -14,8 +15,10 @@ import (
 // interacting with the openai API. You should not instantiate this client
 // directly, and instead use the [NewClient] method instead.
 type Client struct {
-	Options []requestoption.RequestOption
-	Chat    *ChatCompletionService
+	Options    []requestoption.RequestOption
+	Chat       *ChatCompletionService
+	rateLimit  *requestconfig.RateLimit
+	rateLimitM sync.RWMutex
 }
 
 // NewClient generates a new client with the default option read from the
@@ -25,7 +28,6 @@ type Client struct {
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	defaults := []requestoption.RequestOption{
 		requestoption.WithEnvironmentProduction(),
-		requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
 	if o, ok := os.LookupEnv("OPENAI_API_KEY"); ok {
 		defaults = append(defaults, requestoption.WithAPIKey(o))
@@ -36,11 +38,18 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	if o, ok := os.LookupEnv("OPENAI_PROJECT_ID"); ok {
 		defaults = append(defaults, requestoption.WithProject(o))
 	}
+	rateLimit := &requestconfig.RateLimit{}
 	opts = append(defaults, opts...)
+	opts = append(
+		opts,
+		middleware.WithRateLimitMiddleware(rateLimit),
+	)
+	r = &Client{
+		Options:   append(defaults, opts...),
+		rateLimit: rateLimit,
+	}
 
-	r = &Client{Options: opts}
-
-	r.Chat = NewChatCompletionService(opts...)
+	r.Chat = NewChatCompletionService(r.Options...)
 
 	return
 }
@@ -86,6 +95,13 @@ func (r *Client) Execute(
 ) error {
 	opts = append(r.Options, opts...)
 	return requestconfig.ExecuteNewRequest(ctx, method, path, params, res, opts...)
+}
+
+// GetRateLimit returns the current rate limit status.
+func (c *Client) GetRateLimit() requestconfig.RateLimit {
+	c.rateLimitM.RLock()
+	defer c.rateLimitM.RUnlock()
+	return c.rateLimit.GetSnapshot()
 }
 
 // Get makes a GET request with the given URL, params, and optionally deserializes

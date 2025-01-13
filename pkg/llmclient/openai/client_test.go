@@ -5,6 +5,9 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/middleware"
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
 )
 
 func skipIfNoAPIKey(t *testing.T) {
@@ -16,7 +19,8 @@ func skipIfNoAPIKey(t *testing.T) {
 func TestClientIntegration(t *testing.T) {
 	skipIfNoAPIKey(t)
 
-	client := NewClient()
+	client := NewClient(
+		requestoption.WithMiddleware(middleware.LoggingMiddleware()))
 	ctx := context.Background()
 
 	t.Run("ChatCompletion", func(t *testing.T) {
@@ -47,6 +51,10 @@ func TestClientIntegration(t *testing.T) {
 		if completion.Usage.TotalTokens == 0 {
 			t.Error("Expected non-zero token usage")
 		}
+
+		rateLimit := client.GetRateLimit()
+		t.Logf("Rate limit: %+v", rateLimit)
+		t.Logf("Chat completion: %v", completion.Choices[0].Message.Content)
 	})
 
 	t.Run("ChatCompletionWithTimeout", func(t *testing.T) {

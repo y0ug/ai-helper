@@ -1,10 +1,7 @@
 package requestconfig
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -26,7 +23,7 @@ func TestNewRequestConfig(t *testing.T) {
 			method:      "GET",
 			url:         "https://api.example.com/test",
 			body:        nil,
-			dst:        &struct{}{},
+			dst:         &struct{}{},
 			expectError: false,
 		},
 		{
@@ -34,7 +31,7 @@ func TestNewRequestConfig(t *testing.T) {
 			method:      "POST",
 			url:         "https://api.example.com/test",
 			body:        map[string]string{"key": "value"},
-			dst:        &struct{}{},
+			dst:         &struct{}{},
 			expectError: false,
 		},
 		{
@@ -42,7 +39,7 @@ func TestNewRequestConfig(t *testing.T) {
 			method:      "GET",
 			url:         "://invalid-url",
 			body:        nil,
-			dst:        &struct{}{},
+			dst:         &struct{}{},
 			expectError: true,
 		},
 	}
@@ -50,7 +47,7 @@ func TestNewRequestConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := NewRequestConfig(ctx, tc.method, tc.url, tc.body, tc.dst)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
@@ -90,7 +87,7 @@ func TestRequestConfigExecute(t *testing.T) {
 	ctx := context.Background()
 	baseURL, _ := url.Parse("https://api.example.com")
 
-	cfg := &RequestConfig{
+	_ = &RequestConfig{
 		Context: ctx,
 		Request: &http.Request{
 			Method: "GET",
@@ -99,6 +96,11 @@ func TestRequestConfigExecute(t *testing.T) {
 		BaseURL:    baseURL,
 		HTTPClient: &http.Client{},
 	}
+
+	// err := cfg.Execute()
+	// if err != nil {
+	// 	t.Error("Not Expected error")
+	// }
 
 	// Test invalid base URL
 	invalidCfg := &RequestConfig{

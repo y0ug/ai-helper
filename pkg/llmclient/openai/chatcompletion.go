@@ -171,15 +171,15 @@ type ChatCompletionNewParams struct {
 type ChatCompletionMessageParam struct {
 	// The role of the messages author, in this case `developer`.
 	Role         string      `json:"role,required"`
-	Audio        interface{} `json:"audio"`
+	Audio        interface{} `json:"audio,omitempty"`
 	Content      interface{} `json:"content"`
-	FunctionCall interface{} `json:"function_call"`
+	FunctionCall interface{} `json:"function_call,omitempty"`
 	// An optional name for the participant. Provides the model information to
 	// differentiate between participants of the same role.
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 	// The refusal message by the assistant.
-	Refusal string `json:"refusal"`
+	Refusal string `json:"refusal,omitempty"`
 	// Tool call that this message is responding to.
-	ToolCallID string      `json:"tool_call_id"`
-	ToolCalls  interface{} `json:"tool_calls"`
+	ToolCallID string      `json:"tool_call_id,omitempty"`
+	ToolCalls  interface{} `json:"tool_calls,omitempty"`
 }
