@@ -7,7 +7,7 @@
 //
 
 // Package ai is a generated GoMock package.
-package ai
+package llmclient
 
 import (
 	reflect "reflect"

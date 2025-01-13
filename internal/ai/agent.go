@@ -11,6 +11,7 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/prompt"
+	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
@@ -18,8 +19,8 @@ type AIConversation interface {
 	LoadCommand(cmd *config.Command) error
 	ApplyCommand(input string) error
 	Save() error
-	SendRequest() (AIResponse, error)
-	GetMessages() []AIMessage
+	SendRequest() (llmclient.AIResponse, error)
+	GetMessages() []llmclient.BaseMessage
 	AddMessage(role, content string)
 }
 
@@ -27,27 +28,27 @@ var _ AIConversation = (*Agent)(nil) // Ensures Agent implements AIConversation
 
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
-	ID                string               `json:"id"`
-	ModelName         string               `json:"model"`
-	Messages          []AIMessage          `json:"messages"`
-	Command           *config.Command      `json:"command,omitempty"`
-	TemplateData      *prompt.TemplateData `json:"-"` // Skip normal JSON marshaling
-	CreatedAt         time.Time            `json:"created_at"`
-	UpdatedAt         time.Time            `json:"updated_at"`
-	TotalInputTokens  int                  `json:"total_input_tokens"`
-	TotalOutputTokens int                  `json:"total_output_tokens"`
-	TotalCost         float64              `json:"total_cost"`
+	ID                string                  `json:"id"`
+	ModelName         string                  `json:"model"`
+	Messages          []llmclient.BaseMessage `json:"messages"`
+	Command           *config.Command         `json:"command,omitempty"`
+	TemplateData      *prompt.TemplateData    `json:"-"` // Skip normal JSON marshaling
+	CreatedAt         time.Time               `json:"created_at"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+	TotalInputTokens  int                     `json:"total_input_tokens"`
+	TotalOutputTokens int                     `json:"total_output_tokens"`
+	TotalCost         float64                 `json:"total_cost"`
 }
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
-	ID                string // Unique identifier for this agent/session
-	Model             *Model // The AI model being used
-	Client            AIClient
+	ID                string           // Unique identifier for this agent/session
+	Model             *llmclient.Model // The AI model being used
+	Client            llmclient.AIClient
 	MCPClient         map[string]mcpclient.MCPClientInterface
 	Tools             map[string]mcpclient.MCPClientInterface // Map of tools function to find client from function name
 	MCPServersConfig  *config.MCPServers                      // List of current available MCP server configuration
-	Messages          []AIMessage                             // Conversation history
+	Messages          []llmclient.BaseMessage                 // Conversation history
 	Command           *config.Command                         // Current active command
 	TemplateData      *prompt.TemplateData                    // Data for template processing
 	CreatedAt         time.Time                               // When the agent was created
@@ -139,7 +140,12 @@ func (a *Agent) ApplyCommand(input string) error {
 }
 
 // NewAgent creates a new Agent instance
-func NewAgent(id string, model *Model, client *Client, mcpServersConfig config.MCPServers) *Agent {
+func NewAgent(
+	id string,
+	model *llmclient.Model,
+	client *llmclient.Client,
+	mcpServersConfig config.MCPServers,
+) *Agent {
 	now := time.Now()
 	return &Agent{
 		ID:               id,
@@ -147,7 +153,7 @@ func NewAgent(id string, model *Model, client *Client, mcpServersConfig config.M
 		Model:            model,
 		MCPServersConfig: &mcpServersConfig,
 		MCPClient:        make(map[string]mcpclient.MCPClientInterface),
-		Messages:         make([]AIMessage, 0),
+		Messages:         make([]llmclient.BaseMessage, 0),
 		TemplateData:     prompt.NewTemplateData(""),
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -191,35 +197,20 @@ func (a *Agent) InitializeMCPClient(serverName string) error {
 
 func (a *Agent) setTools() error {
 	a.Tools = make(map[string]mcpclient.MCPClientInterface)
-	aiTools := make([]AITools, 0)
+	aiTools := make([]llmclient.AITools, 0)
 	for k, v := range a.MCPClient {
 		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
 		if err != nil {
 			fmt.Printf("fetchTools error %s:%v", k, err)
 			continue
 		}
+		aiTools = append(aiTools, llmclient.ToAITools(tools)...)
 		for _, tool := range tools {
-			aiTool := AITools{Type: "function"}
-			var desc *string
-			if tool.Description != nil {
-				descCopy := *tool.Description
-				desc = &descCopy
-				if len(*desc) > 512 {
-					foo := descCopy[:512]
-					desc = &foo
-				}
-			}
-			aiTool.Function = &AIToolFunction{
-				Name:        tool.Name,
-				Description: desc,
-				Parameters:  tool.InputSchema,
-			}
-			aiTools = append(aiTools, aiTool)
 			a.Tools[tool.Name] = v
-			fmt.Fprintf(os.Stderr, "tools %s", tool.Name)
 		}
 	}
 	if a.Client != nil {
+		aiTools := aiTools
 		a.Client.SetTools(aiTools)
 	}
 	return nil
@@ -263,7 +254,7 @@ func (a *Agent) Save() error {
 }
 
 // Load restores the agent's state from a JSON file
-func LoadAgent(id string, model *Model) (*Agent, error) {
+func LoadAgent(id string, model *llmclient.Model) (*Agent, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cache directory: %w", err)
@@ -297,7 +288,7 @@ func LoadAgent(id string, model *Model) (*Agent, error) {
 }
 
 // UpdateCosts updates the agent's token and cost tracking with a new response
-func (a *Agent) UpdateCosts(response AIResponse) {
+func (a *Agent) UpdateCosts(response llmclient.AIResponse) {
 	a.TotalInputTokens += response.GetUsage().GetInputTokens()
 	a.TotalOutputTokens += response.GetUsage().GetOutputTokens()
 	// if response.Cost != nil {
@@ -305,88 +296,8 @@ func (a *Agent) UpdateCosts(response AIResponse) {
 	// }
 }
 
-func (a *Agent) SendRequest() (AIResponse, error) {
-	resp, err := a.Client.GenerateWithMessages(a.GetMessages(), "agent_name")
-	if err != nil {
-		return nil, err
-	}
-
-	choice := resp.GetChoice()
-	msg := choice.GetMessage()
-	a.AddMessageM(msg)
-
-	if choice.GetFinishReason() == "tool_calls" {
-		// Handle tool calls
-		var anthropicContent []AIContent
-
-		for _, content := range msg.GetContents() {
-			if content.GetType() == string(ContentTypeToolUse) {
-				// Get MCP client from function name
-				client, ok := a.Tools[content.ToolName]
-				if !ok {
-					fmt.Printf("MCP Client not found %s", content.ToolName)
-					continue
-				}
-
-				// Call the tool
-				fmt.Printf("calling tool %s", content.ToolName)
-				result, err := client.CallTool(context.Background(), content.ToolName, content.Arguments)
-				if err != nil {
-					fmt.Printf("error calling tool %s", err)
-					continue
-				}
-
-				// Convert result to string
-				resultStr := ""
-				if result != nil {
-					resultBytes, err := json.Marshal(result)
-					if err != nil {
-						return nil, fmt.Errorf("failed to marshal tool result: %w", err)
-					}
-					resultStr = string(resultBytes)
-				}
-
-				// Create tool result message
-				toolResultContent := NewToolResultContent(content.ToolID, resultStr)
-				toolResultMsg := BaseMessage{
-					Role:    "tool",
-					Content: []AIContent{toolResultContent},
-				}
-				a.AddMessageM(toolResultMsg)
-					// msg := AnthropicMessageRequest{
-					// 	Role: "user",
-					// 	Content: AnthropicContentToolResult{
-					// 		Type:      "tool_result",
-					// 		ToolUseId: c.GetID(),
-					// 		Content:   resultStr,
-					// 	},
-					// }
-				}
-
-				resp, err := a.SendRequest()
-				if err != nil {
-					return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
-				}
-				return resp, nil
-			default:
-				fmt.Printf("default %s", c)
-			}
-		}
-
-		if len(anthropicContent) > 0 {
-			msg := AnthropicMessageRequest{
-				Role:    "user",
-				Content: anthropicContent,
-			}
-			a.AddMessageM(msg)
-		}
-
-		// Make another request to get the final response
-		return a.SendRequest()
-	}
-
-	a.UpdateCosts(resp)
-	return resp, nil
+func (a *Agent) SendRequest() (llmclient.AIResponse, error) {
+	return nil, nil
 }
 
 // ListAgents returns a list of all saved agent IDs
@@ -418,20 +329,18 @@ func ListAgents() ([]string, error) {
 
 // AddMessage adds a new message to the agent's conversation history
 func (a *Agent) AddMessage(role, content string) {
-	fmt.Printf("AddMessage %s, %s\n", role, content)
-	a.Messages = append(a.Messages, BaseMessage{
-		Role:    role,
-		Content: []AIContent{NewTextContent(content)},
-	})
+	a.Messages = append(
+		a.Messages,
+		llmclient.NewBaseMessage(role, llmclient.NewTextContent(content)),
+	)
 }
 
-func (a *Agent) AddMessageM(msg AIMessage) {
-	fmt.Printf("AddMessageM %s, %s\n", msg.GetRole(), msg.GetContent())
+func (a *Agent) AddMessageM(msg llmclient.BaseMessage) {
 	a.Messages = append(a.Messages, msg)
 }
 
 // GetMessages returns the current message history
-func (a *Agent) GetMessages() []AIMessage {
+func (a *Agent) GetMessages() []llmclient.BaseMessage {
 	return a.Messages
 }
 

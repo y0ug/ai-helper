@@ -1,4 +1,4 @@
-package ai
+package llmclient
 
 import (
 	"context"
@@ -22,7 +22,7 @@ const (
 type AIClient interface {
 	SetMaxTokens(maxTokens int)
 	SetTools(tools []AITools)
-	GenerateWithMessages(messages []AIMessage, command string) (AIResponse, error)
+	GenerateWithMessages(messages ...AIMessage) (AIResponse, error)
 }
 
 var _ AIClient = (*Client)(nil) // Optional: ensures `Client` implements `AIClient`
@@ -90,23 +90,23 @@ func (c *Client) SetTools(tool []AITools) {
 	c.provider.Settings().SetTools(tool)
 }
 
-func (c *Client) GetResponseCost(r AIResponse) *float64 {
-	var cost *float64
-	if c.model.Info != nil {
+func (c *Client) GetResponseCost(responses ...AIResponse) *float64 {
+	if c.model.Info == nil {
+		fmt.Fprintf(os.Stderr, "Warning: no cost info available for model\n")
+		return nil
+	}
+	cost := float64(0)
+	for _, r := range responses {
 		inputCost := float64(r.GetUsage().GetInputTokens()) * c.model.Info.InputCostPerToken
 		outputCost := float64(r.GetUsage().GetOutputTokens()) * c.model.Info.OutputCostPerToken
-		cost = float64ToPtr(inputCost + outputCost)
-		// resp.Cost = float64ToPtr(inputCost + outputCost)
-	} else {
-		fmt.Fprintf(os.Stderr, "Warning: no cost info available for model\n")
+		cost += (inputCost + outputCost)
 	}
-	return cost
+	return &cost
 }
 
 // GenerateWithMessages sends a conversation history to the AI model and returns the response
 func (c *Client) GenerateWithMessages(
-	messages []AIMessage,
-	command string,
+	messages ...AIMessage,
 ) (AIResponse, error) {
 	resp, err := c.provider.GenerateResponse(messages)
 	if err != nil {
@@ -115,36 +115,29 @@ func (c *Client) GenerateWithMessages(
 	return resp, nil
 }
 
-func float64ToPtr(f float64) *float64 {
-	return &f
-}
-
 func (client *Client) ProcessMessages(
-	messages []AIMessage,
 	mcpClient mcpclient.MCPClientInterface,
-) ([]AIMessage, error) {
-	fmt.Fprintf(os.Stderr, "ProcessMessages\n")
-	for _, msg := range messages {
-		data, _ := json.Marshal(msg)
-		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, string(data))
+	messages ...AIMessage,
+) ([]AIMessage, []AIResponse, error) {
+	responses := make([]AIResponse, 0)
+	resp, err := client.GenerateWithMessages(messages...)
+	if err != nil {
+		return messages, responses, err
 	}
 
-	resp, err := client.GenerateWithMessages(messages, "agent_name")
-	if err != nil {
-		return nil, err
-	}
+	responses = append(responses, resp)
 
 	choice := resp.GetChoice()
 	if choice == nil {
-		return messages, fmt.Errorf("response choice is nil")
+		return messages, responses, fmt.Errorf("response choice is nil")
 	}
 
 	msg := choice.GetMessage()
 
-	fmt.Fprintf(os.Stderr, "response %v msg: %v\n", resp, msg)
 	messages = append(messages, msg)
+	// fmt.Fprintf(os.Stderr, "choice.GetFinishReason() %s\n", choice.GetFinishReason())
 
-	fmt.Fprintf(os.Stderr, "choice.GetFinishReason() %s\n", choice.GetFinishReason())
+	flush := false
 
 	// if choice.GetFinishReason() == "tool_calls" {
 	contents := msg.GetContents()
@@ -156,11 +149,15 @@ func (client *Client) ProcessMessages(
 		if content.GetType() == string(ContentTypeToolUse) {
 			result, err := mcpClient.CallTool(
 				context.Background(),
-				content.ToolName,
-				content.Arguments,
+				content.Name,
+				content.Input,
 			)
 			if err != nil {
-				return nil, fmt.Errorf("failed to call tool %s: %w", content.ToolName, err)
+				return messages, responses, fmt.Errorf(
+					"failed to call tool %s: %w",
+					content.Name,
+					err,
+				)
 			}
 
 			// Convert result to string
@@ -168,31 +165,30 @@ func (client *Client) ProcessMessages(
 			if result != nil {
 				resultBytes, err := json.Marshal(result)
 				if err != nil {
-					return nil, fmt.Errorf("failed to marshal tool result: %w", err)
+					return messages, responses, fmt.Errorf("failed to marshal tool result: %w", err)
 				}
 				resultStr = string(resultBytes)
 			}
 
-			fmt.Fprintf(os.Stderr, "tools: %s: %s\n", content.ToolName, resultStr)
+			fmt.Fprintf(os.Stderr, "tools: %s: %s\n", content.Name, resultStr)
 
 			// Create tool result message
-			toolResultContent := NewToolResultContent(content.ToolID, resultStr)
-			toolResultMsg := BaseMessage{
-				Role:    "tool",
-				Content: []AIContent{toolResultContent},
-			}
+			toolResultContent := NewToolResultContent(content.ID, resultStr)
+			toolResultMsg := NewBaseMessage("user", toolResultContent)
 			messages = append(messages, toolResultMsg)
+			flush = true
 
-			// Recursively process messages
-			messages, err = client.ProcessMessages(messages, mcpClient)
-			if err != nil {
-				return nil, fmt.Errorf("failed to submit tool outputs: %w", err)
-			}
-			return messages, nil
 		} else {
 			fmt.Printf("Text Message: %s\n", content.String())
 		}
 	}
-	// }
-	return messages, nil
+
+	// Recursively process messages, if we have add new
+	if flush {
+		messages, responses, err = client.ProcessMessages(mcpClient, messages...)
+		if err != nil {
+			return messages, responses, fmt.Errorf("failed to submit tool outputs: %w", err)
+		}
+	}
+	return messages, responses, nil
 }

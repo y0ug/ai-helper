@@ -1,4 +1,4 @@
-package ai
+package llmclient
 
 type ToolCall struct {
 	ID   string `json:"id"`

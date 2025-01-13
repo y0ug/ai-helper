@@ -1,12 +1,13 @@
-package ai
+package llmclient
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+
+	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
 // BaseProvider encapsulates common HTTP client functionalities.
@@ -18,15 +19,11 @@ type BaseProvider struct {
 	settings AIModelSettings
 }
 
-type AIToolFunction struct {
-	Name        string      `json:"name"`
-	Description *string     `json:"description",omitempty`
-	Parameters  interface{} `json:"parameters"`
-}
-
+// Type from MCP server protocol
 type AITools struct {
-	Type     string          `json:"type"`
-	Function *AIToolFunction `json:"function",omitempty`
+	Description *string     `json:"description,omitempty"`
+	InputSchema interface{} `json:"input_schema,omitempty"`
+	Name        string      `json:"name"`
 }
 
 type AIResponse interface {
@@ -47,32 +44,63 @@ type AIChoice interface {
 
 type AIMessage interface {
 	GetRole() string
-	GetContents() []AIContent
-	GetContent() AIContent
+	GetContents() []*AIContent
+	GetContent() *AIContent
 }
 
 type AIModelSettings interface {
-    SetMaxTokens(int)
-    SetTools([]AITools)
-    SetStream(bool)
-    SetModel(string)
+	SetMaxTokens(int)
+	SetTools([]AITools)
+	SetStream(bool)
+	SetModel(string)
 }
 
 type BaseMessage struct {
-    Role    string      `json:"role"`
-    Content []AIContent `json:"content"`
+	Role    string       `json:"role"`
+	Content []*AIContent `json:"content"`
 }
 
 func (m BaseMessage) GetRole() string {
 	return m.Role
 }
 
-func (m BaseMessage) GetContents() []AIContent {
+func (m BaseMessage) GetContents() []*AIContent {
 	return m.Content
 }
 
-func (m BaseMessage) GetContent() AIContent {
-	return m.Content[0]
+func (m BaseMessage) GetContent() *AIContent {
+	if len(m.Content) != 0 {
+		return m.Content[0]
+	}
+	return nil
+}
+
+func NewBaseMessage(role string, content ...*AIContent) BaseMessage {
+	return BaseMessage{
+		Role:    role,
+		Content: content,
+	}
+}
+
+func NewBaseMessageText(role string, text string) BaseMessage {
+	return BaseMessage{
+		Role: role,
+		Content: []*AIContent{
+			NewTextContent(text),
+		},
+	}
+}
+
+func ToAITools(tools []mcpclient.Tool) []AITools {
+	aiTools := make([]AITools, len(tools))
+	for i, tool := range tools {
+		aiTools[i] = AITools{
+			Description: tool.Description,
+			InputSchema: tool.InputSchema,
+			Name:        tool.Name,
+		}
+	}
+	return aiTools
 }
 
 // NewBaseProvider initializes a new BaseProvider.
@@ -96,31 +124,6 @@ func NewBaseProvider(
 	// base.SetModel(model)
 	return base
 }
-
-// func (bp *BaseProvider) SetModel(model *Model) {
-// 	bp.model = model
-// 	if bp.settings != nil {
-// 		bp.settings.SetModel(model.Name)
-// 	}
-// }
-//
-// func (bp *BaseProvider) SetMaxTokens(maxTokens int) {
-// 	if bp.settings != nil {
-// 		bp.settings.SetMaxTokens(maxTokens)
-// 	}
-// }
-//
-// func (bp *BaseProvider) SetTools(tools []AITools) {
-// 	if bp.settings != nil {
-// 		bp.settings.SetTools(tools)
-// 	}
-// }
-//
-// func (bp *BaseProvider) SetStream(stream bool) {
-// 	if bp.settings != nil {
-// 		bp.settings.SetStream(stream)
-// 	}
-// }
 
 // makeRequest sends an HTTP request with the given parameters, serializes the request body,
 // and deserializes the response into respBody.
@@ -169,7 +172,7 @@ func (bp *BaseProvider) makeRequest(
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	log.Printf("Received response with status %d: %s", resp.StatusCode, string(responseBody))
+	// log.Printf("Received response with status %d: %s", resp.StatusCode, string(responseBody))
 
 	if resp.StatusCode != http.StatusOK {
 		return NewAPIError(resp.StatusCode, string(responseBody))

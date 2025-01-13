@@ -1,10 +1,8 @@
-package ai
+package llmclient
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"os"
 )
 
 // OpenAIProvider implements the Provider interface for OpenAI's API.
@@ -55,10 +53,10 @@ type OpenAISettings struct {
 	StreamOptions    *struct {
 		IncludeUsage bool `json:"include_usage,omitempty"`
 	} `json:"stream_options,omitempty"`
-	Temperature int         `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
-	TopP        int         `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
-	Tools       []AITools   `json:"tools,omitempty"`
-	ToolChoice  interface{} `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
+	Temperature int          `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	TopP        int          `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
+	Tools       []OpenAITool `json:"tools,omitempty"`
+	ToolChoice  interface{}  `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
 	// ParallelToolCalls bool      `json:"parallel_tool_calls"`
 }
 
@@ -67,7 +65,12 @@ func (s *OpenAISettings) SetMaxTokens(maxTokens int) {
 }
 
 func (s *OpenAISettings) SetTools(tools []AITools) {
-	s.Tools = tools
+	toolList := make([]OpenAITool, 0)
+	for _, t := range tools {
+		toolList = append(toolList, AIToolToOpenAITool(t))
+	}
+
+	s.Tools = toolList
 	// s.ParallelToolCalls = true
 }
 
@@ -80,6 +83,7 @@ func (s *OpenAISettings) SetModel(model string) {
 	s.Model = model
 }
 
+// Description of a tool_calls message request from assistant
 type OpenAIFunctionCall struct {
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
@@ -91,10 +95,43 @@ type OpenAIToolCall struct {
 	Function OpenAIFunctionCall `json:"function"`
 }
 
-func toolCallToAIContent(t OpenAIToolCall) AIContent {
+func toolCallToAIContent(t OpenAIToolCall) *AIContent {
 	var args map[string]interface{}
 	_ = json.Unmarshal([]byte(t.Function.Arguments), &args)
 	return NewToolUseContent(t.ID, t.Function.Name, args)
+}
+
+// Description of a tool function
+type OpenAIToolFunction struct {
+	Name        string      `json:"name"`
+	Description *string     `json:"description,omitempty"`
+	Parameters  interface{} `json:"parameters"`
+}
+
+type OpenAITool struct {
+	Type     string             `json:"type"`
+	Function OpenAIToolFunction `json:"function"`
+}
+
+func AIToolToOpenAITool(tool AITools) OpenAITool {
+	var desc *string
+	if tool.Description != nil {
+		descCopy := *tool.Description
+		desc = &descCopy
+		if len(*desc) > 512 {
+			foo := descCopy[:512]
+			desc = &foo
+		}
+	}
+	aiTool := OpenAITool{
+		Type: "function",
+		Function: OpenAIToolFunction{
+			Name:        tool.Name,
+			Description: desc,
+			Parameters:  tool.InputSchema,
+		},
+	}
+	return aiTool
 }
 
 type OpenAIChoice struct {
@@ -108,10 +145,9 @@ type OpenAIMessage struct {
 	Name       string           `json:"name,omitempty"`
 	Audio      interface{}      `json:"audio,omitempty"`
 	ToolCalls  []OpenAIToolCall `json:"tool_calls,omitempty"`
-	Content    string           `json:"content"`
-	ToolCallId string           `json:"tool_call_id"`
+	Content    string           `json:"content,omitempty"`
+	ToolCallId string           `json:"tool_call_id,omitempty"`
 }
-
 
 // OpenAIResponse defines the response structure specific to OpenAI.
 type OpenAIResponse struct {
@@ -171,22 +207,22 @@ func (m OpenAIMessage) GetRole() string {
 	return m.Role
 }
 
-func (m OpenAIMessage) GetContent() AIContent {
+func (m OpenAIMessage) GetContent() *AIContent {
 	if len(m.ToolCalls) > 0 {
 		return toolCallToAIContent(m.ToolCalls[0])
 	}
 	return NewTextContent(m.Content)
 }
 
-func (m OpenAIMessage) GetContents() []AIContent {
+func (m OpenAIMessage) GetContents() []*AIContent {
 	if len(m.ToolCalls) > 0 {
-		contents := make([]AIContent, len(m.ToolCalls))
+		contents := make([]*AIContent, len(m.ToolCalls))
 		for i, tc := range m.ToolCalls {
 			contents[i] = toolCallToAIContent(tc)
 		}
 		return contents
 	}
-	return []AIContent{NewTextContent(m.Content)}
+	return []*AIContent{NewTextContent(m.Content)}
 }
 
 func AIMessageToOpenAIMessage(m []AIMessage) []OpenAIMessage {
@@ -200,7 +236,7 @@ func AIMessageToOpenAIMessage(m []AIMessage) []OpenAIMessage {
 			if content.Type == ContentTypeToolResult {
 				userMessages = append(userMessages, OpenAIMessage{
 					Role:       "tool",
-					Content:    content.Result,
+					Content:    content.Content,
 					ToolCallId: content.ToolUseID,
 				})
 			} else {
@@ -223,10 +259,10 @@ func (p *OpenAIProvider) GenerateResponse(messages []AIMessage) (AIResponse, err
 		Messages:       AIMessageToOpenAIMessage(messages),
 		OpenAISettings: *p.settings,
 	}
-	for _, msg := range req.Messages {
-		data, _ := json.Marshal(msg)
-		fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, string(data))
-	}
+	// for _, msg := range req.Messages {
+	// 	data, _ := json.Marshal(msg)
+	// 	fmt.Fprintf(os.Stderr, "msg: %T %v\n", msg, string(data))
+	// }
 
 	var resp OpenAIResponse
 	err := p.makeRequest("POST", p.baseUrl, headers, req, &resp)
