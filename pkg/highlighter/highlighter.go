@@ -96,6 +96,9 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 	defer h.writer.Flush()
 
 	var buffer bytes.Buffer
+	var codeFenceBuffer bytes.Buffer
+	inPartialCodeFence := false
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -105,35 +108,56 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 				// Channel closed, process remaining content
 				remaining := buffer.String()
 				if len(remaining) > 0 {
-					if !strings.HasSuffix(remaining, "\n") {
-						remaining += "\n"
-					}
-					h.ProcessLine(remaining)
+					h.highlightAndPrint(remaining)
+					h.writer.Flush()
 				}
 				return nil
 			}
 
-			buffer.WriteString(content)
-			for {
-				currentBuffer := buffer.String()
-				index := strings.Index(currentBuffer, "\n")
-				if index == -1 {
-					break
+			// Check for partial code fence
+			if inPartialCodeFence {
+				codeFenceBuffer.WriteString(content)
+				if codeFenceBuffer.Len() >= 3 {
+					str := codeFenceBuffer.String()
+					if strings.HasPrefix(str, "```") {
+						// We found a complete code fence
+						h.handleCodeBlockMarker(str)
+						buffer.Reset()
+						codeFenceBuffer.Reset()
+						inPartialCodeFence = false
+						continue
+					} else if codeFenceBuffer.Len() > 3 {
+						// Not a code fence, print buffered content
+						buffer.Write(codeFenceBuffer.Bytes())
+						codeFenceBuffer.Reset()
+						inPartialCodeFence = false
+					}
 				}
-				line := currentBuffer[:index+1]
-				buffer.Next(index + 1)
-				h.ProcessLine(line)
+			} else if content == "`" {
+				codeFenceBuffer.WriteString(content)
+				inPartialCodeFence = true
+				continue
+			}
+
+			// Normal content processing
+			buffer.WriteString(content)
+			
+			// Process complete lines if we have them
+			currentBuffer := buffer.String()
+			if strings.Contains(currentBuffer, "\n") {
+				lines := strings.Split(currentBuffer, "\n")
+				for i := 0; i < len(lines)-1; i++ {
+					h.ProcessLine(lines[i] + "\n")
+				}
+				buffer.Reset()
+				buffer.WriteString(lines[len(lines)-1])
+			} else {
+				// Immediately print partial line in real-time
+				h.highlightAndPrint(content)
+				h.writer.Flush()
 			}
 		}
 	}
-
-	// remaining := buffer.String()
-	// if len(remaining) > 0 {
-	// 	if !strings.HasSuffix(remaining, "\n") {
-	// 		remaining += "\n"
-	// 	}
-	// 	h.ProcessLine(remaining)
-	// }
 }
 
 // ProcessStream processes a stream of text from a channel
