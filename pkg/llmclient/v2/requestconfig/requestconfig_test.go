@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/apierror"
 )
 
 // MockTransport mocks HTTP responses returning 400 status code
@@ -120,7 +120,7 @@ func TestRequestConfigExecute(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: &mockTransport{},
 			},
-			newError: apierror.NewAPIErrorOpenAI,
+			newError: apierror.NewAPIErrorBase,
 		}
 
 		err := cfg.Execute()
@@ -130,7 +130,7 @@ func TestRequestConfigExecute(t *testing.T) {
 
 		t.Logf("Get error: %T\n", err)
 		switch aerr := err.(type) {
-		case *apierror.APIErrorOpenAI:
+		case apierror.APIError:
 			t.Logf("%s", aerr.Error())
 		default:
 			t.Fatalf("Expected *apierror.APIErrorAnthropic, got %T", err)
@@ -148,7 +148,7 @@ func TestRequestConfigExecute(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: &mockTransport{},
 			},
-			newError: apierror.NewAPIErrorAnthropic,
+			newError: apierror.NewAPIErrorBase,
 		}
 
 		err := cfg.Execute()
@@ -157,7 +157,7 @@ func TestRequestConfigExecute(t *testing.T) {
 		}
 		t.Logf("Get error: %T\n", err)
 		switch aerr := err.(type) {
-		case *apierror.APIErrorAnthropic:
+		case apierror.APIError:
 			t.Logf("%s", aerr.Error())
 		default:
 			t.Fatalf("Expected *apierror.APIErrorAnthropic, got %T", err)

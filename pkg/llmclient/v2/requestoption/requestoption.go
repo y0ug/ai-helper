@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/tidwall/sjson"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
 )
 
 // RequestOption is an option for the requests made by the openai API Client

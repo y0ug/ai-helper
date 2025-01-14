@@ -56,48 +56,10 @@ func (r *APIErrorBase) DumpResponse(body bool) []byte {
 	return out
 }
 
-type APIErrorOpenAI struct {
-	APIErrorBase
-	Code    string `json:"code,required,nullable"`
-	Message string `json:"message,required"`
-	Param   string `json:"param,required,nullable"`
-	Type    string `json:"type,required"`
-	JSON    string `json:"-"`
-}
-
-func (r *APIErrorOpenAI) UnmarshalJSON(data []byte) (err error) {
-	r.JSON = string(data)
-	type Alias APIErrorOpenAI
-	return json.Unmarshal(data, (*Alias)(r))
-}
-
-func NewAPIErrorOpenAI(resp *http.Response, req *http.Request) APIError {
-	return &APIErrorOpenAI{
-		APIErrorBase: APIErrorBase{
-			StatusCode: resp.StatusCode,
-			Request:    req,
-			Response:   resp,
-		},
+func NewAPIErrorBase(resp *http.Response, req *http.Request) APIError {
+	return &APIErrorBase{
+		StatusCode: resp.StatusCode,
+		Request:    req,
+		Response:   resp,
 	}
-}
-
-func NewAPIErrorAnthropic(resp *http.Response, req *http.Request) APIError {
-	return &APIErrorAnthropic{
-		APIErrorBase: APIErrorBase{
-			StatusCode: resp.StatusCode,
-			Request:    req,
-			Response:   resp,
-		},
-	}
-}
-
-type APIErrorAnthropic struct {
-	APIErrorBase
-	ExtraFields map[string]interface{} `json:"-"`
-}
-
-func (r *APIErrorAnthropic) UnmarshalJSON(data []byte) (err error) {
-	r.JSON = string(data)
-	r.ExtraFields = make(map[string]interface{})
-	return json.Unmarshal(data, &r.ExtraFields)
 }

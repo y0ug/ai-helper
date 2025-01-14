@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
 
 func WithRateLimitMiddleware(rateLimit *requestconfig.RateLimit) requestoption.RequestOption {

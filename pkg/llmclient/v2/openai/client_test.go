@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/middleware"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/middleware"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
 
 func skipIfNoAPIKey(t *testing.T) {

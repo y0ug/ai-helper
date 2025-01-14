@@ -6,10 +6,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/middleware"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/middleware"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
 
 // Client creates a struct with services and top level methods that help with
@@ -49,7 +48,7 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	r = &Client{
 		Options:   append(defaults, opts...),
 		rateLimit: rateLimit,
-		newError:  apierror.NewAPIErrorOpenAI,
+		newError:  NewAPIErrorOpenAI,
 	}
 
 	r.Chat = NewChatCompletionService(r.Options...)

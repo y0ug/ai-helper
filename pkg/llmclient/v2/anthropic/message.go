@@ -5,10 +5,9 @@ import (
 	"net/http"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/ssestream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 type MessageParam struct {
@@ -111,8 +110,14 @@ func (r *MessageService) New(
 ) (res *Message, err error) {
 	opts = append(r.Options[:], opts...)
 	path := "v1/messages"
-	newError := apierror.NewAPIErrorAnthropic
-	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, newError, opts...)
+	err = requestconfig.ExecuteNewRequest(
+		ctx,
+		http.MethodPost,
+		path,
+		body,
+		&res,
+		NewAPIErrorAnthropic,
+		opts...)
 	return
 }
 
@@ -135,7 +140,13 @@ func (r *MessageService) NewStreaming(
 	opts = append(r.Options[:], opts...)
 	opts = append([]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)}, opts...)
 	path := "v1/messages"
-	newError := apierror.NewAPIErrorAnthropic
-	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, newError, opts...)
+	err = requestconfig.ExecuteNewRequest(
+		ctx,
+		http.MethodPost,
+		path,
+		body,
+		&raw,
+		NewAPIErrorAnthropic,
+		opts...)
 	return ssestream.NewAnthropicStream[MessageStreamEvent](ssestream.NewDecoder(raw), err)
 }

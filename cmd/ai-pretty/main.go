@@ -13,7 +13,7 @@ import (
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
 )
 
 func highlightAndPrint(

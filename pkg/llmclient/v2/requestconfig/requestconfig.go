@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/apierror"
 )
 
 type NewAPIError func(resp *http.Response, req *http.Request) apierror.APIError
