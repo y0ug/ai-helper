@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
 )
 
 func TestNewRequestConfig(t *testing.T) {
@@ -46,7 +48,14 @@ func TestNewRequestConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := NewRequestConfig(ctx, tc.method, tc.url, tc.body, tc.dst)
+			cfg, err := NewRequestConfig[*apierror.APIErrorBase](
+				ctx,
+				tc.method,
+				tc.url,
+				tc.body,
+				tc.dst,
+				nil,
+			)
 
 			if tc.expectError {
 				if err == nil {
@@ -87,7 +96,7 @@ func TestRequestConfigExecute(t *testing.T) {
 	ctx := context.Background()
 	baseURL, _ := url.Parse("https://api.example.com")
 
-	_ = &RequestConfig{
+	_ = &RequestConfig[*apierror.APIErrorBase]{
 		Context: ctx,
 		Request: &http.Request{
 			Method: "GET",
@@ -103,7 +112,7 @@ func TestRequestConfigExecute(t *testing.T) {
 	// }
 
 	// Test invalid base URL
-	invalidCfg := &RequestConfig{
+	invalidCfg := &RequestConfig[*apierror.APIErrorBase]{
 		Context: ctx,
 		Request: &http.Request{
 			Method: "GET",
@@ -148,7 +157,7 @@ func TestRetryDelay(t *testing.T) {
 
 func TestRequestConfigClone(t *testing.T) {
 	ctx := context.Background()
-	originalCfg := &RequestConfig{
+	originalCfg := &RequestConfig[*apierror.APIErrorBase]{
 		MaxRetries: 3,
 		APIKey:     "test-key",
 		Request:    &http.Request{Method: "GET"},
