@@ -4,9 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"sync"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
@@ -15,11 +13,9 @@ import (
 // interacting with the openai API. You should not instantiate this client
 // directly, and instead use the [NewClient] method instead.
 type Client struct {
-	Options    []requestoption.RequestOption
-	Chat       *ChatCompletionService
-	rateLimit  *requestconfig.RateLimit
-	rateLimitM sync.RWMutex
-	newError   requestconfig.NewAPIError
+	Options  []requestoption.RequestOption
+	Chat     *ChatCompletionService
+	NewError requestconfig.NewAPIError
 }
 
 // NewClient generates a new client with the default option read from the
@@ -28,27 +24,21 @@ type Client struct {
 // will be passed down to the services and requests that this client makes.
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	defaults := []requestoption.RequestOption{
-		requestoption.WithEnvironmentProductionOpenAI(),
+		WithEnvironmentProduction(),
 	}
 	if o, ok := os.LookupEnv("OPENAI_API_KEY"); ok {
 		defaults = append(defaults, requestoption.WithAuthToken(o))
 	}
 	if o, ok := os.LookupEnv("OPENAI_ORG_ID"); ok {
-		defaults = append(defaults, requestoption.WithOrganization(o))
+		defaults = append(defaults, WithOrganization(o))
 	}
 	if o, ok := os.LookupEnv("OPENAI_PROJECT_ID"); ok {
-		defaults = append(defaults, requestoption.WithProject(o))
+		defaults = append(defaults, WithProject(o))
 	}
-	rateLimit := &requestconfig.RateLimit{}
 	opts = append(defaults, opts...)
-	opts = append(
-		opts,
-		middleware.WithRateLimitMiddleware(rateLimit),
-	)
 	r = &Client{
-		Options:   append(defaults, opts...),
-		rateLimit: rateLimit,
-		newError:  NewAPIErrorOpenAI,
+		Options:  append(defaults, opts...),
+		NewError: NewAPIErrorOpenAI,
 	}
 
 	r.Chat = NewChatCompletionService(r.Options...)
@@ -96,14 +86,7 @@ func (r *Client) Execute(
 	opts ...requestoption.RequestOption,
 ) error {
 	opts = append(r.Options, opts...)
-	return requestconfig.ExecuteNewRequest(ctx, method, path, params, res, r.newError, opts...)
-}
-
-// GetRateLimit returns the current rate limit status.
-func (c *Client) GetRateLimit() requestconfig.RateLimit {
-	c.rateLimitM.RLock()
-	defer c.rateLimitM.RUnlock()
-	return c.rateLimit.GetSnapshot()
+	return requestconfig.ExecuteNewRequest(ctx, method, path, params, res, r.NewError, opts...)
 }
 
 // Get makes a GET request with the given URL, params, and optionally deserializes

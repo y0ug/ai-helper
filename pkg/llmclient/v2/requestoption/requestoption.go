@@ -239,39 +239,3 @@ func WithApiKey(headerName string, value string) RequestOption {
 		return r.Apply(WithHeader(r.APIKeyHeaderName, r.APIKey))
 	}
 }
-
-// WithOrganization returns a RequestOption that sets the client setting "organization".
-func WithOrganization(value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
-		r.Organization = value
-		return r.Apply(WithHeader("OpenAI-Organization", value))
-	}
-}
-
-// WithProject returns a RequestOption that sets the client setting "project".
-func WithProject(value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
-		r.Project = value
-		return r.Apply(WithHeader("OpenAI-Project", value))
-	}
-}
-
-// WithEnvironmentProductionOpenAI returns a RequestOption that sets the current
-// environment to be the "production" environment. An environment specifies which base URL
-// to use by default.
-func WithEnvironmentProductionOpenAI() RequestOption {
-	return WithBaseURL("https://api.openai.com/v1/")
-}
-
-// WithEnvironmentProductionAnthropic returns a RequestOption that sets the current
-// environment to be the "production" environment. An environment specifies which base URL
-// to use by default.
-func WithEnvironmentProductionAnthropic() RequestOption {
-	return WithBaseURL("https://api.anthropic.com/")
-}
-
-func WithApiVersionAnthropic() RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
-		return r.Apply(WithHeader("anthropic-version", "2023-06-01"))
-	}
-}

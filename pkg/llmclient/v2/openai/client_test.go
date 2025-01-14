@@ -82,8 +82,6 @@ func TestClientIntegration(t *testing.T) {
 			t.Error("Expected non-zero token usage")
 		}
 
-		rateLimit := client.GetRateLimit()
-		t.Logf("Rate limit: %+v", rateLimit)
 		t.Logf("Chat completion: %v", completion.Choices[0].Message.Content)
 	})
 

@@ -23,8 +23,8 @@ type Client struct {
 
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	defaults := []requestoption.RequestOption{
-		requestoption.WithApiVersionAnthropic(),
-		requestoption.WithEnvironmentProductionAnthropic(),
+		WithApiVersionAnthropic(),
+		WithEnvironmentProduction(),
 	}
 	if o, ok := os.LookupEnv("ANTHROPIC_API_KEY"); ok {
 		defaults = append(defaults, requestoption.WithApiKey("x-api-key", o))
