@@ -6,6 +6,7 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 type AnthropicProvider struct {
@@ -16,26 +17,7 @@ func (a *AnthropicProvider) Send(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
 ) (*common.BaseChatMessage, error) {
-	systemPromt := ""
-	msgs := make([]anthropic.MessageParam, 0)
-	for _, m := range params.Messages {
-		if m.Role == "system" {
-			systemPromt = m.Content[0].String()
-			continue
-		}
-		msgs = append(msgs, anthropic.MessageParam{
-			Role:    m.Role,
-			Content: m.Content,
-		})
-	}
-	paramsProvider := anthropic.MessageNewParams{
-		Model:       params.Model,
-		MaxTokens:   params.MaxTokens,
-		Temperature: params.Temperature,
-		Messages:    msgs,
-		System:      systemPromt,
-	}
-
+	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
 	resp, err := a.client.Message.New(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
@@ -55,4 +37,39 @@ func (a *AnthropicProvider) Send(
 	c.FinishReason = resp.StopReason
 	ret.Choice = append(ret.Choice, c)
 	return ret, nil
+}
+
+func (a *AnthropicProvider) Stream(
+	ctx context.Context,
+	params common.BaseChatMessageNewParams,
+) (ssestream.Streamer[common.LLMStreamEvent], error) {
+	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
+	_ = a.client.Message.NewStreaming(ctx, paramsProvider)
+
+	return nil, nil
+}
+
+func BaseChatMessageNewParamsToAnthropic(
+	params common.BaseChatMessageNewParams,
+) anthropic.MessageNewParams {
+	systemPromt := ""
+	msgs := make([]anthropic.MessageParam, 0)
+	for _, m := range params.Messages {
+		if m.Role == "system" {
+			systemPromt = m.Content[0].String()
+			continue
+		}
+		msgs = append(msgs, anthropic.MessageParam{
+			Role:    m.Role,
+			Content: m.Content,
+		})
+	}
+	paramsProvider := anthropic.MessageNewParams{
+		Model:       params.Model,
+		MaxTokens:   params.MaxTokens,
+		Temperature: params.Temperature,
+		Messages:    msgs,
+		System:      systemPromt,
+	}
+	return paramsProvider
 }

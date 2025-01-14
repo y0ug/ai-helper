@@ -7,24 +7,31 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 type OpenAIProvider struct {
 	client *openai.Client
 }
 
-func (a *OpenAIProvider) Send(
-	ctx context.Context,
+func BaseChatMessageNewParamsToOpenAI(
 	params common.BaseChatMessageNewParams,
-) (*common.BaseChatMessage, error) {
-	paramsOpenAI := openai.ChatCompletionNewParams{
+) openai.ChatCompletionNewParams {
+	return openai.ChatCompletionNewParams{
 		Model:               params.Model,
 		MaxCompletionTokens: &params.MaxTokens,
 		Temperature:         params.Temperature,
 		Messages:            FromLLMMessageToOpenAi(params.Messages...),
 	}
+}
 
-	resp, err := a.client.Chat.New(ctx, paramsOpenAI)
+func (a *OpenAIProvider) Send(
+	ctx context.Context,
+	params common.BaseChatMessageNewParams,
+) (*common.BaseChatMessage, error) {
+	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
+
+	resp, err := a.client.Chat.New(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +65,17 @@ func (a *OpenAIProvider) Send(
 		}
 	}
 	return ret, nil
+}
+
+func (a *OpenAIProvider) Stream(
+	ctx context.Context,
+	params common.BaseChatMessageNewParams,
+) (ssestream.Streamer[common.LLMStreamEvent], error) {
+	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
+
+	_ = a.client.Chat.NewStreaming(ctx, paramsProvider)
+
+	return nil, nil
 }
 
 func FromLLMToolToOpenAI(tool common.LLMTool) openai.Tool {

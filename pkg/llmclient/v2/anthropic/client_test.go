@@ -39,8 +39,10 @@ func TestClientStreamIntegration(t *testing.T) {
 			Temperature: 0,
 		}
 		stream := client.Message.NewStreaming(ctx, params)
+		message := Message{}
 		for stream.Next() {
 			evt := stream.Current()
+			message.Accumulate(evt)
 			// fmt.Printf("%s ", evt.Type)
 			switch evt.Type {
 			case "message_start":
@@ -60,6 +62,8 @@ func TestClientStreamIntegration(t *testing.T) {
 		if stream.Err() != nil {
 			fmt.Printf("Error: %v\n", stream.Err())
 		}
+
+		fmt.Printf("Message: %v\n", message.Content)
 	})
 }
 

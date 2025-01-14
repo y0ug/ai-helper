@@ -2,6 +2,8 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
@@ -32,6 +34,53 @@ func (r *Message) ToParam() MessageParam {
 		Role:    r.Role,
 		Content: r.Content,
 	}
+}
+
+func (a *Message) Accumulate(event MessageStreamEvent) error {
+	if a == nil {
+		*a = Message{}
+	}
+
+	switch event.Type {
+	case "message_start":
+		*a = event.Message
+	case "content_block_start":
+		a.Content = append(a.Content, &common.AIContent{})
+		data, err := json.Marshal(event.ContentBlock)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(data, a.Content[len(a.Content)-1])
+		if err != nil {
+			return err
+		}
+	case "content_block_delta":
+		if len(a.Content) == 0 {
+			return fmt.Errorf(
+				"received event of type %s but there was no content block",
+				event.Type,
+			)
+		}
+		if event.ContentBlock["type"] == "text" {
+			a.Content[len(a.Content)-1].Text += event.Delta.Text
+		} else if event.ContentBlock["type"] == "input_json" {
+			fmt.Printf("InputJSON: %v\n", event.Delta)
+			// a.Content[len(a.Content)-1].ToolUse += event.Delta.ToolUse
+		}
+	case "message_delta_event":
+		fmt.Printf("MessageDelta: %v\n", event.Delta)
+	//  update StopRead, StopSequence, Usage
+	// a.StopReason = event.Delta.StopReason
+
+	case "content_block_stop":
+		if len(a.Content) == 0 {
+			return fmt.Errorf(
+				"content block finish but final content is empty",
+			)
+		}
+	}
+
+	return nil
 }
 
 type MessageStreamEvent struct {
