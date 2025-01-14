@@ -8,8 +8,21 @@ import (
 	"testing"
 	"time"
 
+	"io"
+	"bytes"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
 )
+
+// MockTransport mocks HTTP responses returning 400 status code
+type mockTransport struct{}
+
+func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: 400,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"error": "bad request"}`)),
+		Header:     make(http.Header),
+	}, nil
+}
 
 func TestNewRequestConfig(t *testing.T) {
 	ctx := context.Background()
@@ -105,7 +118,9 @@ func TestRequestConfigExecute(t *testing.T) {
 				URL:    &url.URL{Path: "/test"},
 			},
 			BaseURL:    baseURL,
-			HTTPClient: &http.Client{},
+			HTTPClient: &http.Client{
+				Transport: &mockTransport{},
+			},
 			newError:   apierror.NewAPIErrorOpenAI,
 		}
 
@@ -131,7 +146,9 @@ func TestRequestConfigExecute(t *testing.T) {
 				URL:    &url.URL{Path: "/test"},
 			},
 			BaseURL:    baseURL,
-			HTTPClient: &http.Client{},
+			HTTPClient: &http.Client{
+				Transport: &mockTransport{},
+			},
 			newError:   apierror.NewAPIErrorAnthropic,
 		}
 
