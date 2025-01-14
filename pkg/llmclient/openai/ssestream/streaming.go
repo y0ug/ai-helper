@@ -115,21 +115,32 @@ func (s *eventStreamDecoder) Err() error {
 	return s.err
 }
 
-type Stream[T any] struct {
+type Streamer[T any] interface {
+	Next() bool
+	Current() T
+	Err() error
+	Close() error
+}
+
+type BaseStream[T any] struct {
 	decoder Decoder
 	cur     T
 	err     error
 	done    bool
 }
 
-func NewStream[T any](decoder Decoder, err error) *Stream[T] {
-	return &Stream[T]{
+type AnthropicStream[T any] struct {
+	BaseStream[T]
+}
+
+func NewStream[T any](decoder Decoder, err error) Streamer[T] {
+	return &BaseStream[T]{
 		decoder: decoder,
 		err:     err,
 	}
 }
 
-func (s *Stream[T]) Next() bool {
+func (s *BaseStream[T]) Next() bool {
 	if s.err != nil {
 		return false
 	}
@@ -172,14 +183,53 @@ func (s *Stream[T]) Next() bool {
 	return false
 }
 
-func (s *Stream[T]) Current() T {
+func (s *BaseStream[T]) Current() T {
 	return s.cur
 }
 
-func (s *Stream[T]) Err() error {
+func (s *BaseStream[T]) Err() error {
 	return s.err
 }
 
-func (s *Stream[T]) Close() error {
+func (s *BaseStream[T]) Close() error {
 	return s.decoder.Close()
+}
+
+func NewAnthropicStream[T any](decoder Decoder, err error) Streamer[T] {
+	return &AnthropicStream[T]{
+		BaseStream: BaseStream[T]{
+			decoder: decoder,
+			err:     err,
+		},
+	}
+}
+
+func (s *AnthropicStream[T]) Next() bool {
+	if s.err != nil {
+		return false
+	}
+
+	for s.decoder.Next() {
+		switch s.decoder.Event().Type {
+		case "completion":
+			s.err = json.Unmarshal(s.decoder.Event().Data, &s.cur)
+			if s.err != nil {
+				return false
+			}
+			return true
+		case "message_start", "message_delta", "message_stop", "content_block_start", "content_block_delta", "content_block_stop":
+			s.err = json.Unmarshal(s.decoder.Event().Data, &s.cur)
+			if s.err != nil {
+				return false
+			}
+			return true
+		case "ping":
+			continue
+		case "error":
+			s.err = fmt.Errorf("received error while streaming: %s", string(s.decoder.Event().Data))
+			return false
+		}
+	}
+
+	return false
 }
