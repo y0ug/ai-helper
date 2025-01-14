@@ -140,21 +140,22 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 			}
 
 			// Normal content processing
-			buffer.WriteString(content)
-
-			// Process complete lines if we have them
-			currentBuffer := buffer.String()
-			if strings.Contains(currentBuffer, "\n") {
-				lines := strings.Split(currentBuffer, "\n")
-				for i := 0; i < len(lines)-1; i++ {
-					h.ProcessLine(lines[i] + "\n")
-				}
-				buffer.Reset()
-				buffer.WriteString(lines[len(lines)-1])
-			} else {
-				// Immediately print partial line in real-time
+			if !h.inCodeBlock {
+				// Immediately print non-code content
 				h.highlightAndPrint(content)
 				h.writer.Flush()
+			} else {
+				// In code block, accumulate and process line by line
+				buffer.WriteString(content)
+				currentBuffer := buffer.String()
+				if strings.Contains(currentBuffer, "\n") {
+					lines := strings.Split(currentBuffer, "\n")
+					for i := 0; i < len(lines)-1; i++ {
+						h.ProcessLine(lines[i] + "\n")
+					}
+					buffer.Reset()
+					buffer.WriteString(lines[len(lines)-1])
+				}
 			}
 		}
 	}
