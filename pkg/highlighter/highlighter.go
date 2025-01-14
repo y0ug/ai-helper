@@ -133,7 +133,7 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 						inPartialCodeFence = false
 					}
 				}
-			} else if content == "`" {
+			} else if strings.Contains(content, "`") {
 				codeFenceBuffer.WriteString(content)
 				inPartialCodeFence = true
 				continue
@@ -141,7 +141,7 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 
 			// Normal content processing
 			buffer.WriteString(content)
-			
+
 			// Process complete lines if we have them
 			currentBuffer := buffer.String()
 			if strings.Contains(currentBuffer, "\n") {

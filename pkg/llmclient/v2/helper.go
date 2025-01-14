@@ -1,6 +1,7 @@
 package llmclient
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 
@@ -72,7 +73,11 @@ func NewProviderByModel(
 	}
 }
 
-func ConsumeStream(ctx context.Context, stream common.Streamer[common.LLMStreamEvent], ch chan<- string) error {
+func ConsumeStream(
+	ctx context.Context,
+	stream common.Streamer[common.LLMStreamEvent],
+	ch chan<- string,
+) error {
 	defer close(ch)
 
 	for stream.Next() {
@@ -82,20 +87,21 @@ func ConsumeStream(ctx context.Context, stream common.Streamer[common.LLMStreamE
 		default:
 			event := stream.Current()
 			switch event.Provider {
-		case "anthropic":
-			var anthropicEvent anthropic.MessageStreamEvent
-			if err := json.Unmarshal(event.Data, &anthropicEvent); err != nil {
-				return err
+			case "anthropic":
+				var anthropicEvent anthropic.MessageStreamEvent
+				if err := json.Unmarshal(event.Data, &anthropicEvent); err != nil {
+					return err
+				}
+				ch <- handleAnthropicEvent(anthropicEvent)
+			case "openai":
+				var openaiEvent openai.ChatCompletionChunk
+				if err := json.Unmarshal(event.Data, &openaiEvent); err != nil {
+					return err
+				}
+				ch <- handleOpenAIEvent(openaiEvent)
+			default:
+				log.Printf("Unknown provider: %s", event.Provider)
 			}
-			ch <- handleAnthropicEvent(anthropicEvent)
-		case "openai":
-			var openaiEvent openai.ChatCompletionChunk
-			if err := json.Unmarshal(event.Data, &openaiEvent); err != nil {
-				return err
-			}
-			ch <- handleOpenAIEvent(openaiEvent)
-		default:
-			log.Printf("Unknown provider: %s", event.Provider)
 		}
 	}
 	if err := stream.Err(); err != nil {

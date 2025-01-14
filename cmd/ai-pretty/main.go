@@ -12,7 +12,8 @@ import (
 )
 
 func main() {
-	const model = "claude-3-5-sonnet-20241022"
+	// const model = "claude-3-5-sonnet-20241022"
+	const model = "gpt-4o"
 	provider, _ := llmclient.NewProviderByModel(model, nil)
 
 	ctx := context.Background()
@@ -25,7 +26,7 @@ func main() {
 				Role: "user",
 				Content: []*common.AIContent{
 					common.NewTextContent(
-						"Write an Hello World in golang, with your model name inside. The code have to be in markdown code fence with the language.",
+						"Write a 1000 word essai about Golang and put a some code block in the middle",
 					),
 				},
 			},
