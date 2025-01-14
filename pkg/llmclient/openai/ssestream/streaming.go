@@ -94,9 +94,7 @@ func (s *eventStreamDecoder) Next() bool {
 				break
 			}
 			_, s.err = data.WriteRune('\n')
-			if s.err != nil {
-				break
-			}
+
 		}
 	}
 
@@ -162,10 +160,7 @@ func (s *BaseStream[T]) Next() bool {
 				return false
 			}
 			s.err = json.Unmarshal(s.decoder.Event().Data, &s.cur)
-			if s.err != nil {
-				return false
-			}
-			return true
+			return s.err == nil
 		} else {
 			ep := gjson.GetBytes(s.decoder.Event().Data, "error")
 			if ep.Exists() {
@@ -173,10 +168,7 @@ func (s *BaseStream[T]) Next() bool {
 				return false
 			}
 			s.err = json.Unmarshal([]byte(fmt.Sprintf(`{ "event": %q, "data": %s }`, s.decoder.Event().Type, s.decoder.Event().Data)), &s.cur)
-			if s.err != nil {
-				return false
-			}
-			return true
+			return s.err == nil
 		}
 	}
 
@@ -217,7 +209,12 @@ func (s *AnthropicStream[T]) Next() bool {
 				return false
 			}
 			return true
-		case "message_start", "message_delta", "message_stop", "content_block_start", "content_block_delta", "content_block_stop":
+		case "message_start",
+			"message_delta",
+			"message_stop",
+			"content_block_start",
+			"content_block_delta",
+			"content_block_stop":
 			s.err = json.Unmarshal(s.decoder.Event().Data, &s.cur)
 			if s.err != nil {
 				return false

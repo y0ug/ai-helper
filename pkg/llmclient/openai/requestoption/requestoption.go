@@ -223,18 +223,20 @@ func WithRequestTimeout(dur time.Duration) RequestOption {
 	}
 }
 
-// WithEnvironmentProduction returns a RequestOption that sets the current
-// environment to be the "production" environment. An environment specifies which base URL
-// to use by default.
-func WithEnvironmentProduction() RequestOption {
-	return WithBaseURL("https://api.openai.com/v1/")
+// WithAuthToken returns a RequestOption that sets the client setting "api_key".
+func WithAuthToken(value string) RequestOption {
+	return func(r *requestconfig.RequestConfig) error {
+		r.AuthToken = value
+		return r.Apply(WithHeader("authorization", fmt.Sprintf("Bearer %s", r.APIKey)))
+	}
 }
 
-// WithAPIKey returns a RequestOption that sets the client setting "api_key".
-func WithAPIKey(value string) RequestOption {
+// WithApiKey set in header
+func WithApiKey(headerName string, value string) RequestOption {
 	return func(r *requestconfig.RequestConfig) error {
 		r.APIKey = value
-		return r.Apply(WithHeader("authorization", fmt.Sprintf("Bearer %s", r.APIKey)))
+		r.APIKeyHeaderName = headerName
+		return r.Apply(WithHeader(r.APIKeyHeaderName, r.APIKey))
 	}
 }
 
@@ -251,5 +253,25 @@ func WithProject(value string) RequestOption {
 	return func(r *requestconfig.RequestConfig) error {
 		r.Project = value
 		return r.Apply(WithHeader("OpenAI-Project", value))
+	}
+}
+
+// WithEnvironmentProductionOpenAI returns a RequestOption that sets the current
+// environment to be the "production" environment. An environment specifies which base URL
+// to use by default.
+func WithEnvironmentProductionOpenAI() RequestOption {
+	return WithBaseURL("https://api.openai.com/v1/")
+}
+
+// WithEnvironmentProductionAnthropic returns a RequestOption that sets the current
+// environment to be the "production" environment. An environment specifies which base URL
+// to use by default.
+func WithEnvironmentProductionAnthropic() RequestOption {
+	return WithBaseURL("https://api.anthropic.com/")
+}
+
+func WithApiVersionAnthropic() RequestOption {
+	return func(r *requestconfig.RequestConfig) error {
+		return r.Apply(WithHeader("anthropic-version", "2023-06-01"))
 	}
 }

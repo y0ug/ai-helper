@@ -1,28 +1,52 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
 )
 
+func highlightAndPrint(
+	w *bufio.Writer,
+	line string,
+	style *chroma.Style,
+	lexer chroma.Lexer,
+	formatter chroma.Formatter,
+) {
+	iterator, err := lexer.Tokenise(nil, line)
+	if err != nil {
+		log.Printf("Tokenization error: %v", err)
+		return
+	}
+
+	// var buf bytes.Buffer
+	err = formatter.Format(w, style, iterator)
+	if err != nil {
+		log.Printf("Formatting error: %v", err)
+		return
+	}
+}
+
 func main() {
 	client := openai.NewClient()
 	// requestoption.WithMiddleware(middleware.LoggingMiddleware()))
 	ctx := context.Background()
 	params := openai.ChatCompletionNewParams{
-		Model: "gpt-3.5-turbo",
+		Model: "gpt-4o",
 		Messages: []openai.ChatCompletionMessageParam{
 			{
 				Role:    "user",
-				Content: "Write a fictional technical documentation in markdown no more then 2048 words",
+				Content: "Can you write a 10 lines, Go code? You will prefix the code in fenced code block with the language name",
 			},
 		},
 		Temperature: 0,
@@ -34,6 +58,8 @@ func main() {
 	if lexer == nil {
 		lexer = lexers.Fallback
 	}
+	defaultLexer := lexer
+
 	formatter := formatters.Get("terminal16m")
 	if formatter == nil {
 		formatter = formatters.Fallback
@@ -45,7 +71,11 @@ func main() {
 	// Buffered writer for efficient output
 	// _ = bufio.NewWriterSize(nil, 0)
 
+	w := bufio.NewWriter(os.Stdout)
+	defer w.Flush()
+
 	var buffer bytes.Buffer
+
 	style := styles.Get("monokai")
 	if style == nil {
 		fmt.Println("style not found")
@@ -60,6 +90,8 @@ func main() {
 		if content == "" {
 			continue
 		}
+		// fmt.Printf("content: \"%s\" ", content)
+		// highlightAndPrint(w, content, style, lexer, formatter)
 
 		// Split the incoming content into lines
 		buffer.WriteString(content)
@@ -72,42 +104,31 @@ func main() {
 			}
 			// Extract the line up to the newline
 			line := currentBuffer[:index+1] // Include the newline character
+			// fmt.Printf("Line: %s", line)
 			// Remove the processed line from the buffer
 			buffer.Next(index + 1)
 
-			// Handle code block state
 			if strings.HasPrefix(line, "```") {
 				inCodeBlock = !inCodeBlock
+				if inCodeBlock {
+					line = strings.ToLower(line) // ChatGPT put a Uppercase sometimes
+					highlightAndPrint(w, line, style, lexer, formatter)
+					language := strings.Trim(strings.ToLower(line[3:]), "\n")
+					// fmt.Printf("Language: %s\n", language)
+					lexer = lexers.Get(language)
+					if lexer == nil {
+						lexer = defaultLexer
+					}
+					continue
+				} else {
+					lexer = defaultLexer
+				}
 			}
-
-			// Append the line to the lexer input
-			var lineToHighlight string
-			if inCodeBlock {
-				// If inside a code block, specify the language if provided
-				lineToHighlight = line + "\n"
-			} else {
-				lineToHighlight = line + "\n"
-			}
-
-			// Tokenize and format the current line
-			iterator, err := lexer.Tokenise(nil, lineToHighlight)
-			if err != nil {
-				log.Printf("Tokenization error: %v", err)
-				continue
-			}
-
-			var highlighted strings.Builder
-			err = formatter.Format(&highlighted, style, iterator)
-			if err != nil {
-				log.Printf("Formatting error: %v", err)
-				continue
-			}
-
-			// Print the highlighted line
-			fmt.Print(highlighted.String())
-
+			highlightAndPrint(w, line, style, lexer, formatter)
 		}
 	}
+	highlightAndPrint(w, buffer.String(), style, lexer, formatter)
+
 	if err := stream.Err(); err != nil {
 		log.Fatalf("Stream error: %v", err)
 	}

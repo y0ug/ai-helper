@@ -1,15 +1,14 @@
 package requestconfig
 
 import (
+	"bytes"
 	"context"
-	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
-	"io"
-	"bytes"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
 )
 
@@ -117,24 +116,24 @@ func TestRequestConfigExecute(t *testing.T) {
 				Method: "GET",
 				URL:    &url.URL{Path: "/test"},
 			},
-			BaseURL:    baseURL,
+			BaseURL: baseURL,
 			HTTPClient: &http.Client{
 				Transport: &mockTransport{},
 			},
-			newError:   apierror.NewAPIErrorOpenAI,
+			newError: apierror.NewAPIErrorOpenAI,
 		}
 
-		// Test invalid base URL
-		cfg.BaseURL = nil
 		err := cfg.Execute()
 		if err == nil {
-			t.Error("Expected error for nil base URL, got none")
+			t.Fatal("Expected error but got none")
+		}
 
-			fmt.Printf("%T\n", err)
-			switch err.(type) {
-			case *apierror.APIErrorOpenAI:
-				fmt.Println("APIErrorOpenAI")
-			}
+		t.Logf("Get error: %T\n", err)
+		switch aerr := err.(type) {
+		case *apierror.APIErrorOpenAI:
+			t.Logf("%s", aerr.Error())
+		default:
+			t.Fatalf("Expected *apierror.APIErrorAnthropic, got %T", err)
 		}
 	})
 
@@ -145,20 +144,23 @@ func TestRequestConfigExecute(t *testing.T) {
 				Method: "GET",
 				URL:    &url.URL{Path: "/test"},
 			},
-			BaseURL:    baseURL,
+			BaseURL: baseURL,
 			HTTPClient: &http.Client{
 				Transport: &mockTransport{},
 			},
-			newError:   apierror.NewAPIErrorAnthropic,
+			newError: apierror.NewAPIErrorAnthropic,
 		}
 
-		// Test invalid base URL
-		cfg.BaseURL = nil
 		err := cfg.Execute()
-		fmt.Printf("%T\n", err)
-		switch err.(type) {
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+		t.Logf("Get error: %T\n", err)
+		switch aerr := err.(type) {
 		case *apierror.APIErrorAnthropic:
-			fmt.Println("APIErrorAnthropic")
+			t.Logf("%s", aerr.Error())
+		default:
+			t.Fatalf("Expected *apierror.APIErrorAnthropic, got %T", err)
 		}
 	})
 }

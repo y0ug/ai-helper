@@ -17,20 +17,23 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
 )
 
+type NewAPIError func(resp *http.Response, req *http.Request) apierror.APIError
+
 func getDefaultHeaders() map[string]string {
 	return map[string]string{
 		"User-Agent": fmt.Sprintf("AI-Helper/Go %s", "v0.0.1"),
 	}
 }
 
-func NewRequestConfig(
+func NewRequestConfig[E apierror.APIError](
 	ctx context.Context,
 	method string,
 	u string,
 	body interface{},
 	dst interface{},
-	opts ...func(*RequestConfig) error,
-) (*RequestConfig, error) {
+	newError NewAPIError,
+	opts ...func(*RequestConfig[E]) error,
+) (*RequestConfig[E], error) {
 	var reader io.Reader
 
 	contentType := "application/json"
@@ -76,12 +79,13 @@ func NewRequestConfig(
 		req.Header.Add(k, v)
 	}
 
-	cfg := RequestConfig{
+	cfg := RequestConfig[E]{
 		MaxRetries: 2,
 		Context:    ctx,
 		Request:    req,
 		HTTPClient: http.DefaultClient,
 		Body:       reader,
+		newError:   newError,
 	}
 	cfg.ResponseBodyInto = dst
 	err = cfg.Apply(opts...)
@@ -95,17 +99,19 @@ func NewRequestConfig(
 //
 // Editing the variables inside RequestConfig directly is unstable api. Prefer
 // composing func(\*RequestConfig) error instead if possible.
-type RequestConfig struct {
-	MaxRetries     int
-	RequestTimeout time.Duration
-	Context        context.Context
-	Request        *http.Request
-	BaseURL        *url.URL
-	HTTPClient     *http.Client
-	Middlewares    []middleware
-	APIKey         string
-	Organization   string
-	Project        string
+type RequestConfig[E apierror.APIError] struct {
+	MaxRetries       int
+	RequestTimeout   time.Duration
+	Context          context.Context
+	Request          *http.Request
+	BaseURL          *url.URL
+	HTTPClient       *http.Client
+	Middlewares      []middleware
+	APIKey           string
+	APIKeyHeaderName string
+	AuthToken        string
+	Organization     string
+	Project          string
 	// If ResponseBodyInto not nil, then we will attempt to deserialize into
 	// ResponseBodyInto. If Destination is a []byte, then it will return the body as
 	// is.
@@ -114,6 +120,7 @@ type RequestConfig struct {
 	// given address
 	ResponseInto **http.Response
 	Body         io.Reader
+	newError     NewAPIError
 }
 
 // middleware is exactly the same type as the Middleware type found in the [option] package,
@@ -232,7 +239,7 @@ func retryDelay(res *http.Response, retryCount int) time.Duration {
 	return delay
 }
 
-func (cfg *RequestConfig) Execute() (err error) {
+func (cfg *RequestConfig[E]) Execute() (err error) {
 	if cfg.BaseURL == nil {
 		return fmt.Errorf("requestconfig: base url is not set")
 	}
@@ -332,12 +339,16 @@ func (cfg *RequestConfig) Execute() (err error) {
 		res.Body = io.NopCloser(bytes.NewBuffer(contents))
 
 		// Load the contents into the error format if it is provided.
-		aerr := apierror.Error{Request: cfg.Request, Response: res, StatusCode: res.StatusCode}
+		if cfg.newError == nil {
+			// TODO: we need better handling if newError is nil
+			return fmt.Errorf("error making request: %s", contents)
+		}
+		aerr := cfg.newError(res, cfg.Request)
 		err = aerr.UnmarshalJSON(contents)
 		if err != nil {
 			return err
 		}
-		return &aerr
+		return aerr
 	}
 
 	if cfg.ResponseBodyInto == nil {
@@ -385,22 +396,23 @@ func (cfg *RequestConfig) Execute() (err error) {
 	return nil
 }
 
-func ExecuteNewRequest(
+func ExecuteNewRequest[E apierror.APIError](
 	ctx context.Context,
 	method string,
 	u string,
 	body interface{},
 	dst interface{},
-	opts ...func(*RequestConfig) error,
+	newError NewAPIError,
+	opts ...func(*RequestConfig[E]) error,
 ) error {
-	cfg, err := NewRequestConfig(ctx, method, u, body, dst, opts...)
+	cfg, err := NewRequestConfig[E](ctx, method, u, body, dst, newError, opts...)
 	if err != nil {
 		return err
 	}
 	return cfg.Execute()
 }
 
-func (cfg *RequestConfig) Clone(ctx context.Context) *RequestConfig {
+func (cfg *RequestConfig[E]) Clone(ctx context.Context) *RequestConfig[E] {
 	if cfg == nil {
 		return nil
 	}
@@ -412,7 +424,7 @@ func (cfg *RequestConfig) Clone(ctx context.Context) *RequestConfig {
 	if err != nil {
 		return nil
 	}
-	new := &RequestConfig{
+	new := &RequestConfig[E]{
 		MaxRetries:     cfg.MaxRetries,
 		RequestTimeout: cfg.RequestTimeout,
 		Context:        ctx,
@@ -428,7 +440,7 @@ func (cfg *RequestConfig) Clone(ctx context.Context) *RequestConfig {
 	return new
 }
 
-func (cfg *RequestConfig) Apply(opts ...func(*RequestConfig) error) error {
+func (cfg *RequestConfig[E]) Apply(opts ...func(*RequestConfig[E]) error) error {
 	for _, opt := range opts {
 		err := opt(cfg)
 		if err != nil {
