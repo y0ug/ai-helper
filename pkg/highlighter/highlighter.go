@@ -89,6 +89,7 @@ func (h *Highlighter) highlightAndPrint(line string) {
 	}
 }
 
+// ProcessStream processes a stream of text from a channel and highlights it
 func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error {
 	defer h.writer.Flush()
 
@@ -109,16 +110,18 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 				}
 				return nil
 			}
-		buffer.WriteString(content)
-		for {
-			currentBuffer := buffer.String()
-			index := strings.Index(currentBuffer, "\n")
-			if index == -1 {
-				break
+			
+			buffer.WriteString(content)
+			for {
+				currentBuffer := buffer.String()
+				index := strings.Index(currentBuffer, "\n")
+				if index == -1 {
+					break
+				}
+				line := currentBuffer[:index+1]
+				buffer.Next(index + 1)
+				h.ProcessLine(line)
 			}
-			line := currentBuffer[:index+1]
-			buffer.Next(index + 1)
-			h.ProcessLine(line)
 		}
 	}
 
@@ -133,6 +136,8 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 
 // ProcessStream processes a stream of text from a channel
 // and push it as stream of line
+// ProcessStreamToNewLine processes a stream of text and splits it into lines
+// sending each complete line to the output channel
 func ProcessStreamToNewLine(ctx context.Context, in <-chan string, out chan<- string) error {
 	defer close(out)
 	
@@ -153,16 +158,18 @@ func ProcessStreamToNewLine(ctx context.Context, in <-chan string, out chan<- st
 				}
 				return nil
 			}
-		buffer.WriteString(content)
-		for {
-			currentBuffer := buffer.String()
-			index := strings.Index(currentBuffer, "\n")
-			if index == -1 {
-				break
+			
+			buffer.WriteString(content)
+			for {
+				currentBuffer := buffer.String()
+				index := strings.Index(currentBuffer, "\n")
+				if index == -1 {
+					break
+				}
+				line := currentBuffer[:index+1]
+				buffer.Next(index + 1)
+				out <- line
 			}
-			line := currentBuffer[:index+1]
-			buffer.Next(index + 1)
-			out <- line
 		}
 	}
 
