@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/ssestream"
@@ -158,7 +159,8 @@ func (r *ChatCompletionService) New(
 ) (res *ChatCompletion, err error) {
 	opts = append(r.Options[:], opts...)
 	path := "chat/completions"
-	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, opts...)
+	newError := apierror.NewAPIErrorOpenAI
+	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, newError, opts...)
 	return
 }
 
@@ -166,7 +168,7 @@ func (r *ChatCompletionService) NewStreaming(
 	ctx context.Context,
 	body ChatCompletionNewParams,
 	opts ...requestoption.RequestOption,
-) (stream *ssestream.Stream[ChatCompletionChunk]) {
+) ssestream.Streamer[ChatCompletionChunk] {
 	var (
 		raw *http.Response
 		err error
@@ -174,7 +176,8 @@ func (r *ChatCompletionService) NewStreaming(
 	opts = append(r.Options[:], opts...)
 	opts = append([]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)}, opts...)
 	path := "chat/completions"
-	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, opts...)
+	newError := apierror.NewAPIErrorOpenAI
+	err = requestconfig.ExecuteNewRequest(ctx, http.MethodPost, path, body, &raw, newError, opts...)
 	return ssestream.NewStream[ChatCompletionChunk](ssestream.NewDecoder(raw), err)
 }
 

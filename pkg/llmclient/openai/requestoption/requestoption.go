@@ -227,7 +227,7 @@ func WithRequestTimeout(dur time.Duration) RequestOption {
 func WithAuthToken(value string) RequestOption {
 	return func(r *requestconfig.RequestConfig) error {
 		r.AuthToken = value
-		return r.Apply(WithHeader("authorization", fmt.Sprintf("Bearer %s", r.APIKey)))
+		return r.Apply(WithHeader("authorization", fmt.Sprintf("Bearer %s", r.AuthToken)))
 	}
 }
 

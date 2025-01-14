@@ -25,15 +25,15 @@ func getDefaultHeaders() map[string]string {
 	}
 }
 
-func NewRequestConfig[E apierror.APIError](
+func NewRequestConfig(
 	ctx context.Context,
 	method string,
 	u string,
 	body interface{},
 	dst interface{},
 	newError NewAPIError,
-	opts ...func(*RequestConfig[E]) error,
-) (*RequestConfig[E], error) {
+	opts ...func(*RequestConfig) error,
+) (*RequestConfig, error) {
 	var reader io.Reader
 
 	contentType := "application/json"
@@ -79,7 +79,7 @@ func NewRequestConfig[E apierror.APIError](
 		req.Header.Add(k, v)
 	}
 
-	cfg := RequestConfig[E]{
+	cfg := RequestConfig{
 		MaxRetries: 2,
 		Context:    ctx,
 		Request:    req,
@@ -99,7 +99,7 @@ func NewRequestConfig[E apierror.APIError](
 //
 // Editing the variables inside RequestConfig directly is unstable api. Prefer
 // composing func(\*RequestConfig) error instead if possible.
-type RequestConfig[E apierror.APIError] struct {
+type RequestConfig struct {
 	MaxRetries       int
 	RequestTimeout   time.Duration
 	Context          context.Context
@@ -239,7 +239,7 @@ func retryDelay(res *http.Response, retryCount int) time.Duration {
 	return delay
 }
 
-func (cfg *RequestConfig[E]) Execute() (err error) {
+func (cfg *RequestConfig) Execute() (err error) {
 	if cfg.BaseURL == nil {
 		return fmt.Errorf("requestconfig: base url is not set")
 	}
@@ -396,23 +396,23 @@ func (cfg *RequestConfig[E]) Execute() (err error) {
 	return nil
 }
 
-func ExecuteNewRequest[E apierror.APIError](
+func ExecuteNewRequest(
 	ctx context.Context,
 	method string,
 	u string,
 	body interface{},
 	dst interface{},
 	newError NewAPIError,
-	opts ...func(*RequestConfig[E]) error,
+	opts ...func(*RequestConfig) error,
 ) error {
-	cfg, err := NewRequestConfig[E](ctx, method, u, body, dst, newError, opts...)
+	cfg, err := NewRequestConfig(ctx, method, u, body, dst, newError, opts...)
 	if err != nil {
 		return err
 	}
 	return cfg.Execute()
 }
 
-func (cfg *RequestConfig[E]) Clone(ctx context.Context) *RequestConfig[E] {
+func (cfg *RequestConfig) Clone(ctx context.Context) *RequestConfig {
 	if cfg == nil {
 		return nil
 	}
@@ -424,7 +424,7 @@ func (cfg *RequestConfig[E]) Clone(ctx context.Context) *RequestConfig[E] {
 	if err != nil {
 		return nil
 	}
-	new := &RequestConfig[E]{
+	new := &RequestConfig{
 		MaxRetries:     cfg.MaxRetries,
 		RequestTimeout: cfg.RequestTimeout,
 		Context:        ctx,
@@ -440,7 +440,7 @@ func (cfg *RequestConfig[E]) Clone(ctx context.Context) *RequestConfig[E] {
 	return new
 }
 
-func (cfg *RequestConfig[E]) Apply(opts ...func(*RequestConfig[E]) error) error {
+func (cfg *RequestConfig) Apply(opts ...func(*RequestConfig) error) error {
 	for _, opt := range opts {
 		err := opt(cfg)
 		if err != nil {

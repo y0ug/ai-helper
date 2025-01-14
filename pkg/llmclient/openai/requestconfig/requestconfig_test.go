@@ -61,7 +61,7 @@ func TestNewRequestConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := NewRequestConfig[*apierror.APIErrorBase](
+			cfg, err := NewRequestConfig(
 				ctx,
 				tc.method,
 				tc.url,
@@ -110,7 +110,7 @@ func TestRequestConfigExecute(t *testing.T) {
 	baseURL, _ := url.Parse("https://api.example.com")
 
 	t.Run("OpenAI Error Handling", func(t *testing.T) {
-		cfg := &RequestConfig[*apierror.APIErrorOpenAI]{
+		cfg := &RequestConfig{
 			Context: ctx,
 			Request: &http.Request{
 				Method: "GET",
@@ -138,7 +138,7 @@ func TestRequestConfigExecute(t *testing.T) {
 	})
 
 	t.Run("Anthropic Error Handling", func(t *testing.T) {
-		cfg := &RequestConfig[*apierror.APIErrorAnthropic]{
+		cfg := &RequestConfig{
 			Context: ctx,
 			Request: &http.Request{
 				Method: "GET",
@@ -194,7 +194,7 @@ func TestRetryDelay(t *testing.T) {
 
 func TestRequestConfigClone(t *testing.T) {
 	ctx := context.Background()
-	originalCfg := &RequestConfig[*apierror.APIErrorBase]{
+	originalCfg := &RequestConfig{
 		MaxRetries: 3,
 		APIKey:     "test-key",
 		Request:    &http.Request{Method: "GET"},

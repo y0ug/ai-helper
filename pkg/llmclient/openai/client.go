@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/openai/apierror"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai/requestoption"
@@ -19,6 +20,7 @@ type Client struct {
 	Chat       *ChatCompletionService
 	rateLimit  *requestconfig.RateLimit
 	rateLimitM sync.RWMutex
+	newError   requestconfig.NewAPIError
 }
 
 // NewClient generates a new client with the default option read from the
@@ -27,10 +29,10 @@ type Client struct {
 // will be passed down to the services and requests that this client makes.
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	defaults := []requestoption.RequestOption{
-		requestoption.WithEnvironmentProduction(),
+		requestoption.WithEnvironmentProductionOpenAI(),
 	}
 	if o, ok := os.LookupEnv("OPENAI_API_KEY"); ok {
-		defaults = append(defaults, requestoption.WithAPIKey(o))
+		defaults = append(defaults, requestoption.WithAuthToken(o))
 	}
 	if o, ok := os.LookupEnv("OPENAI_ORG_ID"); ok {
 		defaults = append(defaults, requestoption.WithOrganization(o))
@@ -47,6 +49,7 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	r = &Client{
 		Options:   append(defaults, opts...),
 		rateLimit: rateLimit,
+		newError:  apierror.NewAPIErrorOpenAI,
 	}
 
 	r.Chat = NewChatCompletionService(r.Options...)
@@ -94,7 +97,7 @@ func (r *Client) Execute(
 	opts ...requestoption.RequestOption,
 ) error {
 	opts = append(r.Options, opts...)
-	return requestconfig.ExecuteNewRequest(ctx, method, path, params, res, opts...)
+	return requestconfig.ExecuteNewRequest(ctx, method, path, params, res, r.newError, opts...)
 }
 
 // GetRateLimit returns the current rate limit status.
