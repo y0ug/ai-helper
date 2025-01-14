@@ -131,7 +131,7 @@ type AnthropicStream[T any] struct {
 	BaseStream[T]
 }
 
-func NewStream[T any](decoder Decoder, err error) Streamer[T] {
+func NewBaseStream[T any](decoder Decoder, err error) Streamer[T] {
 	return &BaseStream[T]{
 		decoder: decoder,
 		err:     err,

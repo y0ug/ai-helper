@@ -11,7 +11,8 @@ type ContentType string
 
 const (
 	// Common Anthropic/OpenAI
-	ContentTypeText ContentType = "text"
+	ContentTypeText      ContentType = "text"
+	ContentTypeTextDelta ContentType = "text_delta"
 
 	// Anthropic
 	ContentTypeToolUse    ContentType = "tool_use"
@@ -104,6 +105,8 @@ func (c AIContent) GetType() string {
 // String returns a human-readable string (for debugging/logging)
 func (c AIContent) String() string {
 	switch c.Type {
+	case ContentTypeTextDelta:
+		return c.Text
 	case ContentTypeText:
 		return c.Text
 	case ContentTypeToolUse:
