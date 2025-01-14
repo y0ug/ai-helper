@@ -89,11 +89,26 @@ func (h *Highlighter) highlightAndPrint(line string) {
 	}
 }
 
-func (h *Highlighter) ProcessStream(ch <-chan string) {
+func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error {
 	defer h.writer.Flush()
 
 	var buffer bytes.Buffer
-	for content := range ch {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case content, ok := <-ch:
+			if !ok {
+				// Channel closed, process remaining content
+				remaining := buffer.String()
+				if len(remaining) > 0 {
+					if !strings.HasSuffix(remaining, "\n") {
+						remaining += "\n"
+					}
+					h.ProcessLine(remaining)
+				}
+				return nil
+			}
 		buffer.WriteString(content)
 		for {
 			currentBuffer := buffer.String()

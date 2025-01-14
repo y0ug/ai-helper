@@ -72,10 +72,14 @@ func NewProviderByModel(
 	}
 }
 
-func ConsumeStream(stream common.Streamer[common.LLMStreamEvent], ch chan<- string) error {
+func ConsumeStream(ctx context.Context, stream common.Streamer[common.LLMStreamEvent], ch chan<- string) error {
 	defer close(ch)
 
 	for stream.Next() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 		event := stream.Current()
 		switch event.Provider {
 		case "anthropic":

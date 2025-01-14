@@ -36,12 +36,18 @@ func main() {
 	eventCh := make(chan string)
 
 	go func() {
-		if err := llmclient.ConsumeStream(stream, eventCh); err != nil {
-			log.Fatalf("Error consuming stream: %v", err)
+		if err := llmclient.ConsumeStream(ctx, stream, eventCh); err != nil {
+			if err != context.Canceled {
+				log.Printf("Error consuming stream: %v", err)
+			}
 		}
 	}()
 
 	writer := bufio.NewWriter(os.Stdout)
 	h := highlighter.NewHighlighter(writer)
-	h.ProcessStream(eventCh)
+	if err := h.ProcessStream(ctx, eventCh); err != nil {
+		if err != context.Canceled {
+			log.Printf("Error processing stream: %v", err)
+		}
+	}
 }
