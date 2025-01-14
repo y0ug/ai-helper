@@ -3,12 +3,23 @@ package common
 import (
 	"context"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
+type ChatService interface {
+	New(
+		ctx context.Context,
+		params openai.ChatCompletionNewParams,
+		opts ...requestoption.RequestOption,
+	) (any, error)
+	// or define the exact methods you need...
+}
+
 type LLMClient interface {
 	// For a single-turn request
-	Send(ctx context.Context, params BaseChatMessageNewParams) (BaseChatMessage, error)
+	Send(ctx context.Context, params BaseChatMessageNewParams) (*BaseChatMessage, error)
 
 	// For streaming support
 	Stream(

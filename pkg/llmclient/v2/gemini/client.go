@@ -1,4 +1,4 @@
-package openrouter
+package gemini
 
 import (
 	"os"
@@ -12,7 +12,7 @@ type Client struct {
 }
 
 func WithEnvironmentProduction() requestoption.RequestOption {
-	return requestoption.WithBaseURL("https://openrouter.ai/api/v1/")
+	return requestoption.WithBaseURL("https://generativelanguage.googleapis.com/v1beta/openai/")
 }
 
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
@@ -20,7 +20,7 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	defaults := []requestoption.RequestOption{
 		WithEnvironmentProduction(),
 	}
-	if o, ok := os.LookupEnv("OPENROUTER_API_KEY"); ok {
+	if o, ok := os.LookupEnv("GEMINI_API_KEY"); ok {
 		defaults = append(defaults, requestoption.WithAuthToken(o))
 	}
 	opts = append(defaults, opts...)
