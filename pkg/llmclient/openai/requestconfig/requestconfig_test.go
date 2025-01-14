@@ -96,36 +96,45 @@ func TestRequestConfigExecute(t *testing.T) {
 	ctx := context.Background()
 	baseURL, _ := url.Parse("https://api.example.com")
 
-	_ = &RequestConfig[*apierror.APIErrorBase]{
-		Context: ctx,
-		Request: &http.Request{
-			Method: "GET",
-			URL:    &url.URL{Path: "/test"},
-		},
-		BaseURL:    baseURL,
-		HTTPClient: &http.Client{},
-	}
+	t.Run("OpenAI Error Handling", func(t *testing.T) {
+		cfg := &RequestConfig[*apierror.APIErrorOpenAI]{
+			Context: ctx,
+			Request: &http.Request{
+				Method: "GET",
+				URL:    &url.URL{Path: "/test"},
+			},
+			BaseURL:    baseURL,
+			HTTPClient: &http.Client{},
+			newError:   apierror.NewAPIErrorOpenAI,
+		}
 
-	// err := cfg.Execute()
-	// if err != nil {
-	// 	t.Error("Not Expected error")
-	// }
+		// Test invalid base URL
+		cfg.BaseURL = nil
+		err := cfg.Execute()
+		if err == nil {
+			t.Error("Expected error for nil base URL, got none")
+		}
+	})
 
-	// Test invalid base URL
-	invalidCfg := &RequestConfig[*apierror.APIErrorBase]{
-		Context: ctx,
-		Request: &http.Request{
-			Method: "GET",
-			URL:    &url.URL{Path: "/test"},
-		},
-		BaseURL:    nil,
-		HTTPClient: &http.Client{},
-	}
+	t.Run("Anthropic Error Handling", func(t *testing.T) {
+		cfg := &RequestConfig[*apierror.APIErrorAnthropic]{
+			Context: ctx,
+			Request: &http.Request{
+				Method: "GET",
+				URL:    &url.URL{Path: "/test"},
+			},
+			BaseURL:    baseURL,
+			HTTPClient: &http.Client{},
+			newError:   apierror.NewAPIErrorAnthropic,
+		}
 
-	err := invalidCfg.Execute()
-	if err == nil {
-		t.Error("Expected error for nil base URL, got none")
-	}
+		// Test invalid base URL
+		cfg.BaseURL = nil
+		err := cfg.Execute()
+		if err == nil {
+			t.Error("Expected error for nil base URL, got none")
+		}
+	})
 }
 
 func TestRetryDelay(t *testing.T) {
