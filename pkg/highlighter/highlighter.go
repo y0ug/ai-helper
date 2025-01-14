@@ -3,6 +3,7 @@ package highlighter
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"log"
 	"strings"
 
@@ -55,6 +56,7 @@ func (h *Highlighter) ProcessLine(line string) {
 		return
 	}
 	h.highlightAndPrint(line)
+	h.writer.Flush()
 }
 
 // handleCodeBlockMarker processes the start/end of code blocks
@@ -110,7 +112,7 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 				}
 				return nil
 			}
-			
+
 			buffer.WriteString(content)
 			for {
 				currentBuffer := buffer.String()
@@ -125,13 +127,13 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 		}
 	}
 
-	remaining := buffer.String()
-	if len(remaining) > 0 {
-		if !strings.HasSuffix(remaining, "\n") {
-			remaining += "\n"
-		}
-		h.ProcessLine(remaining)
-	}
+	// remaining := buffer.String()
+	// if len(remaining) > 0 {
+	// 	if !strings.HasSuffix(remaining, "\n") {
+	// 		remaining += "\n"
+	// 	}
+	// 	h.ProcessLine(remaining)
+	// }
 }
 
 // ProcessStream processes a stream of text from a channel
@@ -140,7 +142,7 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 // sending each complete line to the output channel
 func ProcessStreamToNewLine(ctx context.Context, in <-chan string, out chan<- string) error {
 	defer close(out)
-	
+
 	var buffer bytes.Buffer
 	for {
 		select {
@@ -158,7 +160,7 @@ func ProcessStreamToNewLine(ctx context.Context, in <-chan string, out chan<- st
 				}
 				return nil
 			}
-			
+
 			buffer.WriteString(content)
 			for {
 				currentBuffer := buffer.String()
@@ -173,12 +175,12 @@ func ProcessStreamToNewLine(ctx context.Context, in <-chan string, out chan<- st
 		}
 	}
 
-	remaining := buffer.String()
-	if len(remaining) > 0 {
-		if !strings.HasSuffix(remaining, "\n") {
-			remaining += "\n"
-		}
-		out <- remaining
-
-	}
+	// remaining := buffer.String()
+	// if len(remaining) > 0 {
+	// 	if !strings.HasSuffix(remaining, "\n") {
+	// 		remaining += "\n"
+	// 	}
+	// 	out <- remaining
+	//
+	// }
 }
