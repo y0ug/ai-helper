@@ -1,14 +1,30 @@
+// pkg/llmclient/v2/openai/openai_chatservice.go
 package openai
 
 import (
-	"context"
 	"encoding/json"
-	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
+	base "github.com/y0ug/ai-helper/pkg/llmclient/v2/base"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
+
+// ChatCompletionService implements llmclient.ChatService using OpenAI's types.
+type ChatCompletionService struct {
+	*base.BaseChatService[ChatCompletionNewParams, ChatCompletion, ChatCompletionChunk]
+}
+
+// NewOpenAIChatService creates a new OpenAIChatService.
+func NewChatCompletionService(opts ...requestoption.RequestOption) *ChatCompletionService {
+	baseService := &base.BaseChatService[ChatCompletionNewParams, ChatCompletion, ChatCompletionChunk]{
+		Options:  opts,
+		NewError: NewAPIErrorOpenAI,
+		Endpoint: "chat/completions",
+	}
+
+	return &ChatCompletionService{
+		BaseChatService: baseService,
+	}
+}
 
 type ChatCompletionChoice struct {
 	FinishReason string                `json:"finish_reason,required"`
@@ -126,70 +142,6 @@ type CompletionUsage struct {
 		AutdioTokens int `json:"audio_tokens"`
 	} `json:"prompt_tokens_details"`
 	Cost float64 `json:"cost,omitempty"`
-}
-
-type ChatCompletionService struct {
-	Options []requestoption.RequestOption
-}
-
-// NewChatCompletionService generates a new service that applies the given options
-// to each request. These options are applied after the parent client's options (if
-// there is one), and before any request-specific options.
-func NewChatCompletionService(opts ...requestoption.RequestOption) (r *ChatCompletionService) {
-	r = &ChatCompletionService{}
-	r.Options = opts
-	return
-}
-
-// Creates a model response for the given chat conversation. Learn more in the
-// [text generation](https://platform.openai.com/docs/guides/text-generation),
-// [vision](https://platform.openai.com/docs/guides/vision), and
-// [audio](https://platform.openai.com/docs/guides/audio) guides.
-//
-// Parameter support can differ depending on the model used to generate the
-// response, particularly for newer reasoning models. Parameters that are only
-// supported for reasoning models are noted below. For the current state of
-// unsupported parameters in reasoning models,
-// [refer to the reasoning guide](https://platform.openai.com/docs/guides/reasoning).
-func (r *ChatCompletionService) New(
-	ctx context.Context,
-	body ChatCompletionNewParams,
-	opts ...requestoption.RequestOption,
-) (res *ChatCompletion, err error) {
-	opts = append(r.Options[:], opts...)
-	path := "chat/completions"
-	err = requestconfig.ExecuteNewRequest(
-		ctx,
-		http.MethodPost,
-		path,
-		body,
-		&res,
-		NewAPIErrorOpenAI,
-		opts...)
-	return
-}
-
-func (r *ChatCompletionService) NewStreaming(
-	ctx context.Context,
-	body ChatCompletionNewParams,
-	opts ...requestoption.RequestOption,
-) ssestream.Streamer[ChatCompletionChunk] {
-	var (
-		raw *http.Response
-		err error
-	)
-	opts = append(r.Options[:], opts...)
-	opts = append([]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)}, opts...)
-	path := "chat/completions"
-	err = requestconfig.ExecuteNewRequest(
-		ctx,
-		http.MethodPost,
-		path,
-		body,
-		&raw,
-		NewAPIErrorOpenAI,
-		opts...)
-	return ssestream.NewBaseStream[ChatCompletionChunk](ssestream.NewDecoder(raw), err)
 }
 
 // Creates a model response for the given chat conversation. Learn more in the

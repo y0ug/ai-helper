@@ -1,4 +1,4 @@
-package llmclient
+package base
 
 import (
 	"context"

@@ -8,7 +8,7 @@ import (
 )
 
 type Client struct {
-	openai.Client
+	*openai.Client
 }
 
 func WithEnvironmentProduction() requestoption.RequestOption {
@@ -16,7 +16,6 @@ func WithEnvironmentProduction() requestoption.RequestOption {
 }
 
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
-	r = &Client{}
 	defaults := []requestoption.RequestOption{
 		WithEnvironmentProduction(),
 	}
@@ -24,14 +23,10 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 		defaults = append(defaults, requestoption.WithAuthToken(o))
 	}
 	opts = append(defaults, opts...)
-	r = &Client{
-		openai.Client{
-			Options:  append(defaults, opts...),
-			NewError: openai.NewAPIErrorOpenAI,
-		},
-	}
 
-	r.Chat = openai.NewChatCompletionService(r.Options...)
+	r = &Client{
+		Client: openai.NewClient(opts...),
+	}
 
 	return r
 }

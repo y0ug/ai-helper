@@ -8,15 +8,14 @@ import (
 )
 
 type Client struct {
-	openai.Client
+	*openai.Client
 }
 
 func WithEnvironmentProduction() requestoption.RequestOption {
 	return requestoption.WithBaseURL("https://generativelanguage.googleapis.com/v1beta/openai/")
 }
 
-func NewClient(opts ...requestoption.RequestOption) (r *Client) {
-	r = &Client{}
+func NewClient(opts ...requestoption.RequestOption) *Client {
 	defaults := []requestoption.RequestOption{
 		WithEnvironmentProduction(),
 	}
@@ -24,14 +23,9 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 		defaults = append(defaults, requestoption.WithAuthToken(o))
 	}
 	opts = append(defaults, opts...)
-	r = &Client{
-		openai.Client{
-			Options:  append(defaults, opts...),
-			NewError: openai.NewAPIErrorOpenAI,
-		},
+	r := &Client{
+		Client: openai.NewClient(opts...),
 	}
-
-	r.Chat = openai.NewChatCompletionService(r.Options...)
 
 	return r
 }

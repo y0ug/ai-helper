@@ -3,7 +3,6 @@ package llmclient
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
@@ -36,7 +35,6 @@ func (a *OpenAIProvider) Send(
 		return nil, err
 	}
 
-	fmt.Printf("%v\n", resp)
 	ret := &common.BaseChatMessage{}
 	ret.ID = resp.ID
 	ret.Model = resp.Model

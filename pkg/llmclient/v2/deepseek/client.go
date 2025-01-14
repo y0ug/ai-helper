@@ -1,19 +1,13 @@
-package gemini
+package deepseek
 
 import (
-	"context"
 	"encoding/json"
-	"net/http"
 	"os"
 
+	base "github.com/y0ug/ai-helper/pkg/llmclient/v2/base"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
-
-type Client struct {
-	openai.Client
-}
 
 type DeepSeekUsage struct {
 	PromptTokens          int `json:"prompt_tokens"`
@@ -22,22 +16,10 @@ type DeepSeekUsage struct {
 	PromptCacheHitTokens  int `json:"prompt_cache_hit_tokens"`
 	PromptCacheMissTokens int `json:"prompt_cache_miss_tokens"`
 }
-type ChatCompletion struct {
-	// Embed all the OpenAI fields.
-	openai.ChatCompletion
 
-	// Override usage with your DeepSeek usage struct
-	Usage DeepSeekUsage `json:"usage"`
-}
-
-// Custom Unmarshal to fill our DeepSeekUsage, while still reusing the embedded fields.
-func (r *ChatCompletion) UnmarshalJSON(data []byte) error {
-	type Alias ChatCompletion
-	// This unmarshal step will fill all fields, including our new `Usage`
-	if err := json.Unmarshal(data, (*Alias)(r)); err != nil {
-		return err
-	}
-	return nil
+type Client struct {
+	*base.BaseClient
+	Chat *ChatCompletionService
 }
 
 func WithEnvironmentProduction() requestoption.RequestOption {
@@ -45,7 +27,6 @@ func WithEnvironmentProduction() requestoption.RequestOption {
 }
 
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
-	r = &Client{}
 	defaults := []requestoption.RequestOption{
 		WithEnvironmentProduction(),
 	}
@@ -54,50 +35,61 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	}
 	opts = append(defaults, opts...)
 	r = &Client{
-		openai.Client{
+		BaseClient: &base.BaseClient{
 			Options:  append(defaults, opts...),
 			NewError: openai.NewAPIErrorOpenAI,
 		},
 	}
 
-	r.Chat = NewChatCompletionService(r.Options...)
+	r.Chat = NewChatCompletionService(r.BaseClient.Options...)
 	return r
 }
 
-// Wrap the OpenAI ChatCompletionService in our own
+// We define the new ChatCompletionService that embeds the BaseChatService
 type ChatCompletionService struct {
-	*openai.ChatCompletionService
+	*base.BaseChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]
 }
 
 // Create our custom service that reuses openai.NewChatCompletionService under the hood
 func NewChatCompletionService(opts ...requestoption.RequestOption) *ChatCompletionService {
+	baseService := &base.BaseChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]{
+		Options:  opts,
+		NewError: openai.NewAPIErrorOpenAI,
+		Endpoint: "chat/completions",
+	}
+
 	return &ChatCompletionService{
-		ChatCompletionService: openai.NewChatCompletionService(opts...),
+		BaseChatService: baseService,
 	}
 }
 
-// We only override the response type in this call
-func (svc *ChatCompletionService) New(
-	ctx context.Context,
-	body openai.ChatCompletionNewParams,
-	opts ...requestoption.RequestOption,
-) (*ChatCompletion, error) {
-	opts = append(svc.Options, opts...)
-	path := "chat/completions"
+type ChatCompletion struct {
+	// Embed all the OpenAI fields.
+	openai.ChatCompletion
+	// Override usage with your DeepSeek usage struct
+	Usage DeepSeekUsage `json:"usage"`
+}
 
-	// We want to unmarshal into *ChatCompletion (which has DeepSeekUsage)
-	var res *ChatCompletion
-	err := requestconfig.ExecuteNewRequest(
-		ctx,
-		http.MethodPost,
-		path,
-		body,
-		&res,
-		openai.NewAPIErrorOpenAI,
-		opts...,
-	)
-	if err != nil {
-		return nil, err
+// Custom Unmarshal to fill our DeepSeekUsage, while still reusing the embedded fields.
+func (r *ChatCompletion) UnmarshalJSON(data []byte) error {
+	type Alias ChatCompletion
+	if err := json.Unmarshal(data, (*Alias)(r)); err != nil {
+		return err
 	}
-	return res, nil
+
+	// TODO: due to golang embedded overide
+	// we have to override the usage field
+	// Then, parse out usage with a simple JSON map
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// Now unmarshal 'usage' into your custom type
+	if usageBytes, ok := raw["usage"]; ok {
+		if err := json.Unmarshal(usageBytes, &r.Usage); err != nil {
+			return err
+		}
+	}
+	return nil
 }

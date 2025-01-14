@@ -1,16 +1,30 @@
 package anthropic
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/base"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
+
+// ChatCompletionService implements llmclient.ChatService using OpenAI's types.
+type MessageService struct {
+	*base.BaseChatService[MessageNewParams, Message, MessageStreamEvent]
+}
+
+func NewMessageService(opts ...requestoption.RequestOption) *MessageService {
+	baseService := &base.BaseChatService[MessageNewParams, Message, MessageStreamEvent]{
+		Options:  opts,
+		NewError: NewAPIErrorAnthropic,
+		Endpoint: "v1/messages",
+	}
+
+	return &MessageService{
+		BaseChatService: baseService,
+	}
+}
 
 type MessageParam struct {
 	Role    string              `json:"role"`
@@ -123,78 +137,4 @@ type MessageNewParams struct {
 	Temperature float64          `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
 	Tools       []common.LLMTool `json:"tools,omitempty"`       // ToolParam
 	ToolChoice  interface{}      `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
-}
-
-// MessageService contains methods and other services that help with interacting
-// with the anthropic API.
-//
-// Note, unlike clients, this service does not read variables from the environment
-// automatically. You should not instantiate this service directly, and instead use
-// the [NewMessageService] method instead.
-type MessageService struct {
-	Options []requestoption.RequestOption
-}
-
-// NewMessageService generates a new service that applies the given options to each
-// request. These options are applied after the parent client's options (if there
-// is one), and before any request-specific options.
-func NewMessageService(opts ...requestoption.RequestOption) (r *MessageService) {
-	r = &MessageService{}
-	r.Options = opts
-	return
-}
-
-// Send a structured list of input messages with text and/or image content, and the
-// model will generate the next message in the conversation.
-//
-// The Messages API can be used for either single queries or stateless multi-turn
-// conversations.
-//
-// Note: If you choose to set a timeout for this request, we recommend 10 minutes.
-func (r *MessageService) New(
-	ctx context.Context,
-	body MessageNewParams,
-	opts ...requestoption.RequestOption,
-) (res *Message, err error) {
-	opts = append(r.Options[:], opts...)
-	path := "v1/messages"
-	err = requestconfig.ExecuteNewRequest(
-		ctx,
-		http.MethodPost,
-		path,
-		body,
-		&res,
-		NewAPIErrorAnthropic,
-		opts...)
-	return
-}
-
-// Send a structured list of input messages with text and/or image content, and the
-// model will generate the next message in the conversation.
-//
-// The Messages API can be used for either single queries or stateless multi-turn
-// conversations.
-//
-// Note: If you choose to set a timeout for this request, we recommend 10 minutes.
-func (r *MessageService) NewStreaming(
-	ctx context.Context,
-	body MessageNewParams,
-	opts ...requestoption.RequestOption,
-) ssestream.Streamer[MessageStreamEvent] {
-	var (
-		raw *http.Response
-		err error
-	)
-	opts = append(r.Options[:], opts...)
-	opts = append([]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)}, opts...)
-	path := "v1/messages"
-	err = requestconfig.ExecuteNewRequest(
-		ctx,
-		http.MethodPost,
-		path,
-		body,
-		&raw,
-		NewAPIErrorAnthropic,
-		opts...)
-	return ssestream.NewAnthropicStream[MessageStreamEvent](ssestream.NewDecoder(raw), err)
 }
