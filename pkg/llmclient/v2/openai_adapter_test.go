@@ -2,6 +2,7 @@ package llmclient
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,8 +21,8 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 			messages: []common.BaseChatMessageParams{
 				{
 					Role: "user",
-					Content: []common.AIContent{
-						*common.NewTextContent("Hello"),
+					Content: []*common.AIContent{
+						common.NewTextContent("Hello"),
 					},
 				},
 			},
@@ -37,7 +38,7 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 			messages: []common.BaseChatMessageParams{
 				{
 					Role: "tool",
-					Content: []common.AIContent{
+					Content: []*common.AIContent{
 						{
 							Type:      common.ContentTypeToolResult,
 							Content:   "Result",
@@ -78,8 +79,8 @@ func TestOpenAIAdapter_Send(t *testing.T) {
 		Messages: []common.BaseChatMessageParams{
 			{
 				Role: "user",
-				Content: []common.AIContent{
-					*common.NewTextContent("Hello, how are you?"),
+				Content: []*common.AIContent{
+					common.NewTextContent("Hello, how are you?"),
 				},
 			},
 		},
@@ -87,9 +88,12 @@ func TestOpenAIAdapter_Send(t *testing.T) {
 
 	// This is an integration test that requires an actual OpenAI API key
 	// You might want to skip it if no API key is present
-	t.Skip("Skipping integration test - requires OpenAI API key")
-	
+	// t.Skip("Skipping integration test - requires OpenAI API key")
+
 	response, err := adapter.Send(ctx, params)
+
+	fmt.Println(response.Choice[0].Content[0].String())
+	fmt.Printf("Usage: %d %d\n", response.Usage.InputTokens, response.Usage.OutputTokens)
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
 	assert.NotEmpty(t, response.ID)

@@ -4,27 +4,27 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 type MessageParam struct {
-	Role    string                 `json:"role"`
-	Content []*llmclient.AIContent `json:"content"`
+	Role    string              `json:"role"`
+	Content []*common.AIContent `json:"content"`
 }
 
 // Message response, ToParam methode convert to MessageParam
 type Message struct {
-	ID           string                 `json:"id,omitempty"`
-	Content      []*llmclient.AIContent `json:"content,omitempty"`
-	Role         string                 `json:"role,omitempty"` // Always "assistant"
-	StopReason   string                 `json:"stop_reason,omitempty"`
-	StopSequence string                 `json:"stop_sequence,omitempty"`
-	Type         string                 `json:"type,omitempty"` // Always "message"
-	Usage        *Usage                 `json:"usage,omitempty"`
-	Model        string                 `json:"model,omitempty"`
+	ID           string              `json:"id,omitempty"`
+	Content      []*common.AIContent `json:"content,omitempty"`
+	Role         string              `json:"role,omitempty"` // Always "assistant"
+	StopReason   string              `json:"stop_reason,omitempty"`
+	StopSequence string              `json:"stop_sequence,omitempty"`
+	Type         string              `json:"type,omitempty"` // Always "message"
+	Usage        *Usage              `json:"usage,omitempty"`
+	Model        string              `json:"model,omitempty"`
 }
 
 func (r *Message) ToParam() MessageParam {
@@ -40,9 +40,9 @@ type MessageStreamEvent struct {
 	ContentBlock map[string]string `json:"content_block"`
 	// This field can have the runtime type of [MessageDeltaEventDelta],
 	// [ContentBlockDeltaEventDelta].
-	Delta   *llmclient.AIContent `json:"delta"`
-	Index   int64                `json:"index"`
-	Message Message              `json:"message"`
+	Delta   *common.AIContent `json:"delta"`
+	Index   int64             `json:"index"`
+	Message Message           `json:"message"`
 	// Billing and rate-limit usage.
 	//
 	// Anthropic's API bills and rate-limits by token counts, as tokens represent the
@@ -72,9 +72,9 @@ type MessageNewParams struct {
 	Stream        bool           `json:"stream,omitempty"`
 	System        string         `json:"system,omitempty"`
 
-	Temperature int                 `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
-	Tools       []llmclient.AITools `json:"tools,omitempty"`       // ToolParam
-	ToolChoice  interface{}         `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
+	Temperature int              `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	Tools       []common.LLMTool `json:"tools,omitempty"`       // ToolParam
+	ToolChoice  interface{}      `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
 }
 
 // MessageService contains methods and other services that help with interacting

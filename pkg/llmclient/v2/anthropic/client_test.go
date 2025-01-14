@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
@@ -31,7 +31,7 @@ func TestClientStreamIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*llmclient.AIContent{llmclient.NewTextContent(
+					Content: []*common.AIContent{common.NewTextContent(
 						"Write a 100 word essay on the topic of artificial intelligence",
 					)},
 				},
@@ -77,7 +77,7 @@ func TestClientIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*llmclient.AIContent{llmclient.NewTextContent(
+					Content: []*common.AIContent{common.NewTextContent(
 						"Say hello in exactly 5 words",
 					)},
 				},
@@ -112,7 +112,7 @@ func TestClientIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*llmclient.AIContent{llmclient.NewTextContent(
+					Content: []*common.AIContent{common.NewTextContent(
 						"Say hello in exactly 5 words",
 					)},
 				},

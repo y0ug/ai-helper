@@ -41,14 +41,14 @@ func (r *ChatCompletionChoice) UnmarshalJSON(data []byte) (err error) {
 }
 
 type ChatCompletionMessage struct {
-	Role       string        `json:"role"`
-	Refusal    string        `json:"refusal,omitempty"`
-	Name       string        `json:"name,omitempty"`
-	Audio      interface{}   `json:"audio,omitempty"`
-	ToolCalls  []interface{} `json:"tool_calls,omitempty"`
-	Content    string        `json:"content,omitempty"`
-	ToolCallId string        `json:"tool_call_id,omitempty"`
-	JSON       string        `json:"-"`
+	Role       string      `json:"role"`
+	Refusal    string      `json:"refusal,omitempty"`
+	Name       string      `json:"name,omitempty"`
+	Audio      interface{} `json:"audio,omitempty"`
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
+	Content    string      `json:"content,omitempty"`
+	ToolCallId string      `json:"tool_call_id,omitempty"`
+	JSON       string      `json:"-"`
 }
 
 func (r *ChatCompletionMessage) UnmarshalJSON(data []byte) (err error) {
@@ -231,10 +231,10 @@ type ChatCompletionNewParams struct {
 	StreamOptions    *struct {
 		IncludeUsage bool `json:"include_usage,omitempty"`
 	} `json:"stream_options,omitempty"`
-	Temperature int           `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
-	TopP        int           `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
-	Tools       []interface{} `json:"tools,omitempty"`
-	ToolChoice  interface{}   `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
+	Temperature int         `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	TopP        int         `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
+	Tools       []Tool      `json:"tools,omitempty"`
+	ToolChoice  interface{} `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
 	// ParallelToolCalls bool      `json:"parallel_tool_calls"`
 	Messages []ChatCompletionMessageParam `json:"messages"`
 }
@@ -253,4 +253,27 @@ type ChatCompletionMessageParam struct {
 	// Tool call that this message is responding to.
 	ToolCallID string      `json:"tool_call_id,omitempty"`
 	ToolCalls  interface{} `json:"tool_calls,omitempty"`
+}
+
+type ToolFunction struct {
+	Name        string      `json:"name"`
+	Description *string     `json:"description,omitempty"`
+	Parameters  interface{} `json:"parameters"`
+}
+
+type Tool struct {
+	Type     string       `json:"type"`
+	Function ToolFunction `json:"function"`
+}
+
+// Description of a tool_calls message request from assistant
+type FunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type ToolCall struct {
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	Function FunctionCall `json:"function"`
 }
