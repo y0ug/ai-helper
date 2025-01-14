@@ -80,8 +80,8 @@ func ConsumeStream(ctx context.Context, stream common.Streamer[common.LLMStreamE
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-		event := stream.Current()
-		switch event.Provider {
+			event := stream.Current()
+			switch event.Provider {
 		case "anthropic":
 			var anthropicEvent anthropic.MessageStreamEvent
 			if err := json.Unmarshal(event.Data, &anthropicEvent); err != nil {

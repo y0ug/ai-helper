@@ -133,9 +133,26 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 
 // ProcessStream processes a stream of text from a channel
 // and push it as stream of line
-func ProcessStreamToNewLine(in <-chan string, out chan string) {
+func ProcessStreamToNewLine(ctx context.Context, in <-chan string, out chan<- string) error {
+	defer close(out)
+	
 	var buffer bytes.Buffer
-	for content := range in {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case content, ok := <-in:
+			if !ok {
+				// Process remaining content before returning
+				remaining := buffer.String()
+				if len(remaining) > 0 {
+					if !strings.HasSuffix(remaining, "\n") {
+						remaining += "\n"
+					}
+					out <- remaining
+				}
+				return nil
+			}
 		buffer.WriteString(content)
 		for {
 			currentBuffer := buffer.String()
