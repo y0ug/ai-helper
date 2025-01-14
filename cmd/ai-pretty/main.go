@@ -21,16 +21,11 @@ func main() {
 		Model:       model,
 		MaxTokens:   1024,
 		Temperature: 0,
-		Messages: []common.BaseChatMessageParams{
-			{
-				Role: "user",
-				Content: []*common.AIContent{
-					common.NewTextContent(
-						"Write a 1000 word essai about Golang and put a some code block in the middle",
-					),
-				},
-			},
-		},
+		Messages: llmclient.NewMessagesParams(
+			llmclient.NewUserMessage(
+				"Write a 1000 word essai about Golang and put a some code block in the middle",
+			),
+		),
 	}
 
 	stream := provider.Stream(ctx, params)

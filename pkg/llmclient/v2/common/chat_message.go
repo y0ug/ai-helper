@@ -5,7 +5,7 @@ type BaseChatMessageNewParams struct {
 	MaxTokens   int
 	Temperature float64
 	// ... stop sequences, etc.
-	Messages   []BaseChatMessageParams
+	Messages   []*BaseChatMessageParams
 	Stream     bool
 	Tools      []LLMTool
 	ToolChoice interface{}

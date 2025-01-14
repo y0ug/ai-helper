@@ -14,6 +14,32 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
 
+func NewUserMessage(text string) *common.BaseChatMessageParams {
+	return &common.BaseChatMessageParams{
+		Role: "user",
+		Content: []*common.AIContent{
+			common.NewTextContent(
+				text,
+			),
+		},
+	}
+}
+
+func NewSytemMessage(text string) *common.BaseChatMessageParams {
+	return &common.BaseChatMessageParams{
+		Role: "system",
+		Content: []*common.AIContent{
+			common.NewTextContent(
+				text,
+			),
+		},
+	}
+}
+
+func NewMessagesParams(msg ...*common.BaseChatMessageParams) []*common.BaseChatMessageParams {
+	return msg
+}
+
 func NewDeepSeekProvider(opts ...requestoption.RequestOption) common.LLMProvider {
 	return &DeepseekProvider{
 		client: deepseek.NewClient(opts...),
