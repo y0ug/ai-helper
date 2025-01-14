@@ -38,18 +38,18 @@ type LLMClient interface {
 
 type LLMStreamEvent interface{}
 
-func (m *BaseChatMessage) GetChoices() []BaseChatMessageChoice {
-	return m.Choice
-}
-
-func (c *BaseChatMessageChoice) GetContents() []*AIContent {
-	return c.Content
-}
-
-func (c *BaseChatMessageChoice) GetRole() string {
-	return c.Role
-}
-
-func (c *BaseChatMessageChoice) GetFinishReason() string {
-	return c.FinishReason
-}
+// func (m *BaseChatMessage) GetChoices() []BaseChatMessageChoice {
+// 	return m.Choice
+// }
+//
+// func (c *BaseChatMessageChoice) GetContents() []*AIContent {
+// 	return c.Content
+// }
+//
+// func (c *BaseChatMessageChoice) GetRole() string {
+// 	return c.Role
+// }
+//
+// func (c *BaseChatMessageChoice) GetFinishReason() string {
+// 	return c.FinishReason
+// }

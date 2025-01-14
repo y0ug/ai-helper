@@ -231,8 +231,8 @@ type ChatCompletionNewParams struct {
 	StreamOptions    *struct {
 		IncludeUsage bool `json:"include_usage,omitempty"`
 	} `json:"stream_options,omitempty"`
-	Temperature int         `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
-	TopP        int         `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
+	Temperature float64     `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	TopP        float64     `json:"top_p,omitempty"`       // Number between 0 and 1 that controls the cumulative probability of the output.
 	Tools       []Tool      `json:"tools,omitempty"`
 	ToolChoice  interface{} `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
 	// ParallelToolCalls bool      `json:"parallel_tool_calls"`

@@ -10,9 +10,9 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 )
 
-func TestAntropicAdapter_Send(t *testing.T) {
+func TestAnthropicProvider_Send(t *testing.T) {
 	// Create a new adapter with a client
-	adapter := &AntropicAdapter{
+	adapter := &AnthropicProvider{
 		client: anthropic.NewClient(),
 	}
 
@@ -46,7 +46,7 @@ func TestAntropicAdapter_Send(t *testing.T) {
 	assert.NotNil(t, response)
 	assert.NotEmpty(t, response.ID)
 	assert.NotEmpty(t, response.Model)
-	
+
 	// Check if we have choices and content before accessing them
 	if assert.NotEmpty(t, response.Choice, "Should have at least one choice") {
 		if assert.NotEmpty(t, response.Choice[0].Content, "Choice should have content") {
@@ -58,8 +58,8 @@ func TestAntropicAdapter_Send(t *testing.T) {
 
 	// Check usage statistics if they exist
 	if assert.NotNil(t, response.Usage, "Should have usage statistics") {
-		fmt.Printf("Usage - Input tokens: %d, Output tokens: %d\n", 
-			response.Usage.InputTokens, 
+		fmt.Printf("Usage - Input tokens: %d, Output tokens: %d\n",
+			response.Usage.InputTokens,
 			response.Usage.OutputTokens)
 		assert.Greater(t, response.Usage.InputTokens, 0)
 		assert.Greater(t, response.Usage.OutputTokens, 0)

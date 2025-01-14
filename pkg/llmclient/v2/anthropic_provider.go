@@ -8,11 +8,11 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 )
 
-type AntropicAdapter struct {
+type AnthropicProvider struct {
 	client *anthropic.Client
 }
 
-func (a *AntropicAdapter) Send(
+func (a *AnthropicProvider) Send(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
 ) (*common.BaseChatMessage, error) {
@@ -21,6 +21,7 @@ func (a *AntropicAdapter) Send(
 	for _, m := range params.Messages {
 		if m.Role == "system" {
 			systemPromt = m.Content[0].String()
+			continue
 		}
 		msgs = append(msgs, anthropic.MessageParam{
 			Role:    m.Role,
@@ -30,7 +31,7 @@ func (a *AntropicAdapter) Send(
 	paramsProvider := anthropic.MessageNewParams{
 		Model:       params.Model,
 		MaxTokens:   params.MaxTokens,
-		Temperature: int(params.Temperature),
+		Temperature: params.Temperature,
 		Messages:    msgs,
 		System:      systemPromt,
 	}
@@ -49,11 +50,7 @@ func (a *AntropicAdapter) Send(
 	ret.Usage.OutputTokens = resp.Usage.OutputTokens
 
 	c := common.BaseChatMessageChoice{}
-	for _, newContent := range resp.Content {
-		c.Content = append(c.Content, newContent)
-	}
-
-	// Role is not choice is our model
+	c.Content = append(c.Content, resp.Content...)
 	c.Role = resp.Role
 	c.FinishReason = resp.StopReason
 	ret.Choice = append(ret.Choice, c)

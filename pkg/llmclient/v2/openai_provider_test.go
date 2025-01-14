@@ -65,9 +65,9 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 	}
 }
 
-func TestOpenAIAdapter_Send(t *testing.T) {
+func TestOpenAIProvider_Send(t *testing.T) {
 	// Create a new adapter with a mock client
-	adapter := &OpenAIAdapter{
+	adapter := &OpenAIProvider{
 		client: openai.NewClient(), // You might want to mock this in a real test
 	}
 

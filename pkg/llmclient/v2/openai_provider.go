@@ -9,18 +9,18 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
 )
 
-type OpenAIAdapter struct {
+type OpenAIProvider struct {
 	client *openai.Client
 }
 
-func (a *OpenAIAdapter) Send(
+func (a *OpenAIProvider) Send(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
 ) (*common.BaseChatMessage, error) {
 	paramsOpenAI := openai.ChatCompletionNewParams{
 		Model:               params.Model,
 		MaxCompletionTokens: &params.MaxTokens,
-		Temperature:         int(params.Temperature),
+		Temperature:         params.Temperature,
 		Messages:            FromLLMMessageToOpenAi(params.Messages...),
 	}
 
