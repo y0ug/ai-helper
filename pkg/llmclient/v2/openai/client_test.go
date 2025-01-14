@@ -2,7 +2,6 @@ package openai
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -37,11 +36,14 @@ func TestClientStreamIntegration(t *testing.T) {
 		}
 		stream := client.Chat.NewStreaming(ctx, params)
 		for stream.Next() {
-			evt := stream.Current()
-			if len(evt.Choices) == 0 {
-				continue
-			}
-			print(fmt.Sprintf("%s", evt.Choices[0].Delta.Content))
+			// evt := stream.Current()
+			// switch evt := evt.(type) {
+			// case ChatCompletionChunk:
+			// 	if len(evt.Choices) == 0 {
+			// 		continue
+			// 	}
+			// 	print(fmt.Sprintf("%s", evt.Choices[0].Delta.Content))
+			// }
 		}
 	})
 }

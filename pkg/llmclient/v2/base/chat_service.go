@@ -3,8 +3,8 @@ package base
 import (
 	"context"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 type ChatService interface {
@@ -14,5 +14,5 @@ type ChatService interface {
 		ctx context.Context,
 		params any,
 		opts ...requestoption.RequestOption,
-	) ssestream.Streamer[any]
+	) common.Streamer[common.LLMProvider]
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
@@ -43,7 +44,7 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 	ctx context.Context,
 	params Params,
 	opts ...requestoption.RequestOption,
-) ssestream.Streamer[Chunk] {
+) common.Streamer[Chunk] {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
 		[]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)},

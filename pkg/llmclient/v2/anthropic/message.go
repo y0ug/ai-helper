@@ -1,12 +1,16 @@
 package anthropic
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/base"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 // ChatCompletionService implements llmclient.ChatService using OpenAI's types.
@@ -24,6 +28,33 @@ func NewMessageService(opts ...requestoption.RequestOption) *MessageService {
 	return &MessageService{
 		BaseChatService: baseService,
 	}
+}
+
+func (svc *MessageService) NewStreaming(
+	ctx context.Context,
+	params MessageNewParams,
+	opts ...requestoption.RequestOption,
+) common.Streamer[MessageStreamEvent] {
+	combinedOpts := append(svc.Options, opts...)
+	combinedOpts = append(
+		[]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)},
+		combinedOpts...)
+	path := svc.Endpoint
+
+	var raw *http.Response
+	err := requestconfig.ExecuteNewRequest(
+		ctx,
+		http.MethodPost,
+		path,
+		params,
+		&raw,
+		svc.NewError,
+		combinedOpts...,
+	)
+	if err != nil {
+		return ssestream.NewAnthropicStream[MessageStreamEvent](nil, err)
+	}
+	return ssestream.NewAnthropicStream[MessageStreamEvent](ssestream.NewDecoder(raw), nil)
 }
 
 type MessageParam struct {
@@ -78,11 +109,11 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 		if event.ContentBlock["type"] == "text" {
 			a.Content[len(a.Content)-1].Text += event.Delta.Text
 		} else if event.ContentBlock["type"] == "input_json" {
-			fmt.Printf("InputJSON: %v\n", event.Delta)
+			// fmt.Printf("InputJSON: %v\n", event.Delta)
 			// a.Content[len(a.Content)-1].ToolUse += event.Delta.ToolUse
 		}
 	case "message_delta_event":
-		fmt.Printf("MessageDelta: %v\n", event.Delta)
+		// fmt.Printf("MessageDelta: %v\n", event.Delta)
 	//  update StopRead, StopSequence, Usage
 	// a.StopReason = event.Delta.StopReason
 

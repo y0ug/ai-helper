@@ -6,7 +6,6 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 type OpenAIProvider struct {
@@ -68,12 +67,11 @@ func (a *OpenAIProvider) Send(
 func (a *OpenAIProvider) Stream(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
-) (ssestream.Streamer[common.LLMStreamEvent], error) {
+) common.Streamer[common.LLMStreamEvent] {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
-	_ = a.client.Chat.NewStreaming(ctx, paramsProvider)
-
-	return nil, nil
+	stream := a.client.Chat.NewStreaming(ctx, paramsProvider)
+	return common.NewWrapperStream[openai.ChatCompletionChunk](stream, "openai")
 }
 
 func FromLLMToolToOpenAI(tool common.LLMTool) openai.Tool {

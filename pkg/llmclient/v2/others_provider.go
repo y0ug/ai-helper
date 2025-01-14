@@ -5,7 +5,7 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/deepseek"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
 )
 
 type OpenRouterProvider struct {
@@ -64,10 +64,9 @@ func (a *DeepseekProvider) Send(
 func (a *DeepseekProvider) Stream(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
-) (ssestream.Streamer[common.LLMStreamEvent], error) {
+) common.Streamer[common.LLMStreamEvent] {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
-	_ = a.client.Chat.NewStreaming(ctx, paramsProvider)
-
-	return nil, nil
+	stream := a.client.Chat.NewStreaming(ctx, paramsProvider)
+	return common.NewWrapperStream[openai.ChatCompletionChunk](stream, "openai")
 }

@@ -29,6 +29,7 @@ func WithEnvironmentProduction() requestoption.RequestOption {
 func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 	defaults := []requestoption.RequestOption{
 		WithEnvironmentProduction(),
+		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
 	if o, ok := os.LookupEnv("DEEPSEEK_API_KEY"); ok {
 		defaults = append(defaults, requestoption.WithAuthToken(o))

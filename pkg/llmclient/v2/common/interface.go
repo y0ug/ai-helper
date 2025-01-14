@@ -2,22 +2,22 @@ package common
 
 import (
 	"context"
-
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/openai"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
+	"encoding/json"
 )
 
-type ChatService interface {
-	New(
-		ctx context.Context,
-		params openai.ChatCompletionNewParams,
-		opts ...requestoption.RequestOption,
-	) (any, error)
-	// or define the exact methods you need...
+type Streamer[T any] interface {
+	Next() bool
+	Current() T
+	Err() error
+	Close() error
 }
 
-type LLMClient interface {
+type LLMStreamEvent struct {
+	Provider string          `json:"provider"` // e.g., "anthropic", "openai"
+	Type     string          `json:"type"`     // Event type identifier
+	Data     json.RawMessage `json:"data"`     // Raw JSON data for provider-specific events
+}
+type LLMProvider interface {
 	// For a single-turn request
 	Send(ctx context.Context, params BaseChatMessageNewParams) (*BaseChatMessage, error)
 
@@ -25,7 +25,7 @@ type LLMClient interface {
 	Stream(
 		ctx context.Context,
 		params BaseChatMessageNewParams,
-	) (ssestream.Streamer[LLMStreamEvent], error)
+	) Streamer[LLMStreamEvent]
 }
 
 // / type LLMResponse interface {
@@ -46,8 +46,6 @@ type LLMClient interface {
 // 	GetRole() string
 // 	GetFinishReason() string
 // }
-
-type LLMStreamEvent interface{}
 
 // func (m *BaseChatMessage) GetChoices() []BaseChatMessageChoice {
 // 	return m.Choice

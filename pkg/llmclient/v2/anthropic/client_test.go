@@ -41,23 +41,27 @@ func TestClientStreamIntegration(t *testing.T) {
 		stream := client.Message.NewStreaming(ctx, params)
 		message := Message{}
 		for stream.Next() {
-			evt := stream.Current()
-			message.Accumulate(evt)
-			// fmt.Printf("%s ", evt.Type)
-			switch evt.Type {
-			case "message_start":
-			case "content_block_start":
-			case "content_block_delta":
-				// fmt.Printf("%v\n", evt.ContentBlock)
-				// fmt.Printf("Content: %v\n", evt.Delta)
-				fmt.Printf("%s", evt.Delta)
-			case "content_block_stop":
-			case "message_delta":
-				// fmt.Printf("%v\n", evt.ContentBlock)
-				// fmt.Printf("Content: %v\n", evt.Delta)
-			case "message_stop":
-			}
-			// fmt.Printf("\n")
+			// evt := stream.Current()
+			// switch evt := evt.(type) {
+			// case *MessageStreamEvent:
+			// 	message.Accumulate(*evt)
+			// 	// fmt.Printf("%s ", evt.Type)
+			// 	switch evt.Type {
+			// 	case "message_start":
+			// 	case "content_block_start":
+			// 	case "content_block_delta":
+			// 		// fmt.Printf("%v\n", evt.ContentBlock)
+			// 		// fmt.Printf("Content: %v\n", evt.Delta)
+			// 		fmt.Printf("%s", evt.Delta)
+			// 	case "content_block_stop":
+			// 	case "message_delta":
+			// 		// fmt.Printf("%v\n", evt.ContentBlock)
+			// 		// fmt.Printf("Content: %v\n", evt.Delta)
+			// 	case "message_stop":
+			// 	}
+			// 	// fmt.Printf("\n")
+			// default:
+			// }
 		}
 		if stream.Err() != nil {
 			fmt.Printf("Error: %v\n", stream.Err())

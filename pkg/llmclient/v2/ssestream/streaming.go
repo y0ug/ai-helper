@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/tidwall/gjson"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 )
 
 type Decoder interface {
@@ -113,13 +114,6 @@ func (s *eventStreamDecoder) Err() error {
 	return s.err
 }
 
-type Streamer[T any] interface {
-	Next() bool
-	Current() T
-	Err() error
-	Close() error
-}
-
 type BaseStream[T any] struct {
 	decoder Decoder
 	cur     T
@@ -131,7 +125,7 @@ type AnthropicStream[T any] struct {
 	BaseStream[T]
 }
 
-func NewBaseStream[T any](decoder Decoder, err error) Streamer[T] {
+func NewBaseStream[T any](decoder Decoder, err error) common.Streamer[T] {
 	return &BaseStream[T]{
 		decoder: decoder,
 		err:     err,
@@ -187,7 +181,7 @@ func (s *BaseStream[T]) Close() error {
 	return s.decoder.Close()
 }
 
-func NewAnthropicStream[T any](decoder Decoder, err error) Streamer[T] {
+func NewAnthropicStream[T any](decoder Decoder, err error) common.Streamer[T] {
 	return &AnthropicStream[T]{
 		BaseStream: BaseStream[T]{
 			decoder: decoder,

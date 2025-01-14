@@ -6,7 +6,6 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/ssestream"
 )
 
 type AnthropicProvider struct {
@@ -42,11 +41,11 @@ func (a *AnthropicProvider) Send(
 func (a *AnthropicProvider) Stream(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
-) (ssestream.Streamer[common.LLMStreamEvent], error) {
+) common.Streamer[common.LLMStreamEvent] {
 	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
-	_ = a.client.Message.NewStreaming(ctx, paramsProvider)
+	stream := a.client.Message.NewStreaming(ctx, paramsProvider)
 
-	return nil, nil
+	return common.NewWrapperStream[anthropic.MessageStreamEvent](stream, "anthropic")
 }
 
 func BaseChatMessageNewParamsToAnthropic(
