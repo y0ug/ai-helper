@@ -6,17 +6,14 @@ import (
 	"log"
 	"os"
 
-	"github.com/y0ug/ai-helper/cmd/ai-pretty/highlighter"
+	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 )
 
 func main() {
 	const model = "claude-3-5-sonnet-20241022"
-	provider, err := llmclient.NewProviderByModel(model, nil)
-	if err != nil {
-		log.Fatalf("Failed to create provider: %v", err)
-	}
+	provider, _ := llmclient.NewProviderByModel(model, nil)
 
 	ctx := context.Background()
 	params := common.BaseChatMessageNewParams{
@@ -45,5 +42,6 @@ func main() {
 	}()
 
 	writer := bufio.NewWriter(os.Stdout)
-	highlighter.ProcessStream(eventCh, writer)
+	h := highlighter.NewHighlighter(writer)
+	h.ProcessStream(eventCh)
 }

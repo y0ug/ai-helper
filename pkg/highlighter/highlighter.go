@@ -89,13 +89,10 @@ func (h *Highlighter) highlightAndPrint(line string) {
 	}
 }
 
-// ProcessStream processes a stream of text from a channel
-func ProcessStream(ch <-chan string, writer *bufio.Writer) {
-	defer writer.Flush()
+func (h *Highlighter) ProcessStream(ch <-chan string) {
+	defer h.writer.Flush()
 
-	h := NewHighlighter(writer)
 	var buffer bytes.Buffer
-
 	for content := range ch {
 		buffer.WriteString(content)
 		for {
@@ -116,5 +113,33 @@ func ProcessStream(ch <-chan string, writer *bufio.Writer) {
 			remaining += "\n"
 		}
 		h.ProcessLine(remaining)
+	}
+}
+
+// ProcessStream processes a stream of text from a channel
+// and push it as stream of line
+func ProcessStreamToNewLine(in <-chan string, out chan string) {
+	var buffer bytes.Buffer
+	for content := range in {
+		buffer.WriteString(content)
+		for {
+			currentBuffer := buffer.String()
+			index := strings.Index(currentBuffer, "\n")
+			if index == -1 {
+				break
+			}
+			line := currentBuffer[:index+1]
+			buffer.Next(index + 1)
+			out <- line
+		}
+	}
+
+	remaining := buffer.String()
+	if len(remaining) > 0 {
+		if !strings.HasSuffix(remaining, "\n") {
+			remaining += "\n"
+		}
+		out <- remaining
+
 	}
 }
