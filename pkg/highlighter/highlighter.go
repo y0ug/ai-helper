@@ -199,13 +199,4 @@ func ProcessStreamToNewLine(ctx context.Context, in <-chan string, out chan<- st
 			}
 		}
 	}
-
-	// remaining := buffer.String()
-	// if len(remaining) > 0 {
-	// 	if !strings.HasSuffix(remaining, "\n") {
-	// 		remaining += "\n"
-	// 	}
-	// 	out <- remaining
-	//
-	// }
 }
