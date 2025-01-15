@@ -15,12 +15,13 @@ import (
 
 // Highlighter handles syntax highlighting for markdown and code blocks
 type Highlighter struct {
-	writer       *bufio.Writer
-	inCodeBlock  bool
-	lexer        chroma.Lexer
-	defaultLexer chroma.Lexer
-	formatter    chroma.Formatter
-	style        *chroma.Style
+	writer         *bufio.Writer
+	inCodeBlock    bool
+	currentLang    string
+	lexer          chroma.Lexer
+	defaultLexer   chroma.Lexer
+	formatter      chroma.Formatter
+	style          *chroma.Style
 }
 
 // NewHighlighter creates a new instance of Highlighter
@@ -66,15 +67,26 @@ func (h *Highlighter) handleCodeBlockMarker(line string) {
 	if h.inCodeBlock {
 		line = strings.ToLower(line)
 		h.highlightAndPrint(line)
-		language := strings.Trim(strings.ToLower(line[3:]), "\n")
-		h.lexer = lexers.Get(language)
+		h.currentLang = strings.Trim(strings.ToLower(line[3:]), "\n")
+		h.lexer = lexers.Get(h.currentLang)
 		if h.lexer == nil {
 			h.lexer = h.defaultLexer
 		}
 	} else {
+		h.currentLang = ""
 		h.lexer = h.defaultLexer
 		h.highlightAndPrint(line)
 	}
+}
+
+// GetCurrentLanguage returns the current language being highlighted
+func (h *Highlighter) GetCurrentLanguage() string {
+	return h.currentLang
+}
+
+// IsInCodeBlock returns whether currently processing a code block
+func (h *Highlighter) IsInCodeBlock() bool {
+	return h.inCodeBlock
 }
 
 // highlightAndPrint performs the actual syntax highlighting
