@@ -40,14 +40,14 @@ type ChatCompletionChunkChoice struct {
 }
 
 type ChatCompletionChunkChoicesDelta struct {
-	Role       string        `json:"role"`
-	Refusal    string        `json:"refusal,omitempty"`
-	Name       string        `json:"name,omitempty"`
-	Audio      interface{}   `json:"audio,omitempty"`
-	ToolCalls  []interface{} `json:"tool_calls,omitempty"`
-	Content    string        `json:"content,omitempty"`
-	ToolCallId string        `json:"tool_call_id,omitempty"`
-	JSON       string        `json:"-"`
+	Role       string      `json:"role"`
+	Refusal    string      `json:"refusal,omitempty"`
+	Name       string      `json:"name,omitempty"`
+	Audio      interface{} `json:"audio,omitempty"`
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
+	Content    string      `json:"content,omitempty"`
+	ToolCallId string      `json:"tool_call_id,omitempty"`
+	JSON       string      `json:"-"`
 }
 
 func (r *ChatCompletionChoice) UnmarshalJSON(data []byte) (err error) {
@@ -96,6 +96,83 @@ type ChatCompletion struct {
 	// Usage statistics for the completion request.
 	Usage CompletionUsage `json:"usage"`
 	JSON  string          `json:"-"`
+}
+
+func expandToFit[T any](slice []T, index int) []T {
+	if index < len(slice) {
+		return slice
+	}
+	if index < cap(slice) {
+		return slice[:index+1]
+	}
+	newSlice := make([]T, index+1)
+	copy(newSlice, slice)
+	return newSlice
+}
+
+func (cc *ChatCompletion) Accumulate(chunk ChatCompletionChunk) bool {
+	if cc == nil {
+		*cc = ChatCompletion{}
+	}
+
+	if len(cc.ID) == 0 {
+		cc.ID = chunk.ID
+	} else if cc.ID != chunk.ID {
+		return false
+	}
+
+	cc.ID = chunk.ID
+	cc.Object = chunk.Object
+	cc.Created = chunk.Created
+	cc.Model = chunk.Model
+	cc.ServiceTier = chunk.ServiceTier
+	cc.SystemFingerprint = chunk.SystemFingerprint
+
+	cc.Usage.CompletionTokens += chunk.Usage.CompletionTokens
+	cc.Usage.PromptTokens += chunk.Usage.PromptTokens
+	cc.Usage.TotalTokens += chunk.Usage.TotalTokens
+
+	for _, deltaChoice := range chunk.Choices {
+		cc.Choices = expandToFit(cc.Choices, int(deltaChoice.Index))
+		choice := &cc.Choices[deltaChoice.Index]
+
+		choice.FinishReason = deltaChoice.FinishReason
+		if choice.FinishReason != "" {
+			// We exit otherwise we corrupt the function argumenbts
+			break
+		}
+		choice.Index = deltaChoice.Index
+		if deltaChoice.Delta.Role != "" {
+			choice.Message.Role = deltaChoice.Delta.Role
+		}
+		if deltaChoice.Delta.Content != "" {
+			choice.Message.Content += deltaChoice.Delta.Content
+		}
+		if deltaChoice.Delta.Refusal != "" {
+			choice.Message.Refusal += deltaChoice.Delta.Refusal
+		}
+		for _, deltaTool := range deltaChoice.Delta.ToolCalls {
+			choice.Message.ToolCalls = expandToFit(
+				choice.Message.ToolCalls,
+				int(deltaChoice.Index),
+			)
+			tool := &choice.Message.ToolCalls[deltaChoice.Index]
+			if deltaTool.ID != "" {
+				tool.ID = deltaTool.ID
+			}
+
+			if deltaTool.Type != "" {
+				tool.Type = deltaTool.Type
+			}
+
+			// tool.Function.Name += deltaTool.Function.Name
+			if deltaTool.Function.Name != "" {
+				tool.Function.Name = deltaTool.Function.Name
+			}
+			tool.Function.Arguments += deltaTool.Function.Arguments
+		}
+	}
+	return true
 }
 
 type ChatCompletionChunk struct {
@@ -203,8 +280,8 @@ type ChatCompletionMessageParam struct {
 	// The refusal message by the assistant.
 	Refusal string `json:"refusal,omitempty"`
 	// Tool call that this message is responding to.
-	ToolCallID string      `json:"tool_call_id,omitempty"`
-	ToolCalls  interface{} `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 }
 
 type ToolFunction struct {

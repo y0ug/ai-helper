@@ -32,9 +32,9 @@ type AIContent struct {
 	Text string `json:"text,omitempty"`
 
 	// Relevant for tool usage calls (like "function calls")
-	ID    string                 `json:"id,omitempty"`    // Unique identifier for this tool call
-	Name  string                 `json:"name,omitempty"`  // Name of the tool to call
-	Input map[string]interface{} `json:"input,omitempty"` // Arguments to pass to the tool
+	ID    string          `json:"id,omitempty"`    // Unique identifier for this tool call
+	Name  string          `json:"name,omitempty"`  // Name of the tool to call
+	Input json.RawMessage `json:"input,omitempty"` // Arguments to pass to the tool
 
 	// Relevant for tool results
 	ToolUseID string        `json:"tool_use_id,omitempty"` // ID of the tool call this result is for
@@ -79,12 +79,12 @@ func NewSourceContent(sourceType string, mediaType string, data []byte) *AIConte
 }
 
 // NewToolUseContent creates a tool use content message
-func NewToolUseContent(id, name string, args map[string]interface{}) *AIContent {
+func NewToolUseContent(id, name string, input json.RawMessage) *AIContent {
 	return &AIContent{
 		Type:  ContentTypeToolUse,
 		ID:    id,
 		Name:  name,
-		Input: args,
+		Input: input,
 	}
 }
 

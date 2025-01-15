@@ -3,8 +3,6 @@ package llmclient
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient"
@@ -62,6 +60,13 @@ func NewUserMessage(text string) *common.BaseChatMessageParams {
 				text,
 			),
 		},
+	}
+}
+
+func NewUserMessageContent(content ...*common.AIContent) *common.BaseChatMessageParams {
+	return &common.BaseChatMessageParams{
+		Role:    "user",
+		Content: content,
 	}
 }
 
@@ -153,20 +158,15 @@ func NewProviderByModel(
 	}
 }
 
-type StreamEvent struct {
-	Type    string // content_block_delta, message_delta, message_stop, message_start, content_block_start, content_block_stop
-	Delta   string
-	Message common.BaseChatMessage
-}
-
 func ConsumeStream(
 	ctx context.Context,
 	stream common.Streamer[common.LLMStreamEvent],
-	ch chan<- string,
+	ch chan<- StreamEvent,
 ) error {
 	defer close(ch)
 
 	var msg anthropic.Message
+	var cc openai.ChatCompletion
 	for stream.Next() {
 		select {
 		case <-ctx.Done():
@@ -179,23 +179,18 @@ func ConsumeStream(
 				if err := json.Unmarshal(event.Data, &anthropicEvent); err != nil {
 					return err
 				}
-				msg.Accumulate(anthropicEvent)
-				ch <- handleAnthropicEvent(anthropicEvent)
+				ch <- handleAnthropicEvent(&msg, &anthropicEvent)
 			case "openai":
 				var openaiEvent openai.ChatCompletionChunk
 				if err := json.Unmarshal(event.Data, &openaiEvent); err != nil {
 					return err
 				}
-				ch <- handleOpenAIEvent(openaiEvent)
+				ch <- handleOpenAIEvent(&cc, &openaiEvent)
 			default:
 				log.Printf("Unknown provider: %s", event.Provider)
 			}
 		}
 	}
-	// msgPretty, _ := json.MarshalIndent(msg, "", "    ")
-	// msgFmt := fmt.Sprintf("\n```json\n%s\n```\n", msgPretty)
-	// ch <- msgFmt
-	// fmt.Printf("\nmsg: %s\n", msgFmt)
 	if err := stream.Err(); err != nil {
 		return err
 	}
@@ -203,77 +198,33 @@ func ConsumeStream(
 	return nil
 }
 
-func ConsumeStreamIO(
-	ctx context.Context,
-	stream common.Streamer[common.LLMStreamEvent],
-	w io.StringWriter,
-) error {
-	var msg anthropic.Message
-	for stream.Next() {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			event := stream.Current()
-			switch event.Provider {
-			case "anthropic":
-				var anthropicEvent anthropic.MessageStreamEvent
-				if err := json.Unmarshal(event.Data, &anthropicEvent); err != nil {
-					return err
-				}
-				msg.Accumulate(anthropicEvent)
-				w.WriteString(handleAnthropicEvent(anthropicEvent))
-			case "openai":
-				var openaiEvent openai.ChatCompletionChunk
-				if err := json.Unmarshal(event.Data, &openaiEvent); err != nil {
-					return err
-				}
-				w.WriteString(handleOpenAIEvent(openaiEvent))
-			default:
-				log.Printf("Unknown provider: %s", event.Provider)
-			}
-		}
-	}
-	// msgPretty, _ := json.MarshalIndent(msg, "", "    ")
-	// msgFmt := fmt.Sprintf("\n```json\n%s\n```\n", msgPretty)
-	// ch <- msgFmt
-	// fmt.Printf("\nmsg: %s\n", msgFmt)
-	if err := stream.Err(); err != nil {
-		return err
-	}
-
-	return nil
+type StreamEvent struct {
+	Type    string // text_delta, message
+	Delta   interface{}
+	Message *common.BaseChatMessage
 }
 
-func handleAnthropicEvent(evt anthropic.MessageStreamEvent) string {
-	// Implement handling logic
+// Return if content type text change and we return the final message
+func handleAnthropicEvent(am *anthropic.Message, evt *anthropic.MessageStreamEvent) StreamEvent {
+	am.Accumulate(*evt)
+	svt := StreamEvent{}
+
+	svt.Type = evt.Type
 
 	switch evt.Type {
 	case "message_start":
 	case "content_block_start":
-		var delta common.AIContent
-		err := json.Unmarshal(evt.ContentBlock, &delta)
-		if err != nil {
-			return ""
-		}
-		switch delta.Type {
-		case "tool_use":
-			// return string(evt.Delta)
-		}
-
 	case "content_block_delta":
-		// fmt.Printf("%v\n", evt.ContentBlock)
-		// fmt.Printf("Content: %v\n", evt.Delta)
-		// fmt.Printf("%s", evt.Delta)
 		var delta common.AIContent
 		err := json.Unmarshal(evt.Delta, &delta)
 		if err != nil {
-			return ""
+			return svt
 		}
 
 		switch delta.Type {
 		case "text_delta":
-			return delta.Text
+			svt.Delta = delta.Text
+			svt.Type = "text_delta"
 		case "input_json_delta":
 			// return delta.PartialJson
 		}
@@ -282,22 +233,25 @@ func handleAnthropicEvent(evt anthropic.MessageStreamEvent) string {
 		// fmt.Printf("%v\n", evt.ContentBlock)
 		// fmt.Printf("Content: %v\n", evt.Delta)
 	case "message_stop":
+		svt.Message = AnthropicMessageToChatMessage(am)
 	}
 
-	return ""
+	return svt
 }
 
-func handleOpenAIEvent(evt openai.ChatCompletionChunk) string {
-	// Implement handling logic
-	// fmt.Printf("OpenAI Event: %+v\n", evt)
-	if len(evt.Choices) == 0 {
-		return ""
+func handleOpenAIEvent(cc *openai.ChatCompletion, chunk *openai.ChatCompletionChunk) StreamEvent {
+	cc.Accumulate(*chunk)
+	svt := StreamEvent{}
+	if len(chunk.Choices) == 0 {
+		return svt
 	}
 
-	if len(evt.Choices[0].Delta.ToolCalls) > 0 {
-		fmt.Printf("Tool Calls: %+v\n", evt.Choices[0].Delta.ToolCalls)
+	choiceDelta := chunk.Choices[0]
+	svt.Delta = choiceDelta.Delta.Content
+	svt.Type = "text_delta"
+	if cc.Choices[0].FinishReason != "" {
+		svt.Type = "message_stop"
+		svt.Message = OpenaiChatCompletionToChatMessage(cc)
 	}
-
-	// print(fmt.Sprintf("### %s", evt.Choices[0].Delta.Content))
-	return evt.Choices[0].Delta.Content
+	return svt
 }

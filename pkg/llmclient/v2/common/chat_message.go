@@ -19,6 +19,13 @@ type BaseChatMessage struct {
 	Model  string                  `json:"model,omitempty"`
 }
 
+func (cm *BaseChatMessage) ToMessageParams() *BaseChatMessageParams {
+	return &BaseChatMessageParams{
+		Content: cm.Choice[0].Content,
+		Role:    cm.Choice[0].Role,
+	}
+}
+
 type BaseChatMessageChoice struct {
 	Role         string       `json:"role,omitempty"` // Always "assistant"
 	Content      []*AIContent `json:"content,omitempty"`

@@ -1,9 +1,9 @@
 package highlighter
 
 import (
-	"bufio"
 	"bytes"
 	"context"
+	"io"
 	"log"
 	"strings"
 
@@ -15,17 +15,18 @@ import (
 
 // Highlighter handles syntax highlighting for markdown and code blocks
 type Highlighter struct {
-	writer       *bufio.Writer
+	w            io.Writer
 	inCodeBlock  bool
 	currentLang  string
 	lexer        chroma.Lexer
 	defaultLexer chroma.Lexer
 	formatter    chroma.Formatter
 	style        *chroma.Style
+	lineBuffer   bytes.Buffer
 }
 
 // NewHighlighter creates a new instance of Highlighter
-func NewHighlighter(writer *bufio.Writer) *Highlighter {
+func NewHighlighter(writer io.Writer) *Highlighter {
 	// lexer := lexers.Get("markdown")
 	// if lexer == nil {
 	// 	lexer = lexers.Fallback
@@ -43,7 +44,7 @@ func NewHighlighter(writer *bufio.Writer) *Highlighter {
 	}
 
 	return &Highlighter{
-		writer:       writer,
+		w:            writer,
 		lexer:        lexer,
 		defaultLexer: lexer,
 		formatter:    formatter,
@@ -58,7 +59,6 @@ func (h *Highlighter) ProcessLine(line string) {
 		return
 	}
 	h.highlightAndPrint(line)
-	h.writer.Flush()
 }
 
 // handleCodeBlockMarker processes the start/end of code blocks
@@ -97,7 +97,7 @@ func (h *Highlighter) highlightAndPrint(line string) {
 		return
 	}
 
-	err = h.formatter.Format(h.writer, h.style, iterator)
+	err = h.formatter.Format(h.w, h.style, iterator)
 	if err != nil {
 		log.Printf("Formatting error: %v", err)
 		return
@@ -128,21 +128,67 @@ func (h *Highlighter) highlightCodeBlock(code string, language string) {
 		return
 	}
 
-	err = h.formatter.Format(h.writer, h.style, iterator)
+	err = h.formatter.Format(h.w, h.style, iterator)
 	if err != nil {
 		log.Printf("Formatting error: %v", err)
 		return
 	}
 
-	h.writer.Flush()
-
 	// Restore the original lexer
 	h.lexer = origLexer
 }
 
+func (h *Highlighter) Write(p []byte) (int, error) {
+	// Add this chunk to our line buffer.
+	h.lineBuffer.Write(p)
+
+	// Extract as many complete lines as possible.
+	for {
+		bufStr := h.lineBuffer.String()
+
+		newlineIdx := strings.Index(bufStr, "\n")
+		if strings.HasPrefix(bufStr, "```") && newlineIdx != -1 {
+			line := bufStr[:newlineIdx+1]
+			// fmt.Println("line", line)
+			h.ProcessLine(line)
+			h.lineBuffer.Next(newlineIdx + 1)
+			bufStr = h.lineBuffer.String()
+		}
+
+		newlineIdx = strings.Index(bufStr, "\n")
+		if h.inCodeBlock {
+			if newlineIdx == -1 {
+				break
+			}
+			// We have at least one full line ending in '\n'.
+			line := bufStr[:newlineIdx+1]
+			// Advance our buffer past that line + newline
+			h.lineBuffer.Next(newlineIdx + 1)
+			h.ProcessLine(line)
+			continue
+		}
+
+		if strings.Contains(bufStr, "`") && newlineIdx == -1 {
+			// contains ` but no newline we need to buffer
+			break
+		}
+		if newlineIdx == -1 {
+			// not new line no code block no ``` detected we print`
+			data := h.lineBuffer.String()
+			h.lineBuffer.Next(len(data) + 1)
+			h.ProcessLine(data)
+			break
+		}
+		// we process the line
+		line := bufStr[:newlineIdx+1]
+		h.ProcessLine(line)
+		h.lineBuffer.Next(newlineIdx + 1)
+	}
+	return len(p), nil
+}
+
 // ProcessStream processes a stream of text from a channel and highlights it
 func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error {
-	defer h.writer.Flush()
 	var lineBuffer bytes.Buffer // accumulates chunks until we have at least one full line
 	for {
 		select {
@@ -206,6 +252,15 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 
 			}
 		}
+	}
+}
+
+func (h *Highlighter) Flush() {
+	leftover := h.lineBuffer.String()
+	if len(leftover) > 0 {
+		// Process whatever remains, for a best-effort highlight
+		h.ProcessLine(leftover)
+		h.lineBuffer.Reset()
 	}
 }
 

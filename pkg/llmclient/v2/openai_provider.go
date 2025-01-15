@@ -12,6 +12,35 @@ type OpenAIProvider struct {
 	client *openai.Client
 }
 
+func OpenaiChatCompletionToChatMessage(cc *openai.ChatCompletion) *common.BaseChatMessage {
+	cm := &common.BaseChatMessage{}
+	cm.ID = cc.ID
+	cm.Model = cc.Model
+	cm.Usage = &common.BaseChatMessageUsage{}
+	cm.Usage.InputTokens = cc.Usage.PromptTokens
+	cm.Usage.OutputTokens = cc.Usage.CompletionTokens
+	for _, choice := range cc.Choices {
+		c := common.BaseChatMessageChoice{}
+		for _, call := range choice.Message.ToolCalls {
+			c.Content = append(
+				c.Content,
+				FromOpenaiToolCallToAIContent(call),
+			)
+		}
+
+		if choice.Message.Content != "" {
+			c.Content = append(c.Content, common.NewTextContent(choice.Message.Content))
+		}
+
+		// Role is not choice is our model
+		c.Role = choice.Message.Role
+		c.FinishReason = choice.FinishReason
+
+		cm.Choice = append(cm.Choice, c)
+	}
+	return cm
+}
+
 func BaseChatMessageNewParamsToOpenAI(
 	params common.BaseChatMessageNewParams,
 ) openai.ChatCompletionNewParams {
@@ -35,34 +64,7 @@ func (a *OpenAIProvider) Send(
 		return nil, err
 	}
 
-	ret := &common.BaseChatMessage{}
-	ret.ID = resp.ID
-	ret.Model = resp.Model
-	ret.Usage = &common.BaseChatMessageUsage{}
-	ret.Usage.InputTokens = resp.Usage.PromptTokens
-	ret.Usage.OutputTokens = resp.Usage.CompletionTokens
-	if len(resp.Choices) > 0 {
-		for _, choice := range resp.Choices {
-			c := common.BaseChatMessageChoice{}
-			for _, call := range choice.Message.ToolCalls {
-				c.Content = append(
-					c.Content,
-					FromOpenaiToolCallToAIContent(call),
-				)
-			}
-
-			if choice.Message.Content != "" {
-				c.Content = append(c.Content, common.NewTextContent(choice.Message.Content))
-			}
-
-			// Role is not choice is our model
-			c.Role = choice.Message.Role
-			c.FinishReason = choice.FinishReason
-
-			ret.Choice = append(ret.Choice, c)
-		}
-	}
-	return ret, nil
+	return OpenaiChatCompletionToChatMessage(&resp), nil
 }
 
 func (a *OpenAIProvider) Stream(
@@ -102,9 +104,26 @@ func FromLLMToolToOpenAI(tools ...common.Tool) []openai.Tool {
 }
 
 func FromOpenaiToolCallToAIContent(t openai.ToolCall) *common.AIContent {
-	var args map[string]interface{}
-	_ = json.Unmarshal([]byte(t.Function.Arguments), &args)
-	return common.NewToolUseContent(t.ID, t.Function.Name, args)
+	// var args map[string]interface{}
+	// _ = json.Unmarshal([]byte(t.Function.Arguments), &args)
+	return common.NewToolUseContent(t.ID, t.Function.Name, json.RawMessage(t.Function.Arguments))
+}
+
+func AIContentToolCallsToOpenAI(t ...*common.AIContent) []openai.ToolCall {
+	d := make([]openai.ToolCall, 0)
+	for _, content := range t {
+		if content.Type == common.ContentTypeToolUse {
+			d = append(d, openai.ToolCall{
+				ID:   content.ID,
+				Type: "function",
+				Function: openai.FunctionCall{
+					Name:      content.Name,
+					Arguments: string(content.Input),
+				},
+			})
+		}
+	}
+	return d
 }
 
 func FromLLMMessageToOpenAi(
@@ -113,7 +132,13 @@ func FromLLMMessageToOpenAi(
 	userMessages := make([]openai.ChatCompletionMessageParam, 0)
 	for _, msg := range m {
 		content := msg.Content[0]
-		if content.Type == common.ContentTypeToolResult {
+		if content.Type == common.ContentTypeToolUse {
+			// For toolCalls we need to process all of them in one time
+			userMessages = append(userMessages, openai.ChatCompletionMessageParam{
+				Role:      "assistant",
+				ToolCalls: AIContentToolCallsToOpenAI(msg.Content...),
+			})
+		} else if content.Type == common.ContentTypeToolResult {
 			userMessages = append(userMessages, openai.ChatCompletionMessageParam{
 				Role:       "tool",
 				Content:    content.Content,

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +11,7 @@ import (
 	"github.com/invopop/jsonschema"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2"
+	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
 
@@ -52,54 +53,115 @@ func main() {
 		llmclient.WithTemperature(0),
 		llmclient.WithMessages(
 			llmclient.NewUserMessage(
-				`
-        Can you write some basic json data about user information in code block fenced by three backticks?
-        `,
+
 				// Can you write an Hello World in C?
-				// "What the weather at Paris ?",
-				// "Write a 1000 word essai about Golang and put a some code block in the middle",
+				"What the weather at Paris ?",
+				// "Write a 500 word essai about Golang and put a some code block in the middle",
 			),
 		),
-		// llmclient.WithTools(common.Tool{
-		// 	Name:        "get_weather",
-		// 	Description: StrToPtr("Get the current weather"),
-		// 	InputSchema: GetWeatherInputSchema,
-		// },
-		// ),
+		llmclient.WithTools(common.Tool{
+			Name:        "get_weather",
+			Description: StrToPtr("Get the current weather"),
+			InputSchema: GetWeatherInputSchema,
+		},
+		),
 	)
 
-	stream := provider.Stream(ctx, *params)
-	eventCh := make(chan string)
-
-	// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
-	go func() {
-		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
-		if err := llmclient.ConsumeStream(ctx, stream, eventCh); err != nil {
-			if err != context.Canceled {
-				log.Printf("Error consuming stream: %v", err)
-			}
-		}
-	}()
-
-	writer := bufio.NewWriter(os.Stdout)
-	h := highlighter.NewHighlighter(writer)
-	h.ProcessStream(ctx, eventCh)
-	// processStream(ctx, os.Stdout, eventCh)
+	Exchange(ctx, provider, *params)
 }
 
-func processStream(ctx context.Context, w io.Writer, ch <-chan string) error {
-	// f := bufio.NewWriter(w)
-	// defer f.Flush()
+func Exchange(
+	ctx context.Context,
+	provider common.LLMProvider,
+	params common.BaseChatMessageNewParams,
+) (*common.BaseChatMessage, error) {
+	var msg *common.BaseChatMessage
+	var err error
+	for {
 
+		stream := provider.Stream(ctx, params)
+
+		eventCh := make(chan llmclient.StreamEvent)
+
+		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
+		go func() {
+			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
+			if err := llmclient.ConsumeStream(ctx, stream, eventCh); err != nil {
+				if err != context.Canceled {
+					log.Printf("Error consuming stream: %v", err)
+				}
+			}
+		}()
+
+		// writer := bufio.NewWriter(os.Stdout)
+		h := highlighter.NewHighlighter(os.Stdout)
+		// h.ProcessStream(ctx, eventCh)
+		msg, err = processStream(ctx, h, eventCh)
+		if err != nil {
+			log.Printf("Error processing stream: %v", err)
+			return nil, nil
+		}
+
+		if msg != nil {
+			fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
+		}
+
+		params.Messages = append(params.Messages, msg.ToMessageParams())
+		choice := msg.Choice[0]
+		toolResults := make([]*common.AIContent, 0)
+		for _, content := range choice.Content {
+			if content.Type == "tool_use" {
+				log.Printf("execution: %s with \"%s\"", content.Name, string(content.Input))
+				switch content.Name {
+				case "get_weather":
+					input := GetWeatherInput{}
+					fmt.Println(string(content.Input))
+					err := json.Unmarshal([]byte(content.Input), &input)
+					// fmt.Println(content.InputJson)
+					if err != nil {
+						panic(err)
+					}
+					response := GetWeather(input.Location)
+
+					b, err := json.Marshal(response)
+					if err != nil {
+						panic(err)
+					}
+					toolResults = append(
+						toolResults,
+						common.NewToolResultContent(content.ID, string(b)),
+					)
+				}
+			}
+		}
+		if len(toolResults) == 0 {
+			break
+		}
+		params.Messages = append(params.Messages, llmclient.NewUserMessageContent(toolResults...))
+	}
+	return msg, nil
+}
+
+func processStream(
+	ctx context.Context,
+	w io.Writer,
+	ch <-chan llmclient.StreamEvent,
+) (*common.BaseChatMessage, error) {
+	var cm *common.BaseChatMessage
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case content, ok := <-ch:
+			return nil, ctx.Err()
+		case set, ok := <-ch:
 			if !ok {
-				break
+				return cm, nil
 			}
-			fmt.Fprintf(w, "%s", content)
+			if set.Type == "text_delta" {
+				fmt.Fprintf(w, "%v", set.Delta)
+			}
+			if set.Type == "message_stop" {
+				cm = set.Message
+			}
 		}
 	}
 }

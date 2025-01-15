@@ -47,7 +47,12 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 ) common.Streamer[Chunk] {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
-		[]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)},
+		[]requestoption.RequestOption{
+			requestoption.WithJSONSet("stream", true),
+			requestoption.WithJSONSet("stream_options", struct {
+				IncludeUsage bool `json:"include_usage"`
+			}{IncludeUsage: true}),
+		},
 		combinedOpts...)
 	path := svc.Endpoint
 

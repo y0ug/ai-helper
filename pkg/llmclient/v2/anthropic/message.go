@@ -115,7 +115,7 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 		case "text_delta":
 			a.Content[index].Text += delta.Text
 		case "input_json_delta":
-			a.Content[index].InputJson += delta.PartialJson
+			a.Content[index].Input = append(a.Content[index].Input, []byte(delta.PartialJson)...)
 		}
 	case "message_delta":
 
@@ -135,10 +135,10 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 	// a.StopReason = event.Delta.StopReason
 
 	case "content_block_stop":
-		index := event.Index
-		if len(a.Content[index].InputJson) > 0 {
-			json.Unmarshal([]byte(a.Content[index].InputJson), &a.Content[index].Input)
-		}
+		// index := event.Index
+		// if len(a.Content[index].InputJson) > 0 {
+		// 	json.Unmarshal([]byte(a.Content[index].InputJson), &a.Content[index].Input)
+		// }
 	// We should notify the stream that the content block is finished.
 
 	case "message_stop":
