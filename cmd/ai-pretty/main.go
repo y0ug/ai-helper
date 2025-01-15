@@ -67,10 +67,10 @@ func main() {
 		),
 	)
 
-	Exchange(ctx, provider, *params)
+	HandleLLMConversation(ctx, provider, *params)
 }
 
-func Exchange(
+func HandleLLMConversation(
 	ctx context.Context,
 	provider common.LLMProvider,
 	params common.BaseChatMessageNewParams,
