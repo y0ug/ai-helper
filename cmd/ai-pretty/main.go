@@ -93,9 +93,7 @@ func Exchange(
 			}
 		}()
 
-		// writer := bufio.NewWriter(os.Stdout)
 		h := highlighter.NewHighlighter(os.Stdout)
-		// h.ProcessStream(ctx, eventCh)
 		msg, err = processStream(ctx, h, eventCh)
 		if err != nil {
 			log.Printf("Error processing stream: %v", err)
