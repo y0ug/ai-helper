@@ -29,14 +29,16 @@ func WithMaxTokens(tokens int) func(*common.BaseChatMessageNewParams) {
 }
 
 // WithTemperature sets the temperature for BaseChatMessageNewParams
-func WithTemperature(temp float32) func(*common.BaseChatMessageNewParams) {
+func WithTemperature(temp float64) func(*common.BaseChatMessageNewParams) {
 	return func(p *common.BaseChatMessageNewParams) {
 		p.Temperature = temp
 	}
 }
 
 // WithMessages sets the messages for BaseChatMessageNewParams
-func WithMessages(messages []*common.BaseChatMessageParams) func(*common.BaseChatMessageNewParams) {
+func WithMessages(
+	messages ...*common.BaseChatMessageParams,
+) func(*common.BaseChatMessageNewParams) {
 	return func(p *common.BaseChatMessageNewParams) {
 		p.Messages = messages
 	}
@@ -72,7 +74,9 @@ func NewMessagesParams(msg ...*common.BaseChatMessageParams) []*common.BaseChatM
 }
 
 // NewChatParams creates a new BaseChatMessageNewParams with the given options
-func NewChatParams(opts ...func(*common.BaseChatMessageNewParams)) *common.BaseChatMessageNewParams {
+func NewChatParams(
+	opts ...func(*common.BaseChatMessageNewParams),
+) *common.BaseChatMessageNewParams {
 	params := &common.BaseChatMessageNewParams{}
 	for _, opt := range opts {
 		opt(params)

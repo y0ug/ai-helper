@@ -8,7 +8,6 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 )
 
 func main() {
@@ -21,14 +20,14 @@ func main() {
 		llmclient.WithModel(model),
 		llmclient.WithMaxTokens(1024),
 		llmclient.WithTemperature(0),
-		llmclient.WithMessages(llmclient.NewMessagesParams(
+		llmclient.WithMessages(
 			llmclient.NewUserMessage(
 				"Write a 1000 word essai about Golang and put a some code block in the middle",
 			),
-		)),
+		),
 	)
 
-	stream := provider.Stream(ctx, params)
+	stream := provider.Stream(ctx, *params)
 	eventCh := make(chan string)
 
 	go func() {

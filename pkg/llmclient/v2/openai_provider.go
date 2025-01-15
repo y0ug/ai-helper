@@ -101,7 +101,9 @@ func FromOpenaiToolCallToAIContent(t openai.ToolCall) *common.AIContent {
 	return common.NewToolUseContent(t.ID, t.Function.Name, args)
 }
 
-func FromLLMMessageToOpenAi(m ...common.BaseChatMessageParams) []openai.ChatCompletionMessageParam {
+func FromLLMMessageToOpenAi(
+	m ...*common.BaseChatMessageParams,
+) []openai.ChatCompletionMessageParam {
 	userMessages := make([]openai.ChatCompletionMessageParam, 0)
 	for _, msg := range m {
 		content := msg.Content[0]
