@@ -41,7 +41,7 @@ func GetWeather(location string) string {
 
 func main() {
 	// const model = "claude-3-5-sonnet-20241022"
-	const model = "deepseek-chat"
+	const model = "gpt-4o"
 	requestOpts := []requestoption.RequestOption{
 		requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
@@ -67,8 +67,13 @@ func main() {
 		},
 		),
 	)
-
-	HandleLLMConversation(ctx, provider, *params)
+	choices := 3
+	params.N = &choices
+	msg, err := HandleLLMConversation(ctx, provider, *params)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(msg)
 }
 
 func HandleLLMConversation(
@@ -108,29 +113,31 @@ func HandleLLMConversation(
 		fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
 
 		params.Messages = append(params.Messages, msg.ToMessageParams())
-		choice := msg.Choice[0]
 		toolResults := make([]*common.AIContent, 0)
-		for _, content := range choice.Content {
-			if content.Type == "tool_use" {
-				log.Printf("execution: %s with \"%s\"", content.Name, string(content.Input))
-				switch content.Name {
-				case "get_weather":
-					input := GetWeatherInput{}
-					err := json.Unmarshal([]byte(content.Input), &input)
-					// fmt.Println(content.InputJson)
-					if err != nil {
-						panic(err)
-					}
-					response := GetWeather(input.Location)
+		for _, choice := range msg.Choice {
+			for _, content := range choice.Content {
+				if content.Type == "tool_use" {
+					fmt.Println(choice)
+					log.Printf("execution: %s with \"%s\"", content.Name, string(content.Input))
+					switch content.Name {
+					case "get_weather":
+						input := GetWeatherInput{}
+						err := json.Unmarshal([]byte(content.Input), &input)
+						// fmt.Println(content.InputJson)
+						if err != nil {
+							panic(err)
+						}
+						response := GetWeather(input.Location)
 
-					b, err := json.Marshal(response)
-					if err != nil {
-						panic(err)
+						b, err := json.Marshal(response)
+						if err != nil {
+							panic(err)
+						}
+						toolResults = append(
+							toolResults,
+							common.NewToolResultContent(content.ID, string(b)),
+						)
 					}
-					toolResults = append(
-						toolResults,
-						common.NewToolResultContent(content.ID, string(b)),
-					)
 				}
 			}
 		}
