@@ -44,6 +44,13 @@ func WithMessages(
 	}
 }
 
+// WithTools sets the tools/functions for BaseChatMessageNewParams
+func WithTools(tools []common.Tool) func(*common.BaseChatMessageNewParams) {
+	return func(p *common.BaseChatMessageNewParams) {
+		p.Tools = tools
+	}
+}
+
 // NewUserMessage creates a new user message
 func NewUserMessage(text string) *common.BaseChatMessageParams {
 	return &common.BaseChatMessageParams{
