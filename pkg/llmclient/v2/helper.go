@@ -3,6 +3,7 @@ package llmclient
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient"
@@ -45,7 +46,7 @@ func WithMessages(
 }
 
 // WithTools sets the tools/functions for BaseChatMessageNewParams
-func WithTools(tools []common.Tool) func(*common.BaseChatMessageNewParams) {
+func WithTools(tools ...common.Tool) func(*common.BaseChatMessageNewParams) {
 	return func(p *common.BaseChatMessageNewParams) {
 		p.Tools = tools
 	}
@@ -117,7 +118,7 @@ func NewOpenRouterProvider(opts ...requestoption.RequestOption) common.LLMProvid
 	}
 }
 
-func NewGeminiProvider() common.LLMProvider {
+func NewGeminiProvider(opts ...requestoption.RequestOption) common.LLMProvider {
 	return &GeminiProvider{
 		&OpenAIProvider{
 			client: gemini.NewClient().Client,
@@ -128,6 +129,7 @@ func NewGeminiProvider() common.LLMProvider {
 func NewProviderByModel(
 	modelName string,
 	infoProvider *llmclient.InfoProviders,
+	requestOpts ...requestoption.RequestOption,
 ) (common.LLMProvider, *llmclient.Model) {
 	model, err := llmclient.ParseModel(modelName, infoProvider)
 	if err != nil {
@@ -136,15 +138,15 @@ func NewProviderByModel(
 
 	switch model.Provider {
 	case "anthropic":
-		return NewAnthropicProvider(), model
+		return NewAnthropicProvider(requestOpts...), model
 	case "openrouter":
-		return NewOpenRouterProvider(), model
+		return NewOpenRouterProvider(requestOpts...), model
 	case "openai":
-		return NewOpenAIProvider(), model
+		return NewOpenAIProvider(requestOpts...), model
 	case "gemini":
-		return NewGeminiProvider(), model
+		return NewGeminiProvider(requestOpts...), model
 	case "deepseek":
-		return NewDeepSeekProvider(), model
+		return NewDeepSeekProvider(requestOpts...), model
 	default:
 		return nil, model
 	}
@@ -215,6 +217,11 @@ func handleOpenAIEvent(evt openai.ChatCompletionChunk) string {
 	if len(evt.Choices) == 0 {
 		return ""
 	}
+
+	if len(evt.Choices[0].Delta.ToolCalls) > 0 {
+		fmt.Printf("Tool Calls: %+v\n", evt.Choices[0].Delta.ToolCalls)
+	}
+
 	// print(fmt.Sprintf("### %s", evt.Choices[0].Delta.Content))
 	return evt.Choices[0].Delta.Content
 }

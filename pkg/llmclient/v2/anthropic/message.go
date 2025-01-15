@@ -165,7 +165,7 @@ type MessageNewParams struct {
 	Stream        bool           `json:"stream,omitempty"`
 	System        string         `json:"system,omitempty"`
 
-	Temperature float64          `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
-	Tools       []common.LLMTool `json:"tools,omitempty"`       // ToolParam
-	ToolChoice  interface{}      `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
+	Temperature float64       `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	Tools       []common.Tool `json:"tools,omitempty"`       // ToolParam
+	ToolChoice  interface{}   `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
 }

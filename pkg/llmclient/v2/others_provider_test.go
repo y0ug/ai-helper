@@ -14,7 +14,7 @@ import (
 
 func TestOtherProvider_Send(t *testing.T) {
 	test := []struct {
-		Provider common.LLMClient
+		Provider common.LLMProvider
 		Model    string
 	}{
 		{

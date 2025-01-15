@@ -7,7 +7,7 @@ type BaseChatMessageNewParams struct {
 	// ... stop sequences, etc.
 	Messages   []*BaseChatMessageParams
 	Stream     bool
-	Tools      []LLMTool
+	Tools      []Tool
 	ToolChoice interface{}
 	// etc...
 }

@@ -20,6 +20,7 @@ func BaseChatMessageNewParamsToOpenAI(
 		MaxCompletionTokens: &params.MaxTokens,
 		Temperature:         params.Temperature,
 		Messages:            FromLLMMessageToOpenAi(params.Messages...),
+		Tools:               FromLLMToolToOpenAI(params.Tools...),
 	}
 }
 
@@ -74,25 +75,30 @@ func (a *OpenAIProvider) Stream(
 	return common.NewWrapperStream[openai.ChatCompletionChunk](stream, "openai")
 }
 
-func FromLLMToolToOpenAI(tool common.LLMTool) openai.Tool {
-	var desc *string
-	if tool.Description != nil {
-		descCopy := *tool.Description
-		desc = &descCopy
-		if len(*desc) > 512 {
-			foo := descCopy[:512]
-			desc = &foo
+func FromLLMToolToOpenAI(tools ...common.Tool) []openai.Tool {
+	result := make([]openai.Tool, 0)
+	for _, tool := range tools {
+		var desc *string
+		if tool.Description != nil {
+			descCopy := *tool.Description
+			desc = &descCopy
+			if len(*desc) > 512 {
+				foo := descCopy[:512]
+				desc = &foo
+			}
 		}
+		aiTool := openai.Tool{
+			Type: "function",
+			Function: openai.ToolFunction{
+				Name:        tool.Name,
+				Description: desc,
+				Parameters:  tool.InputSchema,
+			},
+		}
+		result = append(result, aiTool)
+
 	}
-	aiTool := openai.Tool{
-		Type: "function",
-		Function: openai.ToolFunction{
-			Name:        tool.Name,
-			Description: desc,
-			Parameters:  tool.InputSchema,
-		},
-	}
-	return aiTool
+	return result
 }
 
 func FromOpenaiToolCallToAIContent(t openai.ToolCall) *common.AIContent {

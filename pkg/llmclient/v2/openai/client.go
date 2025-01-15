@@ -32,7 +32,7 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 		},
 	}
 
-	r.Chat = NewChatCompletionService(r.BaseClient.Options...)
+	r.Chat = NewChatCompletionService(r.Options...)
 
 	return
 }
