@@ -25,10 +25,11 @@ type Highlighter struct {
 
 // NewHighlighter creates a new instance of Highlighter
 func NewHighlighter(writer *bufio.Writer) *Highlighter {
-	lexer := lexers.Get("markdown")
-	if lexer == nil {
-		lexer = lexers.Fallback
-	}
+	// lexer := lexers.Get("markdown")
+	// if lexer == nil {
+	// 	lexer = lexers.Fallback
+	// }
+	lexer := lexers.Fallback
 
 	formatter := formatters.Get("terminal16m")
 	if formatter == nil {
@@ -91,71 +92,105 @@ func (h *Highlighter) highlightAndPrint(line string) {
 	}
 }
 
+// highlightCodeBlock is just a helper function that applies
+// syntax highlighting to a complete code block in one shot.
+func (h *Highlighter) highlightCodeBlock(code string, language string) {
+	// Save the original lexer
+	origLexer := h.lexer
+
+	// Try to get a lexer based on the language hint (if any).
+	if language != "" {
+		if l := lexers.Get(language); l != nil {
+			h.lexer = l
+		} else {
+			h.lexer = h.defaultLexer
+		}
+	} else {
+		// No language specified, just fall back to default.
+		h.lexer = h.defaultLexer
+	}
+
+	iterator, err := h.lexer.Tokenise(nil, code)
+	if err != nil {
+		log.Printf("Tokenization error: %v", err)
+		return
+	}
+
+	err = h.formatter.Format(h.writer, h.style, iterator)
+	if err != nil {
+		log.Printf("Formatting error: %v", err)
+		return
+	}
+
+	h.writer.Flush()
+
+	// Restore the original lexer
+	h.lexer = origLexer
+}
+
 // ProcessStream processes a stream of text from a channel and highlights it
 func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error {
 	defer h.writer.Flush()
-
-	var buffer bytes.Buffer
-	var codeFenceBuffer bytes.Buffer
-	inPartialCodeFence := false
-
+	var lineBuffer bytes.Buffer // accumulates chunks until we have at least one full line
 	for {
 		select {
 		case <-ctx.Done():
+			// Context canceled or timed out.
 			return ctx.Err()
-		case content, ok := <-ch:
+
+		case chunk, ok := <-ch:
 			if !ok {
-				// Channel closed, process remaining content
-				remaining := buffer.String()
-				if len(remaining) > 0 {
-					h.highlightAndPrint(remaining)
-					h.writer.Flush()
-				}
+				// Channel closed.
+				// If we're in a code block and never saw the closing fence,
+				// highlight whatever we have anyway (best effort).
+
 				return nil
 			}
 
-			// Check for partial code fence
-			if inPartialCodeFence {
-				codeFenceBuffer.WriteString(content)
-				if codeFenceBuffer.Len() >= 3 {
-					str := codeFenceBuffer.String()
-					if strings.HasPrefix(str, "```") {
-						// We found a complete code fence
-						h.handleCodeBlockMarker(str)
-						buffer.Reset()
-						codeFenceBuffer.Reset()
-						inPartialCodeFence = false
-						continue
-					} else if codeFenceBuffer.Len() > 3 {
-						// Not a code fence, print buffered content
-						buffer.Write(codeFenceBuffer.Bytes())
-						codeFenceBuffer.Reset()
-						inPartialCodeFence = false
-					}
-				}
-			} else if strings.Contains(content, "`") {
-				codeFenceBuffer.WriteString(content)
-				inPartialCodeFence = true
-				continue
-			}
+			// Add this chunk to our line buffer.
+			lineBuffer.WriteString(chunk)
 
-			// Normal content processing
-			if !h.inCodeBlock {
-				// Immediately print non-code content
-				h.highlightAndPrint(content)
-				h.writer.Flush()
-			} else {
-				// In code block, accumulate and process line by line
-				buffer.WriteString(content)
-				currentBuffer := buffer.String()
-				if strings.Contains(currentBuffer, "\n") {
-					lines := strings.Split(currentBuffer, "\n")
-					for i := 0; i < len(lines)-1; i++ {
-						h.ProcessLine(lines[i] + "\n")
-					}
-					buffer.Reset()
-					buffer.WriteString(lines[len(lines)-1])
+			// Extract as many complete lines as possible.
+			for {
+				bufStr := lineBuffer.String()
+
+				newlineIdx := strings.Index(bufStr, "\n")
+				if strings.HasPrefix(bufStr, "```") && newlineIdx != -1 {
+					line := bufStr[:newlineIdx+1]
+					h.ProcessLine(line)
+					lineBuffer.Next(newlineIdx + 1)
+					bufStr = lineBuffer.String()
 				}
+
+				newlineIdx = strings.Index(bufStr, "\n")
+				if h.inCodeBlock {
+					if newlineIdx == -1 {
+						break
+					}
+					// We have at least one full line ending in '\n'.
+					line := bufStr[:newlineIdx+1]
+					// Advance our buffer past that line + newline
+					lineBuffer.Next(newlineIdx + 1)
+					h.ProcessLine(line)
+					continue
+				}
+
+				if strings.Contains(bufStr, "```") && newlineIdx == -1 {
+					// contains ``` but no newline we need to buffer
+					break
+				}
+				if newlineIdx == -1 {
+					// not new line no code block no ``` detected we print`
+					data := lineBuffer.String()
+					lineBuffer.Next(len(data) + 1)
+					h.ProcessLine(data)
+					break
+				}
+				// we process the line
+				line := bufStr[:newlineIdx+1]
+				h.ProcessLine(line)
+				lineBuffer.Next(newlineIdx + 1)
+
 			}
 		}
 	}

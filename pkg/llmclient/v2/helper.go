@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient"
@@ -191,9 +192,51 @@ func ConsumeStream(
 			}
 		}
 	}
-	msgPretty, _ := json.MarshalIndent(msg, "", "    ")
-	msgFmt := fmt.Sprintf("\n```json\n%s\n```\n", msgPretty)
-	ch <- msgFmt
+	// msgPretty, _ := json.MarshalIndent(msg, "", "    ")
+	// msgFmt := fmt.Sprintf("\n```json\n%s\n```\n", msgPretty)
+	// ch <- msgFmt
+	// fmt.Printf("\nmsg: %s\n", msgFmt)
+	if err := stream.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ConsumeStreamIO(
+	ctx context.Context,
+	stream common.Streamer[common.LLMStreamEvent],
+	w io.StringWriter,
+) error {
+	var msg anthropic.Message
+	for stream.Next() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			event := stream.Current()
+			switch event.Provider {
+			case "anthropic":
+				var anthropicEvent anthropic.MessageStreamEvent
+				if err := json.Unmarshal(event.Data, &anthropicEvent); err != nil {
+					return err
+				}
+				msg.Accumulate(anthropicEvent)
+				w.WriteString(handleAnthropicEvent(anthropicEvent))
+			case "openai":
+				var openaiEvent openai.ChatCompletionChunk
+				if err := json.Unmarshal(event.Data, &openaiEvent); err != nil {
+					return err
+				}
+				w.WriteString(handleOpenAIEvent(openaiEvent))
+			default:
+				log.Printf("Unknown provider: %s", event.Provider)
+			}
+		}
+	}
+	// msgPretty, _ := json.MarshalIndent(msg, "", "    ")
+	// msgFmt := fmt.Sprintf("\n```json\n%s\n```\n", msgPretty)
+	// ch <- msgFmt
 	// fmt.Printf("\nmsg: %s\n", msgFmt)
 	if err := stream.Err(); err != nil {
 		return err
