@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/deepseek"
@@ -134,10 +133,10 @@ func NewGeminiProvider(opts ...requestoption.RequestOption) common.LLMProvider {
 
 func NewProviderByModel(
 	modelName string,
-	infoProvider *llmclient.InfoProviders,
+	infoProvider *InfoProviders,
 	requestOpts ...requestoption.RequestOption,
-) (common.LLMProvider, *llmclient.Model) {
-	model, err := llmclient.ParseModel(modelName, infoProvider)
+) (common.LLMProvider, *Model) {
+	model, err := ParseModel(modelName, infoProvider)
 	if err != nil {
 		return nil, nil
 	}
@@ -242,16 +241,15 @@ func handleAnthropicEvent(am *anthropic.Message, evt *anthropic.MessageStreamEve
 func handleOpenAIEvent(cc *openai.ChatCompletion, chunk *openai.ChatCompletionChunk) StreamEvent {
 	cc.Accumulate(*chunk)
 	svt := StreamEvent{}
+	svt.Message = OpenaiChatCompletionToChatMessage(cc)
 	if len(chunk.Choices) == 0 {
+		svt.Type = "message_stop"
 		return svt
+		// Last chunk
 	}
 
 	choiceDelta := chunk.Choices[0]
 	svt.Delta = choiceDelta.Delta.Content
 	svt.Type = "text_delta"
-	if cc.Choices[0].FinishReason != "" {
-		svt.Type = "message_stop"
-		svt.Message = OpenaiChatCompletionToChatMessage(cc)
-	}
 	return svt
 }

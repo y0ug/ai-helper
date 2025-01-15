@@ -39,8 +39,8 @@ func GetWeather(location string) string {
 }
 
 func main() {
-	const model = "claude-3-5-sonnet-20241022"
-	// const model = "gpt-4o"
+	// const model = "claude-3-5-sonnet-20241022"
+	const model = "gpt-4o-mini"
 	requestOpts := []requestoption.RequestOption{
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
@@ -115,7 +115,6 @@ func Exchange(
 				switch content.Name {
 				case "get_weather":
 					input := GetWeatherInput{}
-					fmt.Println(string(content.Input))
 					err := json.Unmarshal([]byte(content.Input), &input)
 					// fmt.Println(content.InputJson)
 					if err != nil {

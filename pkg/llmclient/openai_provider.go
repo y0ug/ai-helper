@@ -1,7 +1,6 @@
 package llmclient
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/rs/zerolog"
@@ -99,9 +98,7 @@ type OpenAIToolCall struct {
 }
 
 func toolCallToAIContent(t OpenAIToolCall) *AIContent {
-	var args map[string]interface{}
-	_ = json.Unmarshal([]byte(t.Function.Arguments), &args)
-	return NewToolUseContent(t.ID, t.Function.Name, args)
+	return NewToolUseContent(t.ID, t.Function.Name, []byte(t.Function.Arguments))
 }
 
 // Description of a tool function
