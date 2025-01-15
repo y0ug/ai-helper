@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/invopop/jsonschema"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
@@ -36,7 +38,18 @@ func GenerateSchema[T any]() interface{} {
 }
 
 func GetWeather(location string) string {
-	return "Sunny"
+	conditions := []string{
+		"Sunny",
+		"Cloudy",
+		"Rainy",
+		"Partly cloudy",
+		"Thunderstorm",
+		"Windy",
+		"Snowy",
+		"Foggy",
+	}
+	rand.Seed(time.Now().UnixNano())
+	return conditions[rand.Intn(len(conditions))]
 }
 
 func main() {
