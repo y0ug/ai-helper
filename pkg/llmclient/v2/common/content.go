@@ -15,10 +15,11 @@ const (
 	ContentTypeTextDelta ContentType = "text_delta"
 
 	// Anthropic
-	ContentTypeToolUse    ContentType = "tool_use"
-	ContentTypeToolResult ContentType = "tool_result"
-	ContentTypeDocument   ContentType = "document"
-	ContentTypeImage      ContentType = "image"
+	ContentTypeInputJsonDelta ContentType = "input_json_delta"
+	ContentTypeToolUse        ContentType = "tool_use"
+	ContentTypeToolResult     ContentType = "tool_result"
+	ContentTypeDocument       ContentType = "document"
+	ContentTypeImage          ContentType = "image"
 
 	// OpenAI
 	ContentTypeInputAudio ContentType = "input_audio"
@@ -29,12 +30,14 @@ type AIContent struct {
 	Type ContentType `json:"type"`
 
 	// Relevant for text content
-	Text string `json:"text,omitempty"`
+	Text        string `json:"text,omitempty"`
+	PartialJson string `json:"partial_json,omitempty"`
 
 	// Relevant for tool usage calls (like "function calls")
-	ID    string                 `json:"id,omitempty"`    // Unique identifier for this tool call
-	Name  string                 `json:"name,omitempty"`  // Name of the tool to call
-	Input map[string]interface{} `json:"input,omitempty"` // Arguments to pass to the tool
+	ID        string                 `json:"id,omitempty"`    // Unique identifier for this tool call
+	Name      string                 `json:"name,omitempty"`  // Name of the tool to call
+	Input     map[string]interface{} `json:"input,omitempty"` // Arguments to pass to the tool
+	InputJson string                 `json:"-"`               // Arguments to pass to the tool in json format
 
 	// Relevant for tool results
 	ToolUseID string        `json:"tool_use_id,omitempty"` // ID of the tool call this result is for

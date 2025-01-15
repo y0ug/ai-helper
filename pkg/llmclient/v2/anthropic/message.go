@@ -90,39 +90,59 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 	case "message_start":
 		*a = event.Message
 	case "content_block_start":
+		index := event.Index
 		a.Content = append(a.Content, &common.AIContent{})
-		data, err := json.Marshal(event.ContentBlock)
-		if err != nil {
-			return err
+		if int(index) >= len(a.Content) {
+			return fmt.Errorf("Index %d is out of range, len: %d\n", index, len(a.Content))
 		}
-		err = json.Unmarshal(data, a.Content[len(a.Content)-1])
+
+		err := json.Unmarshal(event.ContentBlock, a.Content[index])
 		if err != nil {
 			return err
 		}
 	case "content_block_delta":
-		if len(a.Content) == 0 {
-			return fmt.Errorf(
-				"received event of type %s but there was no content block",
-				event.Type,
-			)
+		index := event.Index
+		if int(index) >= len(a.Content) {
+			return fmt.Errorf("Index %d is out of range, len: %d\n", index, len(a.Content))
 		}
-		if event.ContentBlock["type"] == "text" {
-			a.Content[len(a.Content)-1].Text += event.Delta.Text
-		} else if event.ContentBlock["type"] == "input_json" {
-			// fmt.Printf("InputJSON: %v\n", event.Delta)
-			// a.Content[len(a.Content)-1].ToolUse += event.Delta.ToolUse
+		var delta common.AIContent
+		err := json.Unmarshal(event.Delta, &delta)
+		if err != nil {
+			return fmt.Errorf("error unmarshalling delta: %w %s", err, event.Delta)
 		}
-	case "message_delta_event":
-		// fmt.Printf("MessageDelta: %v\n", event.Delta)
+
+		switch delta.Type {
+		case "text_delta":
+			a.Content[index].Text += delta.Text
+		case "input_json_delta":
+			a.Content[index].InputJson += delta.PartialJson
+		}
+	case "message_delta":
+
+		var delta struct {
+			StopReason   string `json:"stop_reason,omitempty"`
+			StopSequence string `json:"stop_sequence,omitempty"`
+		}
+		err := json.Unmarshal(event.Delta, &delta)
+		if err != nil {
+			return fmt.Errorf("error unmarshalling delta: %w %s", err, event.Delta)
+		}
+		a.StopReason = delta.StopReason
+		a.StopSequence = delta.StopSequence
+		a.Usage.OutputTokens = event.Usage.OutputTokens
+
 	//  update StopRead, StopSequence, Usage
 	// a.StopReason = event.Delta.StopReason
 
 	case "content_block_stop":
-		if len(a.Content) == 0 {
-			return fmt.Errorf(
-				"content block finish but final content is empty",
-			)
+		index := event.Index
+		if len(a.Content[index].InputJson) > 0 {
+			json.Unmarshal([]byte(a.Content[index].InputJson), &a.Content[index].Input)
 		}
+	// We should notify the stream that the content block is finished.
+
+	case "message_stop":
+		// We should notify the it's complete
 	}
 
 	return nil
@@ -131,12 +151,12 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 type MessageStreamEvent struct {
 	Type string `json:"type"`
 	// This field can have the runtime type of [ContentBlockStartEventContentBlock].
-	ContentBlock map[string]string `json:"content_block"`
+	ContentBlock json.RawMessage `json:"content_block"`
 	// This field can have the runtime type of [MessageDeltaEventDelta],
 	// [ContentBlockDeltaEventDelta].
-	Delta   *common.AIContent `json:"delta"`
-	Index   int64             `json:"index"`
-	Message Message           `json:"message"`
+	Delta   json.RawMessage `json:"delta"`
+	Index   int64           `json:"index"`
+	Message Message         `json:"message"`
 	// Billing and rate-limit usage.
 	//
 	// Anthropic's API bills and rate-limits by token counts, as tokens represent the
@@ -149,7 +169,11 @@ type MessageStreamEvent struct {
 	//
 	// For example, `output_tokens` will be non-zero, even for an empty string response
 	// from Claude.
-	// Usage MessageDeltaUsage `json:"usage"`
+	Usage MessageDeltaUsage `json:"usage"`
+}
+
+type MessageDeltaUsage struct {
+	OutputTokens int `json:"output_tokens"`
 }
 
 type Usage struct {

@@ -69,6 +69,7 @@ func BaseChatMessageNewParamsToAnthropic(
 		Temperature: params.Temperature,
 		Messages:    msgs,
 		System:      systemPromt,
+		Tools:       params.Tools,
 	}
 	return paramsProvider
 }
