@@ -10,9 +10,10 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient"
+	"github.com/y0ug/ai-helper/pkg/llmclient/common"
+	"github.com/y0ug/ai-helper/pkg/llmclient/middleware"
+	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
 )
 
 func StrToPtr(s string) *string {
@@ -40,9 +41,9 @@ func GetWeather(location string) string {
 
 func main() {
 	// const model = "claude-3-5-sonnet-20241022"
-	const model = "gpt-4o-mini"
+	const model = "deepseek-chat"
 	requestOpts := []requestoption.RequestOption{
-		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
+		requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
 	provider, _ := llmclient.NewProviderByModel(model, nil, requestOpts...)
 
@@ -100,9 +101,11 @@ func HandleLLMConversation(
 			return nil, nil
 		}
 
-		if msg != nil {
-			fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
+		if msg == nil {
+			log.Printf("No message returned")
+			return nil, nil
 		}
+		fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
 
 		params.Messages = append(params.Messages, msg.ToMessageParams())
 		choice := msg.Choice[0]
