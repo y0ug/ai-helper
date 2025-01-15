@@ -15,13 +15,13 @@ import (
 
 // Highlighter handles syntax highlighting for markdown and code blocks
 type Highlighter struct {
-	writer         *bufio.Writer
-	inCodeBlock    bool
-	currentLang    string
-	lexer          chroma.Lexer
-	defaultLexer   chroma.Lexer
-	formatter      chroma.Formatter
-	style          *chroma.Style
+	writer       *bufio.Writer
+	inCodeBlock  bool
+	currentLang  string
+	lexer        chroma.Lexer
+	defaultLexer chroma.Lexer
+	formatter    chroma.Formatter
+	style        *chroma.Style
 }
 
 // NewHighlighter creates a new instance of Highlighter
@@ -169,6 +169,7 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 				newlineIdx := strings.Index(bufStr, "\n")
 				if strings.HasPrefix(bufStr, "```") && newlineIdx != -1 {
 					line := bufStr[:newlineIdx+1]
+					// fmt.Println("line", line)
 					h.ProcessLine(line)
 					lineBuffer.Next(newlineIdx + 1)
 					bufStr = lineBuffer.String()
@@ -187,8 +188,8 @@ func (h *Highlighter) ProcessStream(ctx context.Context, ch <-chan string) error
 					continue
 				}
 
-				if strings.Contains(bufStr, "```") && newlineIdx == -1 {
-					// contains ``` but no newline we need to buffer
+				if strings.Contains(bufStr, "`") && newlineIdx == -1 {
+					// contains ` but no newline we need to buffer
 					break
 				}
 				if newlineIdx == -1 {

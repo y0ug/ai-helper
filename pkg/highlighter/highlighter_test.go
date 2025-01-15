@@ -11,9 +11,9 @@ import (
 
 func TestHighlighterState(t *testing.T) {
 	tests := []struct {
-		name           string
-		input         []string
-		checkpoints   []struct {
+		name        string
+		input       []string
+		checkpoints []struct {
 			afterChunk     int
 			expectInBlock  bool
 			expectLanguage string
@@ -33,11 +33,11 @@ func TestHighlighterState(t *testing.T) {
 				expectInBlock  bool
 				expectLanguage string
 			}{
-				{1, false, ""},           // after "Some text\n"
-				{2, true, "python"},      // after "```python\n"
-				{3, true, "python"},      // after code content
-				{4, false, ""},           // after closing ```
-				{5, false, ""},           // after "More text"
+				{1, false, ""},      // after "Some text\n"
+				{2, true, "python"}, // after "```python\n"
+				{3, true, "python"}, // after code content
+				{4, false, ""},      // after closing ```
+				{5, false, ""},      // after "More text"
 			},
 		},
 		{
@@ -53,9 +53,9 @@ func TestHighlighterState(t *testing.T) {
 				expectInBlock  bool
 				expectLanguage string
 			}{
-				{2, true, "python"},     // after completed "```python\n"
-				{3, true, "python"},     // during code block
-				{4, false, ""},          // after closing
+				{2, true, "python"}, // after completed "```python\n"
+				{3, true, "python"}, // during code block
+				{4, false, ""},      // after closing
 			},
 		},
 	}
@@ -76,12 +76,12 @@ func TestHighlighterState(t *testing.T) {
 					ch <- chunk
 					// Allow some time for processing
 					time.Sleep(50 * time.Millisecond)
-					
+
 					// Check state at defined checkpoints
 					for _, cp := range tt.checkpoints {
 						if cp.afterChunk == i+1 {
 							if h.IsInCodeBlock() != cp.expectInBlock {
-								t.Errorf("After chunk %d: IsInCodeBlock() = %v, want %v", 
+								t.Errorf("After chunk %d: IsInCodeBlock() = %v, want %v",
 									i+1, h.IsInCodeBlock(), cp.expectInBlock)
 							}
 							if h.GetCurrentLanguage() != cp.expectLanguage {
