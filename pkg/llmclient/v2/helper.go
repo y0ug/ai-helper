@@ -14,6 +14,35 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/v2/requestoption"
 )
 
+// WithModel sets the model for BaseChatMessageNewParams
+func WithModel(model string) func(*common.BaseChatMessageNewParams) {
+	return func(p *common.BaseChatMessageNewParams) {
+		p.Model = model
+	}
+}
+
+// WithMaxTokens sets the max tokens for BaseChatMessageNewParams
+func WithMaxTokens(tokens int) func(*common.BaseChatMessageNewParams) {
+	return func(p *common.BaseChatMessageNewParams) {
+		p.MaxTokens = tokens
+	}
+}
+
+// WithTemperature sets the temperature for BaseChatMessageNewParams
+func WithTemperature(temp float32) func(*common.BaseChatMessageNewParams) {
+	return func(p *common.BaseChatMessageNewParams) {
+		p.Temperature = temp
+	}
+}
+
+// WithMessages sets the messages for BaseChatMessageNewParams
+func WithMessages(messages []*common.BaseChatMessageParams) func(*common.BaseChatMessageNewParams) {
+	return func(p *common.BaseChatMessageNewParams) {
+		p.Messages = messages
+	}
+}
+
+// NewUserMessage creates a new user message
 func NewUserMessage(text string) *common.BaseChatMessageParams {
 	return &common.BaseChatMessageParams{
 		Role: "user",
@@ -25,7 +54,8 @@ func NewUserMessage(text string) *common.BaseChatMessageParams {
 	}
 }
 
-func NewSytemMessage(text string) *common.BaseChatMessageParams {
+// NewSystemMessage creates a new system message
+func NewSystemMessage(text string) *common.BaseChatMessageParams {
 	return &common.BaseChatMessageParams{
 		Role: "system",
 		Content: []*common.AIContent{
@@ -36,8 +66,18 @@ func NewSytemMessage(text string) *common.BaseChatMessageParams {
 	}
 }
 
+// NewMessagesParams creates a new slice of message parameters
 func NewMessagesParams(msg ...*common.BaseChatMessageParams) []*common.BaseChatMessageParams {
 	return msg
+}
+
+// NewChatParams creates a new BaseChatMessageNewParams with the given options
+func NewChatParams(opts ...func(*common.BaseChatMessageNewParams)) *common.BaseChatMessageNewParams {
+	params := &common.BaseChatMessageNewParams{}
+	for _, opt := range opts {
+		opt(params)
+	}
+	return params
 }
 
 func NewDeepSeekProvider(opts ...requestoption.RequestOption) common.LLMProvider {

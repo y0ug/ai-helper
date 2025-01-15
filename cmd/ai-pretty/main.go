@@ -17,16 +17,16 @@ func main() {
 	provider, _ := llmclient.NewProviderByModel(model, nil)
 
 	ctx := context.Background()
-	params := common.BaseChatMessageNewParams{
-		Model:       model,
-		MaxTokens:   1024,
-		Temperature: 0,
-		Messages: llmclient.NewMessagesParams(
+	params := llmclient.NewChatParams(
+		llmclient.WithModel(model),
+		llmclient.WithMaxTokens(1024),
+		llmclient.WithTemperature(0),
+		llmclient.WithMessages(llmclient.NewMessagesParams(
 			llmclient.NewUserMessage(
 				"Write a 1000 word essai about Golang and put a some code block in the middle",
 			),
-		),
-	}
+		)),
+	)
 
 	stream := provider.Stream(ctx, params)
 	eventCh := make(chan string)
