@@ -6,6 +6,7 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
+	"github.com/y0ug/ai-helper/pkg/llmclient/ssestream"
 )
 
 type OpenAIProvider struct {
