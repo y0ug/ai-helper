@@ -95,7 +95,7 @@ func main() {
 
 func HandleLLMConversation(
 	ctx context.Context,
-	provider common.LLMProvider,
+	provider llmclient.LLMProvider,
 	params common.ChatMessageNewParams,
 ) (*common.ChatMessage, error) {
 	var msg *common.ChatMessage
