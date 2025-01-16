@@ -72,6 +72,6 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 	}
 	return ssestream.NewBaseStream(
 		ssestream.NewDecoder(raw),
-		ssestream.NewOpenAIStreamHandler[Chunk](),
+		ssestream.NewDefaultStreamHandler[Chunk](),
 	), nil
 }

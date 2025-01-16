@@ -56,7 +56,7 @@ func (svc *MessageService) NewStreaming(
 	}
 	return ssestream.NewBaseStream(
 		ssestream.NewDecoder(raw),
-		ssestream.NewAnthropicStreamHandler[MessageStreamEvent](),
+		NewAnthropicStreamHandler[MessageStreamEvent](),
 	), nil
 }
 

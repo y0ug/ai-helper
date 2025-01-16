@@ -1,10 +1,11 @@
-package ssestream
+package anthropic
 
 import (
 	"encoding/json"
 	"fmt"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
+	"github.com/y0ug/ai-helper/pkg/llmclient/ssestream"
 )
 
 // AnthropicStreamHandler implements BaseStreamHandler for Anthropic's streaming responses
@@ -14,7 +15,7 @@ func NewAnthropicStreamHandler[T any]() *AnthropicStreamHandler[T] {
 	return &AnthropicStreamHandler[T]{}
 }
 
-func (h *AnthropicStreamHandler[T]) HandleEvent(event Event) (T, error) {
+func (h *AnthropicStreamHandler[T]) HandleEvent(event ssestream.Event) (T, error) {
 	var result T
 
 	switch event.Type {
@@ -38,16 +39,16 @@ func (h *AnthropicStreamHandler[T]) HandleEvent(event Event) (T, error) {
 	return result, nil
 }
 
-func (h *AnthropicStreamHandler[T]) ShouldContinue(event Event) bool {
+func (h *AnthropicStreamHandler[T]) ShouldContinue(event ssestream.Event) bool {
 	if event.Type == "ping" {
 		return true
 	}
 	return event.Type != "error"
 }
 
-func NewAnthropicStream[T any](decoder Decoder, err error) common.Streamer[T] {
+func NewAnthropicStream[T any](decoder ssestream.Decoder, err error) common.Streamer[T] {
 	if err != nil {
-		return NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
+		return ssestream.NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
 	}
-	return NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
+	return ssestream.NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
 }
