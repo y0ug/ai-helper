@@ -71,7 +71,7 @@ func (a *OpenAIProvider) Send(
 func (a *OpenAIProvider) Stream(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
-) (common.Streamer[common.LLMStreamEvent], error) {
+) (common.Streamer[common.StreamEvent], error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	stream, err := a.client.Chat.NewStreaming(ctx, paramsProvider)
@@ -80,7 +80,7 @@ func (a *OpenAIProvider) Stream(
 	}
 	return common.NewWrapperStream[openai.ChatCompletionChunk](
 		stream,
-		"openai",
+		NewOpenAIEventHandler(),
 	), nil
 }
 
@@ -159,4 +159,32 @@ func FromLLMMessageToOpenAi(
 		}
 	}
 	return userMessages
+}
+
+// OpenAIEventHandler processes OpenAI-specific events
+type OpenAIEventHandler struct {
+	completion openai.ChatCompletion
+}
+
+func NewOpenAIEventHandler() *OpenAIEventHandler {
+	return &OpenAIEventHandler{}
+}
+
+func (h *OpenAIEventHandler) ProcessEvent(data []byte) common.StreamEvent {
+	var chunk openai.ChatCompletionChunk
+	if err := json.Unmarshal(data, &chunk); err != nil {
+		return common.StreamEvent{Type: "error", Delta: err}
+	}
+
+	h.completion.Accumulate(chunk)
+	evt := common.StreamEvent{Message: OpenaiChatCompletionToChatMessage(&h.completion)}
+
+	if chunk.Usage.CompletionTokens != 0 || len(chunk.Choices) == 0 {
+		evt.Type = "message_stop"
+		return evt
+	}
+
+	evt.Type = "text_delta"
+	evt.Delta = chunk.Choices[0].Delta.Content
+	return evt
 }

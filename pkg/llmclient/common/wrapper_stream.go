@@ -6,18 +6,18 @@ import (
 
 type WrapperStream[T any] struct {
 	original Streamer[T]
-	provider string
-	current  LLMStreamEvent
+	handler  ProviderEventHandler
+	current  StreamEvent
 	err      error
 }
 
 func NewWrapperStream[T any](
 	original Streamer[T],
-	provider string,
-) Streamer[LLMStreamEvent] {
+	handler ProviderEventHandler,
+) Streamer[StreamEvent] {
 	return &WrapperStream[T]{
 		original: original,
-		provider: provider,
+		handler:  handler,
 	}
 }
 
@@ -34,27 +34,7 @@ func (w *WrapperStream[T]) Next() bool {
 			return false
 		}
 
-		// Extract event type based on provider
-		eventType := "unknown"
-		switch w.provider {
-		case "anthropic":
-			// var ae anthropic.MessageStreamEvent
-			// if err := json.Unmarshal(data, &ae); err == nil {
-			// 	eventType = ae.Type
-			// }
-		case "openai":
-			// var oe openai.ChatCompletionChunk
-			// if err := json.Unmarshal(data, &oe); err == nil {
-			// 	eventType = "chat_completion_chunk" // Adjust as needed
-			// }
-
-		}
-
-		w.current = LLMStreamEvent{
-			Provider: w.provider,
-			Type:     eventType,
-			Data:     data,
-		}
+		w.current = w.handler.ProcessEvent(data)
 		return true
 	}
 
@@ -62,7 +42,7 @@ func (w *WrapperStream[T]) Next() bool {
 	return false
 }
 
-func (w *WrapperStream[T]) Current() LLMStreamEvent {
+func (w *WrapperStream[T]) Current() StreamEvent {
 	return w.current
 }
 

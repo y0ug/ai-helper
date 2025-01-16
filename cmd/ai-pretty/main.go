@@ -105,7 +105,7 @@ func HandleLLMConversation(
 			return nil, err
 		}
 
-		eventCh := make(chan llmclient.StreamEvent)
+		eventCh := make(chan common.StreamEvent)
 
 		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
 		go func() {
@@ -181,7 +181,7 @@ func HandleLLMConversation(
 func processStream(
 	ctx context.Context,
 	w io.Writer,
-	ch <-chan llmclient.StreamEvent,
+	ch <-chan common.StreamEvent,
 ) (*common.BaseChatMessage, error) {
 	var cm *common.BaseChatMessage
 	for {

@@ -25,7 +25,7 @@ type LLMProvider interface {
 	Stream(
 		ctx context.Context,
 		params BaseChatMessageNewParams,
-	) (Streamer[LLMStreamEvent], error)
+	) (Streamer[StreamEvent], error)
 }
 
 // / type LLMResponse interface {

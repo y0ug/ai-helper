@@ -2,6 +2,7 @@ package llmclient
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
@@ -43,13 +44,16 @@ func (a *AnthropicProvider) Send(
 func (a *AnthropicProvider) Stream(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
-) (common.Streamer[common.LLMStreamEvent], error) {
+) (common.Streamer[common.StreamEvent], error) {
 	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
 	stream, err := a.client.Message.NewStreaming(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
 	}
-	return common.NewWrapperStream[anthropic.MessageStreamEvent](stream, "anthropic"), nil
+	return common.NewWrapperStream[anthropic.MessageStreamEvent](
+		stream,
+		NewAnthropicEventHandler(),
+	), nil
 }
 
 func BaseChatMessageNewParamsToAnthropic(
@@ -76,4 +80,38 @@ func BaseChatMessageNewParamsToAnthropic(
 		Tools:       params.Tools,
 	}
 	return paramsProvider
+}
+
+// AnthropicEventHandler processes Anthropic-specific events
+type AnthropicEventHandler struct {
+	message anthropic.Message
+}
+
+func NewAnthropicEventHandler() *AnthropicEventHandler {
+	return &AnthropicEventHandler{}
+}
+
+func (h *AnthropicEventHandler) ProcessEvent(data []byte) common.StreamEvent {
+	var event anthropic.MessageStreamEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return common.StreamEvent{Type: "error", Delta: err}
+	}
+
+	h.message.Accumulate(event)
+	evt := common.StreamEvent{Type: event.Type}
+
+	switch event.Type {
+	case "content_block_delta":
+		var delta common.AIContent
+		if err := json.Unmarshal(event.Delta, &delta); err != nil {
+			return evt
+		}
+		if delta.Type == "text_delta" {
+			evt.Type = "text_delta"
+			evt.Delta = delta.Text
+		}
+	case "message_stop":
+		evt.Message = AnthropicMessageToChatMessage(&h.message)
+	}
+	return evt
 }
