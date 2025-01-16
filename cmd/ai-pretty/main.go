@@ -14,7 +14,6 @@ import (
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
 )
 
@@ -56,7 +55,7 @@ func main() {
 	// const model = "claude-3-5-sonnet-20241022"
 	const model = "gpt-4o"
 	requestOpts := []requestoption.RequestOption{
-		requestoption.WithMiddleware(middleware.LoggingMiddleware()),
+		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
 	provider, _ := llmclient.NewProviderByModel(model, nil, requestOpts...)
 
@@ -69,8 +68,8 @@ func main() {
 			llmclient.NewUserMessage(
 
 				// Can you write an Hello World in C?
-				"What the weather at Paris ?",
-				// "Write a 500 word essai about Golang and put a some code block in the middle",
+				// "What the weather at Paris ?",
+				"Write a 500 word essai about Golang and put a some code block in the middle",
 			),
 		),
 		llmclient.WithTools(common.Tool{
@@ -80,13 +79,15 @@ func main() {
 		},
 		),
 	)
-	choices := 3
-	params.N = &choices
+	// choices := 3
+	// params.N = &choices
 	msg, err := HandleLLMConversation(ctx, provider, *params)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(msg)
+	for _, choice := range msg.Choice {
+		fmt.Println(choice.Content[0])
+	}
 }
 
 func HandleLLMConversation(
@@ -127,36 +128,47 @@ func HandleLLMConversation(
 
 		params.Messages = append(params.Messages, msg.ToMessageParams())
 		toolResults := make([]*common.AIContent, 0)
-		for _, choice := range msg.Choice {
-			for _, content := range choice.Content {
-				if content.Type == "tool_use" {
-					fmt.Println(choice)
-					log.Printf("execution: %s with \"%s\"", content.Name, string(content.Input))
-					switch content.Name {
-					case "get_weather":
-						input := GetWeatherInput{}
-						err := json.Unmarshal([]byte(content.Input), &input)
-						// fmt.Println(content.InputJson)
-						if err != nil {
-							panic(err)
-						}
-						response := GetWeather(input.Location)
-
-						b, err := json.Marshal(response)
-						if err != nil {
-							panic(err)
-						}
-						toolResults = append(
-							toolResults,
-							common.NewToolResultContent(content.ID, string(b)),
-						)
+		// for _, choice := range msg.Choice {
+		choice := msg.Choice[0]
+		for _, content := range choice.Content {
+			if content.Type == "tool_use" {
+				log.Printf(
+					"%s execution: %s with \"%s\"",
+					content.ID,
+					content.Name,
+					string(content.Input),
+				)
+				switch content.Name {
+				case "get_weather":
+					input := GetWeatherInput{}
+					err := json.Unmarshal([]byte(content.Input), &input)
+					// fmt.Println(content.InputJson)
+					if err != nil {
+						panic(err)
 					}
+					response := GetWeather(input.Location)
+					fmt.Println(response)
+
+					b, err := json.Marshal(response)
+					if err != nil {
+						panic(err)
+					}
+					toolResults = append(
+						toolResults,
+						common.NewToolResultContent(content.ID, string(b)),
+					)
 				}
 			}
 		}
+		// }
 		if len(toolResults) == 0 {
 			break
 		}
+
+		// if params.N != nil {
+		// 	*params.N = 1
+		// }
+
 		params.Messages = append(params.Messages, llmclient.NewUserMessageContent(toolResults...))
 	}
 	return msg, nil

@@ -48,6 +48,7 @@ func BaseChatMessageNewParamsToOpenAI(
 		Model:               params.Model,
 		MaxCompletionTokens: &params.MaxTokens,
 		Temperature:         params.Temperature,
+		N:                   params.N,
 		Messages:            FromLLMMessageToOpenAi(params.Messages...),
 		Tools:               FromLLMToolToOpenAI(params.Tools...),
 	}

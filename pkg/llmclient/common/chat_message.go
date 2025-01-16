@@ -9,6 +9,7 @@ type BaseChatMessageNewParams struct {
 	Stream     bool
 	Tools      []Tool
 	ToolChoice interface{}
+	N          *int // number of choice
 	// etc...
 }
 
