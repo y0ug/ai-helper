@@ -56,7 +56,7 @@ func TestInfoProviders(t *testing.T) {
 		defer ctrl.Finish()
 
 		// Initialize InfoProviders with temp file
-		providers, err := NewInfoProviders(tmpFile.Name())
+		providers, err := NewModelInfoProvider(tmpFile.Name())
 		if err != nil {
 			t.Fatalf("Failed to create InfoProviders: %v", err)
 		}
@@ -115,7 +115,7 @@ func TestInfoProviders(t *testing.T) {
 		defer os.Remove(tmpFile.Name())
 
 		// Initialize InfoProviders with temp file
-		providers, err := NewInfoProviders(tmpFile.Name())
+		providers, err := NewModelInfoProvider(tmpFile.Name())
 		if err != nil {
 			t.Fatalf("Failed to create InfoProviders: %v", err)
 		}

@@ -15,10 +15,10 @@ import (
 type Model struct {
 	Provider string
 	Name     string
-	Info     *Info
+	Info     *ModelInfoMetadata
 }
 
-type Info struct {
+type ModelInfoMetadata struct {
 	// Required fields that should always be present
 	MaxTokens          int     `json:"max_tokens"`
 	MaxInputTokens     int     `json:"max_input_tokens"`
@@ -45,34 +45,33 @@ type Info struct {
 	SupportsAssistantPrefill        bool `json:"supports_assistant_prefill,omitempty"`
 }
 
-// InfoProvider defines the interface for accessing model information
-type InfoProvider interface {
+// ModelInfoProvider defines the interface for accessing model information
+type ModelInfoProvider interface {
 	// Load loads or refreshes the model information
 	Load() error
 	// Clear clears all cached model information
 	Clear() error
 	// GetModelInfo retrieves information for a specific model
-	GetModelInfo(modelName string) (*Info, error)
+	GetModelInfo(modelName string) (*ModelInfoMetadata, error)
 }
 
 type (
-	Infos         map[string]Info
-	InfoProviders struct {
-		mu            sync.RWMutex
-		infos         Infos
-		infoURL       string
-		cacheFile     string
-		lastUpdate    time.Time
-		cacheDuration time.Duration
+	FileModelInfoProvider struct {
+		mu             sync.RWMutex
+		metatadaLookup map[string]*ModelInfoMetadata
+		infoURL        string
+		cacheFile      string
+		lastUpdate     time.Time
+		cacheDuration  time.Duration
 	}
 )
 
-func NewInfoProviders(infoFilePath string) (*InfoProviders, error) {
-	info := &InfoProviders{
-		infos:         make(map[string]Info),
-		infoURL:       "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-		cacheFile:     infoFilePath,
-		cacheDuration: 24 * time.Hour,
+func NewModelInfoProvider(infoFilePath string) (ModelInfoProvider, error) {
+	info := &FileModelInfoProvider{
+		metatadaLookup: make(map[string]*ModelInfoMetadata),
+		infoURL:        "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+		cacheFile:      infoFilePath,
+		cacheDuration:  24 * time.Hour,
 	}
 	err := info.Load()
 	if err != nil {
@@ -82,12 +81,12 @@ func NewInfoProviders(infoFilePath string) (*InfoProviders, error) {
 	return info, nil
 }
 
-func (t *InfoProviders) Clear() error {
+func (t *FileModelInfoProvider) Clear() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	// Clear the in-memory cache
-	t.infos = make(map[string]Info)
+	t.metatadaLookup = make(map[string]*ModelInfoMetadata)
 
 	// Delete the cached file if it exists
 	if t.cacheFile != "" {
@@ -101,7 +100,7 @@ func (t *InfoProviders) Clear() error {
 	return nil
 }
 
-func (t *InfoProviders) Load() error {
+func (t *FileModelInfoProvider) Load() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -130,19 +129,19 @@ func (t *InfoProviders) Load() error {
 		return fmt.Errorf("failed to read info file: %w", err)
 	}
 
-	var infos Infos
-	if err := json.Unmarshal(data, &infos); err != nil {
+	metadata := make(map[string]*ModelInfoMetadata)
+	if err := json.Unmarshal(data, &metadata); err != nil {
 		// Download and save fresh data
 		fmt.Fprintf(os.Stderr, "failed to parse info data: %s\ndownloading again the file\n", err)
 		return t.downloadInfo(t.cacheFile)
 	}
 
-	t.infos = infos
+	t.metatadaLookup = metadata
 
 	return nil
 }
 
-func (t *InfoProviders) downloadToMemory() error {
+func (t *FileModelInfoProvider) downloadToMemory() error {
 	resp, err := http.Get(t.infoURL)
 	if err != nil {
 		return fmt.Errorf("failed to download info data: %w", err)
@@ -164,8 +163,7 @@ func (t *InfoProviders) downloadToMemory() error {
 		return fmt.Errorf("failed to parse raw info data: %w", err)
 	}
 
-	// Create new infos map
-	t.infos = make(map[string]Info)
+	t.metatadaLookup = make(map[string]*ModelInfoMetadata)
 
 	// Process each field, skipping "sample_spec"
 	for key, value := range rawData {
@@ -173,24 +171,24 @@ func (t *InfoProviders) downloadToMemory() error {
 			continue
 		}
 
-		var info Info
-		if err := json.Unmarshal(value, &info); err != nil {
+		var metadta *ModelInfoMetadata
+		if err := json.Unmarshal(value, &metadta); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to parse info for model %s: %v\n", key, err)
 			continue
 		}
-		t.infos[key] = info
+		t.metatadaLookup[key] = metadta
 	}
 
 	return nil
 }
 
-func (t *InfoProviders) downloadInfo(infoPath string) error {
+func (t *FileModelInfoProvider) downloadInfo(infoPath string) error {
 	if err := t.downloadToMemory(); err != nil {
 		return err
 	}
 
 	// Save to cache file
-	data, err := json.Marshal(t.infos)
+	data, err := json.Marshal(t.metatadaLookup)
 	if err != nil {
 		return fmt.Errorf("failed to marshal info data: %w", err)
 	}
@@ -202,18 +200,18 @@ func (t *InfoProviders) downloadInfo(infoPath string) error {
 	return nil
 }
 
-func (t *InfoProviders) GetModelInfo(modelName string) (*Info, error) {
+func (t *FileModelInfoProvider) GetModelInfo(modelName string) (*ModelInfoMetadata, error) {
 	// Try the full model name first
-	if data, ok := t.infos[modelName]; ok {
-		return &data, nil
+	if data, ok := t.metatadaLookup[modelName]; ok {
+		return data, nil
 	}
 
 	// Try with just the model name without provider prefix
 	parts := strings.Split(modelName, "/")
 	if len(parts) > 1 {
 		modelName := parts[len(parts)-1]
-		if data, ok := t.infos[modelName]; ok {
-			return &data, nil
+		if data, ok := t.metatadaLookup[modelName]; ok {
+			return data, nil
 		}
 	}
 
@@ -221,7 +219,7 @@ func (t *InfoProviders) GetModelInfo(modelName string) (*Info, error) {
 }
 
 // ParseModel parses a model string in the format "provider/model"
-func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
+func ParseModel(modelStr string, infoProviders ModelInfoProvider) (*Model, error) {
 	if modelStr == "" {
 		return nil, fmt.Errorf("empty model string")
 	}
@@ -255,7 +253,7 @@ func ParseModel(modelStr string, infoProviders *InfoProviders) (*Model, error) {
 	provider := parts[0]
 	name := strings.Join(parts[1:], "/")
 
-	var info2 *Info
+	var info2 *ModelInfoMetadata
 	if infoProviders != nil {
 		info, err := infoProviders.GetModelInfo(modelStr)
 		if err != nil {

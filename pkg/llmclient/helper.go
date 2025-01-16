@@ -133,7 +133,7 @@ func NewGeminiProvider(opts ...requestoption.RequestOption) common.LLMProvider {
 
 func NewProviderByModel(
 	modelName string,
-	infoProvider *InfoProviders,
+	infoProvider ModelInfoProvider,
 	requestOpts ...requestoption.RequestOption,
 ) (common.LLMProvider, *Model) {
 	model, err := ParseModel(modelName, infoProvider)
