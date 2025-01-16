@@ -114,113 +114,47 @@ func (s *eventStreamDecoder) Err() error {
 	return s.err
 }
 
-type BaseStream[T any] struct {
-	decoder Decoder
-	cur     T
-	err     error
-	done    bool
+// AnthropicStreamHandler implements BaseStreamHandler for Anthropic's streaming responses
+type AnthropicStreamHandler[T any] struct{}
+
+func NewAnthropicStreamHandler[T any]() *AnthropicStreamHandler[T] {
+    return &AnthropicStreamHandler[T]{}
 }
 
-type AnthropicStream[T any] struct {
-	BaseStream[T]
+func (h *AnthropicStreamHandler[T]) HandleEvent(event Event) (T, error) {
+    var result T
+    
+    switch event.Type {
+    case "completion":
+        if err := json.Unmarshal(event.Data, &result); err != nil {
+            return result, err
+        }
+    case "message_start",
+        "message_delta",
+        "message_stop",
+        "content_block_start",
+        "content_block_delta",
+        "content_block_stop":
+        if err := json.Unmarshal(event.Data, &result); err != nil {
+            return result, err
+        }
+    case "error":
+        return result, fmt.Errorf("received error while streaming: %s", string(event.Data))
+    }
+    
+    return result, nil
 }
 
-func NewBaseStream[T any](decoder Decoder, err error) common.Streamer[T] {
-	return &BaseStream[T]{
-		decoder: decoder,
-		err:     err,
-	}
-}
-
-func (s *BaseStream[T]) Next() bool {
-	if s.err != nil {
-		return false
-	}
-
-	for s.decoder.Next() {
-		if s.done {
-			return false
-		}
-
-		if bytes.HasPrefix(s.decoder.Event().Data, []byte("[DONE]")) {
-			s.done = true
-			return false
-		}
-
-		if s.decoder.Event().Type == "" {
-			ep := gjson.GetBytes(s.decoder.Event().Data, "error")
-			if ep.Exists() {
-				s.err = fmt.Errorf("received error while streaming: %s", ep.String())
-				return false
-			}
-			s.err = json.Unmarshal(s.decoder.Event().Data, &s.cur)
-			return s.err == nil
-		} else {
-			ep := gjson.GetBytes(s.decoder.Event().Data, "error")
-			if ep.Exists() {
-				s.err = fmt.Errorf("received error while streaming: %s", ep.String())
-				return false
-			}
-			s.err = json.Unmarshal([]byte(fmt.Sprintf(`{ "event": %q, "data": %s }`, s.decoder.Event().Type, s.decoder.Event().Data)), &s.cur)
-			return s.err == nil
-		}
-	}
-
-	return false
-}
-
-func (s *BaseStream[T]) Current() T {
-	return s.cur
-}
-
-func (s *BaseStream[T]) Err() error {
-	return s.err
-}
-
-func (s *BaseStream[T]) Close() error {
-	return s.decoder.Close()
+func (h *AnthropicStreamHandler[T]) ShouldContinue(event Event) bool {
+    if event.Type == "ping" {
+        return true
+    }
+    return event.Type != "error"
 }
 
 func NewAnthropicStream[T any](decoder Decoder, err error) common.Streamer[T] {
-	return &AnthropicStream[T]{
-		BaseStream: BaseStream[T]{
-			decoder: decoder,
-			err:     err,
-		},
-	}
-}
-
-func (s *AnthropicStream[T]) Next() bool {
-	if s.err != nil {
-		return false
-	}
-
-	for s.decoder.Next() {
-		switch s.decoder.Event().Type {
-		case "completion":
-			s.err = json.Unmarshal(s.decoder.Event().Data, &s.cur)
-			if s.err != nil {
-				return false
-			}
-			return true
-		case "message_start",
-			"message_delta",
-			"message_stop",
-			"content_block_start",
-			"content_block_delta",
-			"content_block_stop":
-			s.err = json.Unmarshal(s.decoder.Event().Data, &s.cur)
-			if s.err != nil {
-				return false
-			}
-			return true
-		case "ping":
-			continue
-		case "error":
-			s.err = fmt.Errorf("received error while streaming: %s", string(s.decoder.Event().Data))
-			return false
-		}
-	}
-
-	return false
+    if err != nil {
+        return NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
+    }
+    return NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
 }
