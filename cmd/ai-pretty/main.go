@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/invopop/jsonschema"
+	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
@@ -56,6 +57,7 @@ func main() {
 	// const model = "gpt-4o"
 	requestOpts := []requestoption.RequestOption{
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
+		requestoption.WithMiddleware(middleware.TimeitMiddleware()),
 	}
 	modelInfoProvider, _ := llmclient.NewModelInfoProvider("")
 	provider, _ := llmclient.NewProviderByModel(model, modelInfoProvider, requestOpts...)

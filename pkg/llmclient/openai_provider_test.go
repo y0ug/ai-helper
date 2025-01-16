@@ -13,12 +13,12 @@ import (
 func TestFromLLMMessageToOpenAi(t *testing.T) {
 	tests := []struct {
 		name     string
-		messages []common.ChatMessageParams
-		want     []openai.ChatCompletionMessageParam
+		messages []*common.ChatMessageParams
+		want     []*openai.ChatCompletionMessageParam
 	}{
 		{
 			name: "basic text message",
-			messages: []common.ChatMessageParams{
+			messages: []*common.ChatMessageParams{
 				{
 					Role: "user",
 					Content: []*common.AIContent{
@@ -26,7 +26,7 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 					},
 				},
 			},
-			want: []openai.ChatCompletionMessageParam{
+			want: []*openai.ChatCompletionMessageParam{
 				{
 					Role:    "user",
 					Content: "Hello",
@@ -35,7 +35,7 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 		},
 		{
 			name: "tool result message",
-			messages: []common.ChatMessageParams{
+			messages: []*common.ChatMessageParams{
 				{
 					Role: "tool",
 					Content: []*common.AIContent{
@@ -47,7 +47,7 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 					},
 				},
 			},
-			want: []openai.ChatCompletionMessageParam{
+			want: []*openai.ChatCompletionMessageParam{
 				{
 					Role:       "tool",
 					Content:    "Result",
@@ -76,7 +76,7 @@ func TestOpenAIProvider_Send(t *testing.T) {
 		Model:       "gpt-3.5-turbo",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []common.ChatMessageParams{
+		Messages: []*common.ChatMessageParams{
 			{
 				Role: "user",
 				Content: []*common.AIContent{

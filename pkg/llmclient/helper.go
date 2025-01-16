@@ -3,12 +3,7 @@ package llmclient
 import (
 	"context"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/deepseek"
-	"github.com/y0ug/ai-helper/pkg/llmclient/gemini"
-	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
@@ -94,66 +89,6 @@ func NewChatParams(
 		opt(params)
 	}
 	return params
-}
-
-func NewDeepSeekProvider(opts ...requestoption.RequestOption) common.LLMProvider {
-	return &DeepseekProvider{
-		client: deepseek.NewClient(opts...),
-	}
-}
-
-func NewAnthropicProvider(opts ...requestoption.RequestOption) common.LLMProvider {
-	return &AnthropicProvider{
-		client: anthropic.NewClient(opts...),
-	}
-}
-
-func NewOpenAIProvider(opts ...requestoption.RequestOption) common.LLMProvider {
-	return &OpenAIProvider{
-		client: openai.NewClient(opts...),
-	}
-}
-
-func NewOpenRouterProvider(opts ...requestoption.RequestOption) common.LLMProvider {
-	return &GeminiProvider{
-		&OpenAIProvider{
-			client: gemini.NewClient(opts...).Client,
-		},
-	}
-}
-
-func NewGeminiProvider(opts ...requestoption.RequestOption) common.LLMProvider {
-	return &GeminiProvider{
-		&OpenAIProvider{
-			client: gemini.NewClient().Client,
-		},
-	}
-}
-
-func NewProviderByModel(
-	modelName string,
-	infoProvider ModelInfoProvider,
-	requestOpts ...requestoption.RequestOption,
-) (common.LLMProvider, *Model) {
-	model, err := ParseModel(modelName, infoProvider)
-	if err != nil {
-		return nil, nil
-	}
-
-	switch model.Provider {
-	case "anthropic":
-		return NewAnthropicProvider(requestOpts...), model
-	case "openrouter":
-		return NewOpenRouterProvider(requestOpts...), model
-	case "openai":
-		return NewOpenAIProvider(requestOpts...), model
-	case "gemini":
-		return NewGeminiProvider(requestOpts...), model
-	case "deepseek":
-		return NewDeepSeekProvider(requestOpts...), model
-	default:
-		return nil, model
-	}
 }
 
 func ConsumeStream(

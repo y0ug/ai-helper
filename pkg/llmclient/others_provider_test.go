@@ -14,7 +14,7 @@ import (
 
 func TestOtherProvider_Send(t *testing.T) {
 	test := []struct {
-		Provider common.LLMProvider
+		Provider LLMProvider
 		Model    string
 	}{
 		{
@@ -48,7 +48,7 @@ func TestOtherProvider_Send(t *testing.T) {
 				Model:       v.Model,
 				MaxTokens:   100,
 				Temperature: 0.7,
-				Messages: []common.ChatMessageParams{
+				Messages: []*common.ChatMessageParams{
 					{
 						Role: "user",
 						Content: []*common.AIContent{

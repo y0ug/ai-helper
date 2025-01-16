@@ -2,12 +2,10 @@ package openai
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/y0ug/ai-helper/pkg/llmclient/middleware"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
 )
 
 func skipIfNoAPIKey(t *testing.T) {
@@ -20,7 +18,6 @@ func TestClientStreamIntegration(t *testing.T) {
 	skipIfNoAPIKey(t)
 
 	client := NewClient()
-	// requestoption.WithMiddleware(middleware.LoggingMiddleware()))
 	ctx := context.Background()
 
 	t.Run("ChatCompletion", func(t *testing.T) {
@@ -34,25 +31,32 @@ func TestClientStreamIntegration(t *testing.T) {
 			},
 			Temperature: 0,
 		}
-		stream := client.Chat.NewStreaming(ctx, params)
-		for stream.Next() {
-			// evt := stream.Current()
-			// switch evt := evt.(type) {
-			// case ChatCompletionChunk:
-			// 	if len(evt.Choices) == 0 {
-			// 		continue
-			// 	}
-			// 	print(fmt.Sprintf("%s", evt.Choices[0].Delta.Content))
-			// }
+		stream, err := client.Chat.NewStreaming(ctx, params)
+		if err != nil {
+			t.Fatalf("Failed to create chat completion stream: %v", err)
 		}
+		cc := ChatCompletion{}
+		for stream.Next() {
+			evt := stream.Current()
+			cc.Accumulate(evt)
+		}
+
+		if stream.Err() != nil {
+			t.Fatalf("Stream error: %v", stream.Err())
+		}
+
+		if len(cc.Choices) == 0 {
+			t.Fatal("Expected at least one choice in response")
+		}
+
+		fmt.Printf("Chat completion: %v\n", cc.Choices[0].Message.Content)
 	})
 }
 
 func TestClientIntegration(t *testing.T) {
 	skipIfNoAPIKey(t)
 
-	client := NewClient(
-		requestoption.WithMiddleware(middleware.LoggingMiddleware()))
+	client := NewClient()
 	ctx := context.Background()
 
 	t.Run("ChatCompletion", func(t *testing.T) {

@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/middleware"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
 )
 
 func skipIfNoAPIKey(t *testing.T) {
@@ -21,7 +19,6 @@ func TestClientStreamIntegration(t *testing.T) {
 	skipIfNoAPIKey(t)
 
 	client := NewClient()
-	// requestoption.WithMiddleware(middleware.LoggingMiddleware()))
 	ctx := context.Background()
 
 	t.Run("ChatCompletion", func(t *testing.T) {
@@ -38,9 +35,14 @@ func TestClientStreamIntegration(t *testing.T) {
 			},
 			Temperature: 0,
 		}
-		stream := client.Message.NewStreaming(ctx, params)
+		stream, err := client.Message.NewStreaming(ctx, params)
+		if err != nil {
+			t.Fatalf("Failed to create chat completion stream: %v", err)
+		}
 		message := Message{}
 		for stream.Next() {
+			evt := stream.Current()
+			message.Accumulate(evt)
 			// evt := stream.Current()
 			// switch evt := evt.(type) {
 			// case *MessageStreamEvent:
@@ -74,8 +76,7 @@ func TestClientStreamIntegration(t *testing.T) {
 func TestClientIntegration(t *testing.T) {
 	skipIfNoAPIKey(t)
 
-	client := NewClient(
-		requestoption.WithMiddleware(middleware.LoggingMiddleware()))
+	client := NewClient()
 	ctx := context.Background()
 
 	t.Run("ChatCompletion", func(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httputil"
-	"time"
 )
 
 // LoggingMiddleware creates a middleware that logs request and response details
@@ -20,17 +19,11 @@ func LoggingMiddleware() func(*http.Request, func(*http.Request) (*http.Response
 			fmt.Printf("Request:\n%s\n", string(reqDump))
 		}
 
-		start := time.Now()
-
 		// Call the next middleware/handler
 		resp, err := next(req)
 		if err != nil {
 			return resp, err
 		}
-
-		end := time.Now()
-
-		fmt.Printf("Request took %v\n", end.Sub(start))
 
 		// Log response
 		if resp != nil {
