@@ -8,6 +8,6 @@ type StreamEvent struct {
 }
 
 // ProviderEventHandler handles provider-specific event processing
-type ProviderEventHandler interface {
-	ProcessEvent(data []byte) StreamEvent
+type ProviderEventHandler[T any] interface {
+	ProcessEvent(data T) StreamEvent
 }

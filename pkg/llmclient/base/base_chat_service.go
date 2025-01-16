@@ -70,7 +70,7 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 	if err != nil {
 		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
-	return ssestream.NewBaseStream(
+	return ssestream.NewStream(
 		ssestream.NewDecoder(raw),
 		ssestream.NewDefaultStreamHandler[Chunk](),
 	), nil

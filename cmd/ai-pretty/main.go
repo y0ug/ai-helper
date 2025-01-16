@@ -52,8 +52,8 @@ func GetWeather(location string) string {
 }
 
 func main() {
-	// const model = "claude-3-5-sonnet-20241022"
-	const model = "gpt-4o"
+	const model = "claude-3-5-sonnet-20241022"
+	// const model = "gpt-4o"
 	requestOpts := []requestoption.RequestOption{
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
@@ -69,8 +69,8 @@ func main() {
 			llmclient.NewUserMessage(
 
 				// Can you write an Hello World in C?
-				// "What the weather at Paris ?",
-				"Write a 500 word essai about Golang and put a some code block in the middle",
+				"What the weather at Paris ?",
+				// "Write a 500 word essai about Golang and put a some code block in the middle",
 			),
 		),
 		llmclient.WithTools(common.Tool{

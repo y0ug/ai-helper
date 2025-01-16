@@ -54,7 +54,7 @@ func (svc *MessageService) NewStreaming(
 	if err != nil {
 		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
-	return ssestream.NewBaseStream(
+	return ssestream.NewStream(
 		ssestream.NewDecoder(raw),
 		NewAnthropicStreamHandler[MessageStreamEvent](),
 	), nil

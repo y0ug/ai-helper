@@ -91,12 +91,9 @@ func NewAnthropicEventHandler() *AnthropicEventHandler {
 	return &AnthropicEventHandler{}
 }
 
-func (h *AnthropicEventHandler) ProcessEvent(data []byte) common.StreamEvent {
-	var event anthropic.MessageStreamEvent
-	if err := json.Unmarshal(data, &event); err != nil {
-		return common.StreamEvent{Type: "error", Delta: err}
-	}
-
+func (h *AnthropicEventHandler) ProcessEvent(
+	event anthropic.MessageStreamEvent,
+) common.StreamEvent {
 	h.message.Accumulate(event)
 	evt := common.StreamEvent{Type: event.Type}
 

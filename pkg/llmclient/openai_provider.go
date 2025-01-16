@@ -170,12 +170,7 @@ func NewOpenAIEventHandler() *OpenAIEventHandler {
 	return &OpenAIEventHandler{}
 }
 
-func (h *OpenAIEventHandler) ProcessEvent(data []byte) common.StreamEvent {
-	var chunk openai.ChatCompletionChunk
-	if err := json.Unmarshal(data, &chunk); err != nil {
-		return common.StreamEvent{Type: "error", Delta: err}
-	}
-
+func (h *OpenAIEventHandler) ProcessEvent(chunk openai.ChatCompletionChunk) common.StreamEvent {
 	h.completion.Accumulate(chunk)
 	evt := common.StreamEvent{Message: OpenaiChatCompletionToChatMessage(&h.completion)}
 

@@ -1,19 +1,15 @@
 package common
 
-import (
-	"encoding/json"
-)
-
 type WrapperStream[T any] struct {
 	original Streamer[T]
-	handler  ProviderEventHandler
+	handler  ProviderEventHandler[T]
 	current  StreamEvent
 	err      error
 }
 
 func NewWrapperStream[T any](
 	original Streamer[T],
-	handler ProviderEventHandler,
+	handler ProviderEventHandler[T],
 ) Streamer[StreamEvent] {
 	return &WrapperStream[T]{
 		original: original,
@@ -28,13 +24,13 @@ func (w *WrapperStream[T]) Next() bool {
 
 	if w.original.Next() {
 		event := w.original.Current()
-		data, err := json.Marshal(event)
-		if err != nil {
-			w.err = err
-			return false
-		}
+		// data, err := json.Marshal(event)
+		// if err != nil {
+		// 	w.err = err
+		// 	return false
+		// }
 
-		w.current = w.handler.ProcessEvent(data)
+		w.current = w.handler.ProcessEvent(event)
 		return true
 	}
 

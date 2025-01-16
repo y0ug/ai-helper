@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/ssestream"
 )
 
@@ -44,11 +43,4 @@ func (h *AnthropicStreamHandler[T]) ShouldContinue(event ssestream.Event) bool {
 		return true
 	}
 	return event.Type != "error"
-}
-
-func NewAnthropicStream[T any](decoder ssestream.Decoder, err error) common.Streamer[T] {
-	if err != nil {
-		return ssestream.NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
-	}
-	return ssestream.NewBaseStream[T](decoder, &AnthropicStreamHandler[T]{})
 }

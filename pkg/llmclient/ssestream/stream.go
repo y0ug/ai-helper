@@ -1,29 +1,29 @@
 package ssestream
 
-// BaseStreamHandler defines the interface for provider-specific stream handling
-type BaseStreamHandler[T any] interface {
+// StreamHandler defines the interface for provider-specific stream handling
+type StreamHandler[T any] interface {
 	HandleEvent(event Event) (T, error)
 	ShouldContinue(event Event) bool
 }
 
-// BaseStream provides core streaming functionality that can be reused across providers
-type BaseStream[T any] struct {
+// Stream provides core streaming functionality that can be reused across providers
+type Stream[T any] struct {
 	decoder Decoder
-	handler BaseStreamHandler[T]
+	handler StreamHandler[T]
 	current T
 	err     error
 	done    bool
 }
 
-func NewBaseStream[T any](decoder Decoder, handler BaseStreamHandler[T]) *BaseStream[T] {
-	return &BaseStream[T]{
+func NewStream[T any](decoder Decoder, handler StreamHandler[T]) *Stream[T] {
+	return &Stream[T]{
 		decoder: decoder,
 		handler: handler,
 		done:    false,
 	}
 }
 
-func (s *BaseStream[T]) Next() bool {
+func (s *Stream[T]) Next() bool {
 	if s.err != nil || s.done {
 		return false
 	}
@@ -50,14 +50,14 @@ func (s *BaseStream[T]) Next() bool {
 	return false
 }
 
-func (s *BaseStream[T]) Current() T {
+func (s *Stream[T]) Current() T {
 	return s.current
 }
 
-func (s *BaseStream[T]) Err() error {
+func (s *Stream[T]) Err() error {
 	return s.err
 }
 
-func (s *BaseStream[T]) Close() error {
+func (s *Stream[T]) Close() error {
 	return s.decoder.Close()
 }
