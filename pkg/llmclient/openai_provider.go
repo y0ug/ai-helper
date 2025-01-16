@@ -78,7 +78,7 @@ func (a *OpenAIProvider) Stream(
 	if err != nil {
 		return nil, err
 	}
-	return common.NewWrapperStream[openai.ChatCompletionChunk](
+	return common.NewProviderEventStream[openai.ChatCompletionChunk](
 		stream,
 		NewOpenAIEventHandler(),
 	), nil

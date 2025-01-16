@@ -50,7 +50,7 @@ func (a *AnthropicProvider) Stream(
 	if err != nil {
 		return nil, err
 	}
-	return common.NewWrapperStream[anthropic.MessageStreamEvent](
+	return common.NewProviderEventStream[anthropic.MessageStreamEvent](
 		stream,
 		NewAnthropicEventHandler(),
 	), nil
