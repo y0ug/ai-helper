@@ -9,48 +9,49 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/gemini"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
 	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
 // WithModel sets the model for BaseChatMessageNewParams
-func WithModel(model string) func(*common.BaseChatMessageNewParams) {
-	return func(p *common.BaseChatMessageNewParams) {
+func WithModel(model string) func(*common.ChatMessageNewParams) {
+	return func(p *common.ChatMessageNewParams) {
 		p.Model = model
 	}
 }
 
 // WithMaxTokens sets the max tokens for BaseChatMessageNewParams
-func WithMaxTokens(tokens int) func(*common.BaseChatMessageNewParams) {
-	return func(p *common.BaseChatMessageNewParams) {
+func WithMaxTokens(tokens int) func(*common.ChatMessageNewParams) {
+	return func(p *common.ChatMessageNewParams) {
 		p.MaxTokens = tokens
 	}
 }
 
 // WithTemperature sets the temperature for BaseChatMessageNewParams
-func WithTemperature(temp float64) func(*common.BaseChatMessageNewParams) {
-	return func(p *common.BaseChatMessageNewParams) {
+func WithTemperature(temp float64) func(*common.ChatMessageNewParams) {
+	return func(p *common.ChatMessageNewParams) {
 		p.Temperature = temp
 	}
 }
 
 // WithMessages sets the messages for BaseChatMessageNewParams
 func WithMessages(
-	messages ...*common.BaseChatMessageParams,
-) func(*common.BaseChatMessageNewParams) {
-	return func(p *common.BaseChatMessageNewParams) {
+	messages ...*common.ChatMessageParams,
+) func(*common.ChatMessageNewParams) {
+	return func(p *common.ChatMessageNewParams) {
 		p.Messages = messages
 	}
 }
 
 // WithTools sets the tools/functions for BaseChatMessageNewParams
-func WithTools(tools ...common.Tool) func(*common.BaseChatMessageNewParams) {
-	return func(p *common.BaseChatMessageNewParams) {
+func WithTools(tools ...common.Tool) func(*common.ChatMessageNewParams) {
+	return func(p *common.ChatMessageNewParams) {
 		p.Tools = tools
 	}
 }
 
 // NewUserMessage creates a new user message
-func NewUserMessage(text string) *common.BaseChatMessageParams {
-	return &common.BaseChatMessageParams{
+func NewUserMessage(text string) *common.ChatMessageParams {
+	return &common.ChatMessageParams{
 		Role: "user",
 		Content: []*common.AIContent{
 			common.NewTextContent(
@@ -60,16 +61,16 @@ func NewUserMessage(text string) *common.BaseChatMessageParams {
 	}
 }
 
-func NewUserMessageContent(content ...*common.AIContent) *common.BaseChatMessageParams {
-	return &common.BaseChatMessageParams{
+func NewUserMessageContent(content ...*common.AIContent) *common.ChatMessageParams {
+	return &common.ChatMessageParams{
 		Role:    "user",
 		Content: content,
 	}
 }
 
 // NewSystemMessage creates a new system message
-func NewSystemMessage(text string) *common.BaseChatMessageParams {
-	return &common.BaseChatMessageParams{
+func NewSystemMessage(text string) *common.ChatMessageParams {
+	return &common.ChatMessageParams{
 		Role: "system",
 		Content: []*common.AIContent{
 			common.NewTextContent(
@@ -80,15 +81,15 @@ func NewSystemMessage(text string) *common.BaseChatMessageParams {
 }
 
 // NewMessagesParams creates a new slice of message parameters
-func NewMessagesParams(msg ...*common.BaseChatMessageParams) []*common.BaseChatMessageParams {
+func NewMessagesParams(msg ...*common.ChatMessageParams) []*common.ChatMessageParams {
 	return msg
 }
 
 // NewChatParams creates a new BaseChatMessageNewParams with the given options
 func NewChatParams(
-	opts ...func(*common.BaseChatMessageNewParams),
-) *common.BaseChatMessageNewParams {
-	params := &common.BaseChatMessageNewParams{}
+	opts ...func(*common.ChatMessageNewParams),
+) *common.ChatMessageNewParams {
+	params := &common.ChatMessageNewParams{}
 	for _, opt := range opts {
 		opt(params)
 	}
@@ -157,8 +158,8 @@ func NewProviderByModel(
 
 func ConsumeStream(
 	ctx context.Context,
-	stream common.Streamer[common.StreamEvent],
-	ch chan<- common.StreamEvent,
+	stream stream.Streamer[common.EventStream],
+	ch chan<- common.EventStream,
 ) error {
 	defer close(ch)
 

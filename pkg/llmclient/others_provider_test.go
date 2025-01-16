@@ -44,11 +44,11 @@ func TestOtherProvider_Send(t *testing.T) {
 	for _, v := range test {
 		t.Run(fmt.Sprintf("Provider %T", v.Provider), func(t *testing.T) {
 			ctx := context.Background()
-			params := common.BaseChatMessageNewParams{
+			params := common.ChatMessageNewParams{
 				Model:       v.Model,
 				MaxTokens:   100,
 				Temperature: 0.7,
-				Messages: []common.BaseChatMessageParams{
+				Messages: []common.ChatMessageParams{
 					{
 						Role: "user",
 						Content: []*common.AIContent{

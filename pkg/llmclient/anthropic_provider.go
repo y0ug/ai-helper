@@ -6,32 +6,33 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
+	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
 type AnthropicProvider struct {
 	client *anthropic.Client
 }
 
-func AnthropicMessageToChatMessage(am *anthropic.Message) *common.BaseChatMessage {
-	cm := &common.BaseChatMessage{}
+func AnthropicMessageToChatMessage(am *anthropic.Message) *common.ChatMessage {
+	cm := &common.ChatMessage{}
 	cm.ID = am.ID
 	cm.Model = am.Model
-	cm.Usage = &common.BaseChatMessageUsage{}
+	cm.Usage = &common.ChatMessageUsage{}
 	cm.Usage.InputTokens = am.Usage.InputTokens
 	cm.Usage.OutputTokens = am.Usage.OutputTokens
 
-	c := common.BaseChatMessageChoice{}
+	c := common.ChatMessageChoice{}
 	c.Content = append(c.Content, am.Content...)
 	c.Role = am.Role
-	c.FinishReason = am.StopReason
+	c.StopReason = am.StopReason
 	cm.Choice = append(cm.Choice, c)
 	return cm
 }
 
 func (a *AnthropicProvider) Send(
 	ctx context.Context,
-	params common.BaseChatMessageNewParams,
-) (*common.BaseChatMessage, error) {
+	params common.ChatMessageNewParams,
+) (*common.ChatMessage, error) {
 	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
 	am, err := a.client.Message.New(ctx, paramsProvider)
 	if err != nil {
@@ -43,8 +44,8 @@ func (a *AnthropicProvider) Send(
 
 func (a *AnthropicProvider) Stream(
 	ctx context.Context,
-	params common.BaseChatMessageNewParams,
-) (common.Streamer[common.StreamEvent], error) {
+	params common.ChatMessageNewParams,
+) (stream.Streamer[common.EventStream], error) {
 	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
 	stream, err := a.client.Message.NewStreaming(ctx, paramsProvider)
 	if err != nil {
@@ -57,7 +58,7 @@ func (a *AnthropicProvider) Stream(
 }
 
 func BaseChatMessageNewParamsToAnthropic(
-	params common.BaseChatMessageNewParams,
+	params common.ChatMessageNewParams,
 ) anthropic.MessageNewParams {
 	systemPromt := ""
 	msgs := make([]anthropic.MessageParam, 0)
@@ -91,17 +92,21 @@ func NewAnthropicEventHandler() *AnthropicEventHandler {
 	return &AnthropicEventHandler{}
 }
 
-func (h *AnthropicEventHandler) ProcessEvent(
+func (h *AnthropicEventHandler) ShouldContinue(event anthropic.MessageStreamEvent) bool {
+	return true // event.Type != "message_stop"
+}
+
+func (h *AnthropicEventHandler) HandleEvent(
 	event anthropic.MessageStreamEvent,
-) common.StreamEvent {
+) (common.EventStream, error) {
 	h.message.Accumulate(event)
-	evt := common.StreamEvent{Type: event.Type}
+	evt := common.EventStream{Type: event.Type}
 
 	switch event.Type {
 	case "content_block_delta":
 		var delta common.AIContent
 		if err := json.Unmarshal(event.Delta, &delta); err != nil {
-			return evt
+			return evt, nil
 		}
 		if delta.Type == "text_delta" {
 			evt.Type = "text_delta"
@@ -110,5 +115,5 @@ func (h *AnthropicEventHandler) ProcessEvent(
 	case "message_stop":
 		evt.Message = AnthropicMessageToChatMessage(&h.message)
 	}
-	return evt
+	return evt, nil
 }

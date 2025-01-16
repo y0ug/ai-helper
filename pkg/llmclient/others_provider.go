@@ -6,6 +6,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/deepseek"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
+	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
 type OpenRouterProvider struct {
@@ -22,8 +23,8 @@ type DeepseekProvider struct {
 
 func (a *DeepseekProvider) Send(
 	ctx context.Context,
-	params common.BaseChatMessageNewParams,
-) (*common.BaseChatMessage, error) {
+	params common.ChatMessageNewParams,
+) (*common.ChatMessage, error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	resp, err := a.client.Chat.New(ctx, paramsProvider)
@@ -31,15 +32,15 @@ func (a *DeepseekProvider) Send(
 		return nil, err
 	}
 
-	ret := &common.BaseChatMessage{}
+	ret := &common.ChatMessage{}
 	ret.ID = resp.ID
 	ret.Model = resp.Model
-	ret.Usage = &common.BaseChatMessageUsage{}
+	ret.Usage = &common.ChatMessageUsage{}
 	ret.Usage.InputTokens = resp.Usage.PromptTokens
 	ret.Usage.OutputTokens = resp.Usage.CompletionTokens
 	if len(resp.Choices) > 0 {
 		for _, choice := range resp.Choices {
-			c := common.BaseChatMessageChoice{}
+			c := common.ChatMessageChoice{}
 			for _, call := range choice.Message.ToolCalls {
 				c.Content = append(
 					c.Content,
@@ -53,7 +54,7 @@ func (a *DeepseekProvider) Send(
 
 			// Role is not choice is our model
 			c.Role = choice.Message.Role
-			c.FinishReason = choice.FinishReason
+			c.StopReason = OpenaAIFinishReasonToStopReason(choice.FinishReason)
 
 			ret.Choice = append(ret.Choice, c)
 		}
@@ -63,13 +64,16 @@ func (a *DeepseekProvider) Send(
 
 func (a *DeepseekProvider) Stream(
 	ctx context.Context,
-	params common.BaseChatMessageNewParams,
-) (common.Streamer[common.StreamEvent], error) {
+	params common.ChatMessageNewParams,
+) (stream.Streamer[common.EventStream], error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	stream, err := a.client.Chat.NewStreaming(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
 	}
-	return common.NewWrapperStream[openai.ChatCompletionChunk](stream, NewOpenAIEventHandler()), nil
+	return common.NewProviderEventStream[openai.ChatCompletionChunk](
+		stream,
+		NewOpenAIEventHandler(),
+	), nil
 }

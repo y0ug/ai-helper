@@ -11,6 +11,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/ssestream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
 // ChatCompletionService implements llmclient.ChatService using OpenAI's types.
@@ -34,7 +35,7 @@ func (svc *MessageService) NewStreaming(
 	ctx context.Context,
 	params MessageNewParams,
 	opts ...requestoption.RequestOption,
-) (common.Streamer[MessageStreamEvent], error) {
+) (stream.Streamer[MessageStreamEvent], error) {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
 		[]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)},
@@ -54,7 +55,7 @@ func (svc *MessageService) NewStreaming(
 	if err != nil {
 		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
-	return ssestream.NewStream(
+	return stream.NewStream(
 		ssestream.NewDecoder(raw),
 		NewAnthropicStreamHandler[MessageStreamEvent](),
 	), nil

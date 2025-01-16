@@ -17,11 +17,11 @@ func TestAnthropicProvider_Send(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	params := common.BaseChatMessageNewParams{
+	params := common.ChatMessageNewParams{
 		Model:       "claude-3-opus-20240229",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []common.BaseChatMessageParams{
+		Messages: []common.ChatMessageParams{
 			{
 				Role: "system",
 				Content: []*common.AIContent{

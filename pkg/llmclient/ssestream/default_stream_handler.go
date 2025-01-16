@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// DefaultStreamHandler implements BaseStreamHandler for OpenAI's streaming responses
+// DefaultStreamHandler implements StreamHandler for basic streaming responses
 type DefaultStreamHandler[T any] struct{}
 
 func NewDefaultStreamHandler[T any]() *DefaultStreamHandler[T] {

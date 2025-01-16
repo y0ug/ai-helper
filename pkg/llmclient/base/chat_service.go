@@ -5,6 +5,7 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
 type ChatService interface {
@@ -14,5 +15,5 @@ type ChatService interface {
 		ctx context.Context,
 		params any,
 		opts ...requestoption.RequestOption,
-	) common.Streamer[common.LLMProvider]
+	) stream.Streamer[common.LLMProvider]
 }

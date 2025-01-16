@@ -94,9 +94,9 @@ func main() {
 func HandleLLMConversation(
 	ctx context.Context,
 	provider common.LLMProvider,
-	params common.BaseChatMessageNewParams,
-) (*common.BaseChatMessage, error) {
-	var msg *common.BaseChatMessage
+	params common.ChatMessageNewParams,
+) (*common.ChatMessage, error) {
+	var msg *common.ChatMessage
 	for {
 
 		stream, err := provider.Stream(ctx, params)
@@ -105,7 +105,7 @@ func HandleLLMConversation(
 			return nil, err
 		}
 
-		eventCh := make(chan common.StreamEvent)
+		eventCh := make(chan common.EventStream)
 
 		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
 		go func() {
@@ -181,9 +181,9 @@ func HandleLLMConversation(
 func processStream(
 	ctx context.Context,
 	w io.Writer,
-	ch <-chan common.StreamEvent,
-) (*common.BaseChatMessage, error) {
-	var cm *common.BaseChatMessage
+	ch <-chan common.EventStream,
+) (*common.ChatMessage, error) {
+	var cm *common.ChatMessage
 	for {
 		select {
 		case <-ctx.Done():

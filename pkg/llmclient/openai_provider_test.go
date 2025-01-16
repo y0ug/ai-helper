@@ -13,12 +13,12 @@ import (
 func TestFromLLMMessageToOpenAi(t *testing.T) {
 	tests := []struct {
 		name     string
-		messages []common.BaseChatMessageParams
+		messages []common.ChatMessageParams
 		want     []openai.ChatCompletionMessageParam
 	}{
 		{
 			name: "basic text message",
-			messages: []common.BaseChatMessageParams{
+			messages: []common.ChatMessageParams{
 				{
 					Role: "user",
 					Content: []*common.AIContent{
@@ -35,7 +35,7 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 		},
 		{
 			name: "tool result message",
-			messages: []common.BaseChatMessageParams{
+			messages: []common.ChatMessageParams{
 				{
 					Role: "tool",
 					Content: []*common.AIContent{
@@ -72,11 +72,11 @@ func TestOpenAIProvider_Send(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	params := common.BaseChatMessageNewParams{
+	params := common.ChatMessageNewParams{
 		Model:       "gpt-3.5-turbo",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []common.BaseChatMessageParams{
+		Messages: []common.ChatMessageParams{
 			{
 				Role: "user",
 				Content: []*common.AIContent{

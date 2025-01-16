@@ -6,21 +6,36 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
+	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
 type OpenAIProvider struct {
 	client *openai.Client
 }
 
-func OpenaiChatCompletionToChatMessage(cc *openai.ChatCompletion) *common.BaseChatMessage {
-	cm := &common.BaseChatMessage{}
+func OpenaAIFinishReasonToStopReason(reason string) string {
+	match := map[string]string{
+		"stop":          "end_turn",
+		"length":        "max_tokens",
+		"stop_sequence": "stop_sequence", // Stop is same as stop_sequence we dont handle it
+		"tool_calls":    "tool_use",
+	}
+	if r, ok := match[reason]; ok {
+		return r
+	} else {
+		return reason
+	}
+}
+
+func OpenaiChatCompletionToChatMessage(cc *openai.ChatCompletion) *common.ChatMessage {
+	cm := &common.ChatMessage{}
 	cm.ID = cc.ID
 	cm.Model = cc.Model
-	cm.Usage = &common.BaseChatMessageUsage{}
+	cm.Usage = &common.ChatMessageUsage{}
 	cm.Usage.InputTokens = cc.Usage.PromptTokens
 	cm.Usage.OutputTokens = cc.Usage.CompletionTokens
 	for _, choice := range cc.Choices {
-		c := common.BaseChatMessageChoice{}
+		c := common.ChatMessageChoice{}
 		for _, call := range choice.Message.ToolCalls {
 			c.Content = append(
 				c.Content,
@@ -34,15 +49,21 @@ func OpenaiChatCompletionToChatMessage(cc *openai.ChatCompletion) *common.BaseCh
 
 		// Role is not choice is our model
 		c.Role = choice.Message.Role
-		c.FinishReason = choice.FinishReason
 
+		// The reason the model stopped generating tokens. This will be `stop` if the model
+		// hit a natural stop point or a provided stop sequence, `length` if the maximum
+		// number of tokens specified in the request was reached, `content_filter` if
+		// content was omitted due to a flag from our content filters, `tool_calls` if the
+		// model called a tool, or `function_call` (deprecated) if the model called a
+		// function.
+		c.StopReason = OpenaAIFinishReasonToStopReason(choice.FinishReason)
 		cm.Choice = append(cm.Choice, c)
 	}
 	return cm
 }
 
 func BaseChatMessageNewParamsToOpenAI(
-	params common.BaseChatMessageNewParams,
+	params common.ChatMessageNewParams,
 ) openai.ChatCompletionNewParams {
 	return openai.ChatCompletionNewParams{
 		Model:               params.Model,
@@ -56,8 +77,8 @@ func BaseChatMessageNewParamsToOpenAI(
 
 func (a *OpenAIProvider) Send(
 	ctx context.Context,
-	params common.BaseChatMessageNewParams,
-) (*common.BaseChatMessage, error) {
+	params common.ChatMessageNewParams,
+) (*common.ChatMessage, error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	resp, err := a.client.Chat.New(ctx, paramsProvider)
@@ -70,8 +91,8 @@ func (a *OpenAIProvider) Send(
 
 func (a *OpenAIProvider) Stream(
 	ctx context.Context,
-	params common.BaseChatMessageNewParams,
-) (common.Streamer[common.StreamEvent], error) {
+	params common.ChatMessageNewParams,
+) (stream.Streamer[common.EventStream], error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	stream, err := a.client.Chat.NewStreaming(ctx, paramsProvider)
@@ -134,7 +155,7 @@ func AIContentToolCallsToOpenAI(t ...*common.AIContent) []openai.ToolCall {
 }
 
 func FromLLMMessageToOpenAi(
-	m ...*common.BaseChatMessageParams,
+	m ...*common.ChatMessageParams,
 ) []openai.ChatCompletionMessageParam {
 	userMessages := make([]openai.ChatCompletionMessageParam, 0)
 	for _, msg := range m {
@@ -170,16 +191,23 @@ func NewOpenAIEventHandler() *OpenAIEventHandler {
 	return &OpenAIEventHandler{}
 }
 
-func (h *OpenAIEventHandler) ProcessEvent(chunk openai.ChatCompletionChunk) common.StreamEvent {
+func (h *OpenAIEventHandler) ShouldContinue(chunk openai.ChatCompletionChunk) bool {
+	return true
+	// return !(chunk.Usage.CompletionTokens != 0 || len(chunk.Choices) == 0)
+}
+
+func (h *OpenAIEventHandler) HandleEvent(
+	chunk openai.ChatCompletionChunk,
+) (common.EventStream, error) {
 	h.completion.Accumulate(chunk)
-	evt := common.StreamEvent{Message: OpenaiChatCompletionToChatMessage(&h.completion)}
+	evt := common.EventStream{Message: OpenaiChatCompletionToChatMessage(&h.completion)}
 
 	if chunk.Usage.CompletionTokens != 0 || len(chunk.Choices) == 0 {
 		evt.Type = "message_stop"
-		return evt
+		return evt, nil
 	}
 
 	evt.Type = "text_delta"
 	evt.Delta = chunk.Choices[0].Delta.Content
-	return evt
+	return evt, nil
 }

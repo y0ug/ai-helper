@@ -6,21 +6,16 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
-type Decoder interface {
-	Event() Event
-	Next() bool
-	Close() error
-	Err() error
-}
-
-func NewDecoder(res *http.Response) Decoder {
+func NewDecoder(res *http.Response) stream.Decoder[Event] {
 	if res == nil || res.Body == nil {
 		return nil
 	}
 
-	var decoder Decoder
+	var decoder stream.Decoder[Event]
 	contentType := res.Header.Get("content-type")
 	if t, ok := decoderTypes[contentType]; ok {
 		decoder = t(res.Body)
@@ -31,9 +26,9 @@ func NewDecoder(res *http.Response) Decoder {
 	return decoder
 }
 
-var decoderTypes = map[string](func(io.ReadCloser) Decoder){}
+var decoderTypes = map[string](func(io.ReadCloser) stream.Decoder[Event]){}
 
-func RegisterDecoder(contentType string, decoder func(io.ReadCloser) Decoder) {
+func RegisterDecoder(contentType string, decoder func(io.ReadCloser) stream.Decoder[Event]) {
 	decoderTypes[strings.ToLower(contentType)] = decoder
 }
 
@@ -97,7 +92,7 @@ func (s *eventStreamDecoder) Next() bool {
 	return false
 }
 
-func (s *eventStreamDecoder) Event() Event {
+func (s *eventStreamDecoder) Current() Event {
 	return s.evt
 }
 
