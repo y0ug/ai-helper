@@ -7,4 +7,5 @@
 - Created `BaseStreamHandler` interface to allow provider-specific stream handling
 - Refactored Anthropic streaming to use the new base implementation
 - Implemented OpenAI streaming using the base implementation
+- Updated BaseChatService to use the new streaming implementation
 - Next steps: Refactor remaining providers (Gemini, etc.) to use the same base implementation

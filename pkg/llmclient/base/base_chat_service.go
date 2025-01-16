@@ -67,7 +67,7 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 		combinedOpts...,
 	)
 	if err != nil {
-		return ssestream.NewBaseStream[Chunk](nil, err)
+		return ssestream.NewBaseStream[Chunk](nil, &ssestream.BaseStreamHandler[Chunk]{}, err)
 	}
-	return ssestream.NewBaseStream[Chunk](ssestream.NewDecoder(raw), nil)
+	return ssestream.NewBaseStream[Chunk](ssestream.NewDecoder(raw), &ssestream.BaseStreamHandler[Chunk]{}, nil)
 }
