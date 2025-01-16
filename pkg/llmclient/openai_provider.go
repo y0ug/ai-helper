@@ -75,7 +75,7 @@ func (a *OpenAIProvider) Stream(
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	stream := a.client.Chat.NewStreaming(ctx, paramsProvider)
-	return common.NewWrapperStream[openai.ChatCompletionChunk](stream, "openai")
+	return ssestream.NewOpenAIStream[openai.ChatCompletionChunk](stream, nil)
 }
 
 func FromLLMToolToOpenAI(tools ...common.Tool) []openai.Tool {
