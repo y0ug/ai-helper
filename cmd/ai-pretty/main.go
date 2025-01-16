@@ -82,13 +82,13 @@ func main() {
 	)
 	// choices := 3
 	// params.N = &choices
-	msg, err := HandleLLMConversation(ctx, provider, *params)
+	_, err := HandleLLMConversation(ctx, provider, *params)
 	if err != nil {
 		fmt.Println(err)
 	}
-	for _, choice := range msg.Choice {
-		fmt.Println(choice.Content[0])
-	}
+	// for _, choice := range msg.Choice {
+	// 	fmt.Println(choice.Content[0])
+	// }
 }
 
 func HandleLLMConversation(
@@ -97,10 +97,13 @@ func HandleLLMConversation(
 	params common.BaseChatMessageNewParams,
 ) (*common.BaseChatMessage, error) {
 	var msg *common.BaseChatMessage
-	var err error
 	for {
 
-		stream := provider.Stream(ctx, params)
+		stream, err := provider.Stream(ctx, params)
+		if err != nil {
+			log.Printf("Error streaming: %v", err)
+			return nil, err
+		}
 
 		eventCh := make(chan llmclient.StreamEvent)
 

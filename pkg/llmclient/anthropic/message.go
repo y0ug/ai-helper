@@ -34,7 +34,7 @@ func (svc *MessageService) NewStreaming(
 	ctx context.Context,
 	params MessageNewParams,
 	opts ...requestoption.RequestOption,
-) common.Streamer[MessageStreamEvent] {
+) (common.Streamer[MessageStreamEvent], error) {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
 		[]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)},
@@ -52,9 +52,12 @@ func (svc *MessageService) NewStreaming(
 		combinedOpts...,
 	)
 	if err != nil {
-		return ssestream.NewAnthropicStream[MessageStreamEvent](nil, err)
+		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
-	return ssestream.NewAnthropicStream[MessageStreamEvent](ssestream.NewDecoder(raw), nil)
+	return ssestream.NewBaseStream(
+		ssestream.NewDecoder(raw),
+		ssestream.NewAnthropicStreamHandler[MessageStreamEvent](),
+	), nil
 }
 
 type MessageParam struct {

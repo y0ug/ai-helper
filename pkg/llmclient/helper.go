@@ -242,7 +242,6 @@ func handleOpenAIEvent(cc *openai.ChatCompletion, chunk *openai.ChatCompletionCh
 	cc.Accumulate(*chunk)
 	svt := StreamEvent{}
 	svt.Message = OpenaiChatCompletionToChatMessage(cc)
-
 	// Deepseek return some choices so we check if we have some usage
 	if chunk.Usage.CompletionTokens != 0 {
 		svt.Type = "message_stop"

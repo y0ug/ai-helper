@@ -2,6 +2,7 @@ package base
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
@@ -44,7 +45,7 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 	ctx context.Context,
 	params Params,
 	opts ...requestoption.RequestOption,
-) common.Streamer[Chunk] {
+) (common.Streamer[Chunk], error) {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
 		[]requestoption.RequestOption{
@@ -67,10 +68,10 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 		combinedOpts...,
 	)
 	if err != nil {
-		return ssestream.NewBaseStream[Chunk](nil, ssestream.NewBaseHandler[Chunk]())
+		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
-	return ssestream.NewBaseStream[Chunk](
+	return ssestream.NewBaseStream(
 		ssestream.NewDecoder(raw),
-		ssestream.NewBaseHandler[Chunk](),
-	)
+		ssestream.NewOpenAIStreamHandler[Chunk](),
+	), nil
 }

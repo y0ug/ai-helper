@@ -43,11 +43,13 @@ func (a *AnthropicProvider) Send(
 func (a *AnthropicProvider) Stream(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
-) common.Streamer[common.LLMStreamEvent] {
+) (common.Streamer[common.LLMStreamEvent], error) {
 	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
-	stream := a.client.Message.NewStreaming(ctx, paramsProvider)
-
-	return common.NewWrapperStream[anthropic.MessageStreamEvent](stream, "anthropic")
+	stream, err := a.client.Message.NewStreaming(ctx, paramsProvider)
+	if err != nil {
+		return nil, err
+	}
+	return common.NewWrapperStream[anthropic.MessageStreamEvent](stream, "anthropic"), nil
 }
 
 func BaseChatMessageNewParamsToAnthropic(

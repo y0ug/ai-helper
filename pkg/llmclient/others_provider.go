@@ -64,9 +64,12 @@ func (a *DeepseekProvider) Send(
 func (a *DeepseekProvider) Stream(
 	ctx context.Context,
 	params common.BaseChatMessageNewParams,
-) common.Streamer[common.LLMStreamEvent] {
+) (common.Streamer[common.LLMStreamEvent], error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
-	stream := a.client.Chat.NewStreaming(ctx, paramsProvider)
-	return common.NewWrapperStream[openai.ChatCompletionChunk](stream, "openai")
+	stream, err := a.client.Chat.NewStreaming(ctx, paramsProvider)
+	if err != nil {
+		return nil, err
+	}
+	return common.NewWrapperStream[openai.ChatCompletionChunk](stream, "openai"), nil
 }
