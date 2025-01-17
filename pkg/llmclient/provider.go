@@ -1,6 +1,7 @@
 package llmclient
 
 import (
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/anthropic"
@@ -8,7 +9,6 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/gemini"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openai"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openrouter"
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 // New provider factory
@@ -16,13 +16,13 @@ func New(
 	modelName string,
 	infoProvider modelinfo.Provider,
 	requestOpts ...options.RequestOption,
-) (types.LLMProvider, *modelinfo.Model) {
+) (chat.Provider, *modelinfo.Model) {
 	model, err := modelinfo.Parse(modelName, infoProvider)
 	if err != nil {
 		return nil, nil
 	}
 
-	var provider types.LLMProvider
+	var provider chat.Provider
 	switch model.Provider {
 	case "anthropic":
 		provider = anthropic.New(requestOpts...)

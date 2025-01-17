@@ -1,9 +1,9 @@
 package anthropic
 
-import "github.com/y0ug/ai-helper/pkg/llmclient/types"
+import "github.com/y0ug/ai-helper/pkg/llmclient/chat"
 
 func BaseChatMessageNewParamsToAnthropic(
-	params types.ChatParams,
+	params chat.ChatParams,
 ) MessageNewParams {
 	systemPromt := ""
 	msgs := make([]MessageParam, 0)
@@ -28,15 +28,15 @@ func BaseChatMessageNewParamsToAnthropic(
 	return paramsProvider
 }
 
-func AnthropicMessageToChatMessage(am *Message) *types.ChatResponse {
-	cm := &types.ChatResponse{}
+func AnthropicMessageToChatMessage(am *Message) *chat.ChatResponse {
+	cm := &chat.ChatResponse{}
 	cm.ID = am.ID
 	cm.Model = am.Model
-	cm.Usage = &types.ChatUsage{}
+	cm.Usage = &chat.ChatUsage{}
 	cm.Usage.InputTokens = am.Usage.InputTokens
 	cm.Usage.OutputTokens = am.Usage.OutputTokens
 
-	c := types.ChatChoice{}
+	c := chat.ChatChoice{}
 	c.Content = append(c.Content, am.Content...)
 	c.Role = am.Role
 	c.StopReason = am.StopReason

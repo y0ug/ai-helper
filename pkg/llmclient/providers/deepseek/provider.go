@@ -3,17 +3,17 @@ package deepseek
 import (
 	"context"
 
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openai"
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 type Provider struct {
 	client *Client
 }
 
-func New(opts ...options.RequestOption) types.LLMProvider {
+func New(opts ...options.RequestOption) chat.Provider {
 	return &Provider{
 		client: NewClient(opts...),
 	}
@@ -21,8 +21,8 @@ func New(opts ...options.RequestOption) types.LLMProvider {
 
 func (a *Provider) Send(
 	ctx context.Context,
-	params types.ChatParams,
-) (*types.ChatResponse, error) {
+	params chat.ChatParams,
+) (*chat.ChatResponse, error) {
 	paramsProvider := openai.ToChatCompletionNewParams(params)
 
 	resp, err := a.client.Chat.New(ctx, paramsProvider)
@@ -30,15 +30,15 @@ func (a *Provider) Send(
 		return nil, err
 	}
 
-	ret := &types.ChatResponse{}
+	ret := &chat.ChatResponse{}
 	ret.ID = resp.ID
 	ret.Model = resp.Model
-	ret.Usage = &types.ChatUsage{}
+	ret.Usage = &chat.ChatUsage{}
 	ret.Usage.InputTokens = resp.Usage.PromptTokens
 	ret.Usage.OutputTokens = resp.Usage.CompletionTokens
 	if len(resp.Choices) > 0 {
 		for _, choice := range resp.Choices {
-			c := types.ChatChoice{}
+			c := chat.ChatChoice{}
 			for _, call := range choice.Message.ToolCalls {
 				c.Content = append(
 					c.Content,
@@ -47,7 +47,7 @@ func (a *Provider) Send(
 			}
 
 			if choice.Message.Content != "" {
-				c.Content = append(c.Content, types.NewTextContent(choice.Message.Content))
+				c.Content = append(c.Content, chat.NewTextContent(choice.Message.Content))
 			}
 
 			// Role is not choice is our model
@@ -62,15 +62,15 @@ func (a *Provider) Send(
 
 func (a *Provider) Stream(
 	ctx context.Context,
-	params types.ChatParams,
-) (streaming.Streamer[types.EventStream], error) {
+	params chat.ChatParams,
+) (streaming.Streamer[chat.EventStream], error) {
 	paramsProvider := openai.ToChatCompletionNewParams(params)
 
 	stream, err := a.client.Chat.NewStreaming(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
 	}
-	return types.NewProviderEventStream(
+	return chat.NewProviderEventStream(
 		stream,
 		openai.NewOpenAIEventHandler(),
 	), nil

@@ -3,23 +3,23 @@ package openai
 import (
 	"encoding/json"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 func MessageToOpenAI(
-	m ...*types.ChatMessage,
+	m ...*chat.ChatMessage,
 ) []ChatCompletionMessageParam {
 	userMessages := make([]ChatCompletionMessageParam, 0)
 	for _, msg := range m {
 		content := msg.Content[0]
 		switch content.Type {
-		case types.ContentTypeToolUse:
+		case chat.ContentTypeToolUse:
 			// For toolCalls we need to process all of them in one time
 			userMessages = append(userMessages, ChatCompletionMessageParam{
 				Role:      "assistant",
 				ToolCalls: MessageContentToToolCall(msg.Content...),
 			})
-		case types.ContentTypeToolResult:
+		case chat.ContentTypeToolResult:
 			userMessages = append(userMessages, ChatCompletionMessageParam{
 				Role:       "tool",
 				Content:    content.Content,
@@ -35,16 +35,16 @@ func MessageToOpenAI(
 	return userMessages
 }
 
-func ToolCallToMessageContent(t ToolCall) *types.MessageContent {
+func ToolCallToMessageContent(t ToolCall) *chat.MessageContent {
 	// var args map[string]interface{}
 	// _ = json.Unmarshal([]byte(t.Function.Arguments), &args)
-	return types.NewToolUseContent(t.ID, t.Function.Name, json.RawMessage(t.Function.Arguments))
+	return chat.NewToolUseContent(t.ID, t.Function.Name, json.RawMessage(t.Function.Arguments))
 }
 
-func MessageContentToToolCall(t ...*types.MessageContent) []ToolCall {
+func MessageContentToToolCall(t ...*chat.MessageContent) []ToolCall {
 	d := make([]ToolCall, 0)
 	for _, content := range t {
-		if content.Type == types.ContentTypeToolUse {
+		if content.Type == chat.ContentTypeToolUse {
 			d = append(d, ToolCall{
 				ID:   content.ID,
 				Type: "function",
@@ -58,7 +58,7 @@ func MessageContentToToolCall(t ...*types.MessageContent) []ToolCall {
 	return d
 }
 
-func ToolsToOpenAI(tools ...types.Tool) []Tool {
+func ToolsToOpenAI(tools ...chat.Tool) []Tool {
 	result := make([]Tool, 0)
 	for _, tool := range tools {
 		var desc *string
@@ -98,15 +98,15 @@ func ToStopReason(reason string) string {
 	}
 }
 
-func ToChatResponse(cc *ChatCompletion) *types.ChatResponse {
-	cm := &types.ChatResponse{}
+func ToChatResponse(cc *ChatCompletion) *chat.ChatResponse {
+	cm := &chat.ChatResponse{}
 	cm.ID = cc.ID
 	cm.Model = cc.Model
-	cm.Usage = &types.ChatUsage{}
+	cm.Usage = &chat.ChatUsage{}
 	cm.Usage.InputTokens = cc.Usage.PromptTokens
 	cm.Usage.OutputTokens = cc.Usage.CompletionTokens
 	for _, choice := range cc.Choices {
-		c := types.ChatChoice{}
+		c := chat.ChatChoice{}
 		for _, call := range choice.Message.ToolCalls {
 			c.Content = append(
 				c.Content,
@@ -115,7 +115,7 @@ func ToChatResponse(cc *ChatCompletion) *types.ChatResponse {
 		}
 
 		if choice.Message.Content != "" {
-			c.Content = append(c.Content, types.NewTextContent(choice.Message.Content))
+			c.Content = append(c.Content, chat.NewTextContent(choice.Message.Content))
 		}
 
 		// Role is not choice is our model
@@ -134,7 +134,7 @@ func ToChatResponse(cc *ChatCompletion) *types.ChatResponse {
 }
 
 func ToChatCompletionNewParams(
-	params types.ChatParams,
+	params chat.ChatParams,
 ) ChatCompletionNewParams {
 	return ChatCompletionNewParams{
 		Model:               params.Model,

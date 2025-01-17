@@ -1,4 +1,4 @@
-package types
+package chat
 
 // WithModel sets the model for BaseChatMessageNewParams
 func WithModel(model string) func(*ChatParams) {

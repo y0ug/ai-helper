@@ -14,9 +14,9 @@ import (
 	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 func StrToPtr(s string) *string {
@@ -64,19 +64,19 @@ func main() {
 	provider, _ := llmclient.New(model, modelInfoProvider, requestOpts...)
 
 	ctx := context.Background()
-	params := types.NewChatParams(
-		types.WithModel(model),
-		types.WithMaxTokens(1024),
-		types.WithTemperature(0),
-		types.WithMessages(
-			types.NewUserMessage(
+	params := chat.NewChatParams(
+		chat.WithModel(model),
+		chat.WithMaxTokens(1024),
+		chat.WithTemperature(0),
+		chat.WithMessages(
+			chat.NewUserMessage(
 
 				// Can you write an Hello World in C?
 				"What the weather at Paris ?",
 				// "Write a 500 word essai about Golang and put a some code block in the middle",
 			),
 		),
-		types.WithTools(types.Tool{
+		chat.WithTools(chat.Tool{
 			Name:        "get_weather",
 			Description: StrToPtr("Get the current weather"),
 			InputSchema: GetWeatherInputSchema,
@@ -96,10 +96,10 @@ func main() {
 
 func HandleLLMConversation(
 	ctx context.Context,
-	provider types.LLMProvider,
-	params types.ChatParams,
-) (*types.ChatResponse, error) {
-	var msg *types.ChatResponse
+	provider chat.Provider,
+	params chat.ChatParams,
+) (*chat.ChatResponse, error) {
+	var msg *chat.ChatResponse
 	for {
 
 		stream, err := provider.Stream(ctx, params)
@@ -108,12 +108,12 @@ func HandleLLMConversation(
 			return nil, err
 		}
 
-		eventCh := make(chan types.EventStream)
+		eventCh := make(chan chat.EventStream)
 
 		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
 		go func() {
 			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
-			if err := types.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
+			if err := chat.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
 				if err != context.Canceled {
 					log.Printf("Error consuming stream: %v", err)
 				}
@@ -134,7 +134,7 @@ func HandleLLMConversation(
 		fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
 
 		params.Messages = append(params.Messages, msg.ToMessageParams())
-		toolResults := make([]*types.MessageContent, 0)
+		toolResults := make([]*chat.MessageContent, 0)
 		// for _, choice := range msg.Choice {
 		choice := msg.Choice[0]
 		for _, content := range choice.Content {
@@ -162,7 +162,7 @@ func HandleLLMConversation(
 					}
 					toolResults = append(
 						toolResults,
-						types.NewToolResultContent(content.ID, string(b)),
+						chat.NewToolResultContent(content.ID, string(b)),
 					)
 				}
 			}
@@ -176,7 +176,7 @@ func HandleLLMConversation(
 		// 	*params.N = 1
 		// }
 
-		params.Messages = append(params.Messages, types.NewMessage("user", toolResults...))
+		params.Messages = append(params.Messages, chat.NewMessage("user", toolResults...))
 	}
 	return msg, nil
 }
@@ -184,9 +184,9 @@ func HandleLLMConversation(
 func processStream(
 	ctx context.Context,
 	w io.Writer,
-	ch <-chan types.EventStream,
-) (*types.ChatResponse, error) {
-	var cm *types.ChatResponse
+	ch <-chan chat.EventStream,
+) (*chat.ChatResponse, error) {
+	var cm *chat.ChatResponse
 	for {
 		select {
 		case <-ctx.Done():

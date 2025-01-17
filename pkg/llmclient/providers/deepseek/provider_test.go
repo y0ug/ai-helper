@@ -6,22 +6,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 func TestSend(t *testing.T) {
 	// Create a new provder with a mock client
 	provder := New()
 	ctx := context.Background()
-	params := types.ChatParams{
+	params := chat.ChatParams{
 		Model:       "deepseek-chat",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []*types.ChatMessage{
+		Messages: []*chat.ChatMessage{
 			{
 				Role: "user",
-				Content: []*types.MessageContent{
-					types.NewTextContent("Hello, how are you?"),
+				Content: []*chat.MessageContent{
+					chat.NewTextContent("Hello, how are you?"),
 				},
 			},
 		},

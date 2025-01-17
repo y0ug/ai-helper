@@ -1,6 +1,6 @@
 package openai
 
-import "github.com/y0ug/ai-helper/pkg/llmclient/types"
+import "github.com/y0ug/ai-helper/pkg/llmclient/chat"
 
 // OpenAIEventHandler processes OpenAI-specific events
 type OpenAIEventHandler struct {
@@ -18,9 +18,9 @@ func (h *OpenAIEventHandler) ShouldContinue(chunk ChatCompletionChunk) bool {
 
 func (h *OpenAIEventHandler) HandleEvent(
 	chunk ChatCompletionChunk,
-) (types.EventStream, error) {
+) (chat.EventStream, error) {
 	h.completion.Accumulate(chunk)
-	evt := types.EventStream{Message: ToChatResponse(&h.completion)}
+	evt := chat.EventStream{Message: ToChatResponse(&h.completion)}
 
 	if chunk.Usage.CompletionTokens != 0 || len(chunk.Choices) == 0 {
 		evt.Type = "message_stop"

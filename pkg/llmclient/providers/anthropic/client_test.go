@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 func skipIfNoAPIKey(t *testing.T) {
@@ -28,7 +28,7 @@ func TestClientStreamIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*types.MessageContent{types.NewTextContent(
+					Content: []*chat.MessageContent{chat.NewTextContent(
 						"Write a 100 word essay on the topic of artificial intelligence",
 					)},
 				},
@@ -86,7 +86,7 @@ func TestClientIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*types.MessageContent{types.NewTextContent(
+					Content: []*chat.MessageContent{chat.NewTextContent(
 						"Say hello in exactly 5 words",
 					)},
 				},
@@ -121,7 +121,7 @@ func TestClientIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*types.MessageContent{types.NewTextContent(
+					Content: []*chat.MessageContent{chat.NewTextContent(
 						"Say hello in exactly 5 words",
 					)},
 				},

@@ -3,7 +3,7 @@ package anthropic
 import (
 	"encoding/json"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 // AnthropicEventHandler processes Anthropic-specific events
@@ -21,13 +21,13 @@ func (h *AnthropicEventHandler) ShouldContinue(event MessageStreamEvent) bool {
 
 func (h *AnthropicEventHandler) HandleEvent(
 	event MessageStreamEvent,
-) (types.EventStream, error) {
+) (chat.EventStream, error) {
 	h.message.Accumulate(event)
-	evt := types.EventStream{Type: event.Type}
+	evt := chat.EventStream{Type: event.Type}
 
 	switch event.Type {
 	case "content_block_delta":
-		var delta types.MessageContent
+		var delta chat.MessageContent
 		if err := json.Unmarshal(event.Delta, &delta); err != nil {
 			return evt, nil
 		}

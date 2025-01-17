@@ -13,22 +13,22 @@ import (
 type MCPClientInterface interface {
 	// Initialize sends the initialize request to the server and stores the capabilities
 	Initialize(ctx context.Context) (*ServerInfo, error)
-	
+
 	// Ping sends a ping request to check if the server is alive
 	Ping(ctx context.Context) error
-	
+
 	// ListTools requests the list of available tools from the server
 	ListTools(ctx context.Context, cursor *string) ([]Tool, *string, error)
-	
+
 	// ListResources requests the list of available resources from the server
 	ListResources(ctx context.Context, cursor *string) ([]Resource, *string, error)
-	
+
 	// ReadResource reads a specific resource from the server
 	ReadResource(ctx context.Context, uri string) (*[]interface{}, error)
-	
+
 	// CallTool executes a specific tool with given parameters
 	CallTool(ctx context.Context, name string, args map[string]interface{}) (*CallToolResult, error)
-	
+
 	// Close shuts down the MCP client and server
 	Close() error
 }
@@ -78,7 +78,11 @@ func logHandler() jsonrpc2.HandlerFunc {
 }
 
 // NewMCPClient creates a new MCP client and starts the language server
-func NewMCPClient(serverCmd string, args ...string) (MCPClientInterface, error) {
+func NewMCPClient(
+	ctxParent context.Context,
+	serverCmd string,
+	args ...string,
+) (MCPClientInterface, error) {
 	cmd := exec.Command(serverCmd, args...)
 
 	stdin, err := cmd.StdinPipe()
@@ -99,7 +103,7 @@ func NewMCPClient(serverCmd string, args ...string) (MCPClientInterface, error) 
 		writer: stdin,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctxParent)
 
 	// HeaderFramer is the jsonrpc2.Framer options
 	// That's what MCP servers are expecting

@@ -6,22 +6,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/y0ug/ai-helper/pkg/llmclient/types"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 func TestFromLLMMessageToOpenAi(t *testing.T) {
 	tests := []struct {
 		name     string
-		messages []*types.ChatMessage
+		messages []*chat.ChatMessage
 		want     []ChatCompletionMessageParam
 	}{
 		{
 			name: "basic text message",
-			messages: []*types.ChatMessage{
+			messages: []*chat.ChatMessage{
 				{
 					Role: "user",
-					Content: []*types.MessageContent{
-						types.NewTextContent("Hello"),
+					Content: []*chat.MessageContent{
+						chat.NewTextContent("Hello"),
 					},
 				},
 			},
@@ -34,12 +34,12 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 		},
 		{
 			name: "tool result message",
-			messages: []*types.ChatMessage{
+			messages: []*chat.ChatMessage{
 				{
 					Role: "tool",
-					Content: []*types.MessageContent{
+					Content: []*chat.MessageContent{
 						{
-							Type:      types.ContentTypeToolResult,
+							Type:      chat.ContentTypeToolResult,
 							Content:   "Result",
 							ToolUseID: "tool123",
 						},
@@ -69,15 +69,15 @@ func TestOpenAIProvider_Send(t *testing.T) {
 	adapter := New()
 
 	ctx := context.Background()
-	params := types.ChatParams{
+	params := chat.ChatParams{
 		Model:       "gpt-3.5-turbo",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []*types.ChatMessage{
+		Messages: []*chat.ChatMessage{
 			{
 				Role: "user",
-				Content: []*types.MessageContent{
-					types.NewTextContent("Hello, how are you?"),
+				Content: []*chat.MessageContent{
+					chat.NewTextContent("Hello, how are you?"),
 				},
 			},
 		},

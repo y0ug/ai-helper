@@ -1,4 +1,4 @@
-package types
+package chat
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 )
 
-type LLMProvider interface {
+// ChatProvider
+type Provider interface {
 	// For a single-turn request
 	Send(ctx context.Context, params ChatParams) (*ChatResponse, error)
 
