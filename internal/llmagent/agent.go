@@ -162,28 +162,32 @@ func (a *Agent) setTools() error {
 }
 
 // UpdateCosts updates the agent's token and cost tracking with a new response
-func (a *Agent) UpdateCosts(response chat.ChatResponse) {
-	a.TotalInputTokens += response.Usage.InputTokens
-	a.TotalOutputTokens += response.Usage.OutputTokens
-	// if response.Cost != nil {
-	// 	a.TotalCost += *response.Cost
-	// }
-}
-
-func (a *Agent) Do(ctx context.Context, w io.Writer) ([]*chat.ChatResponse, error) {
-	a.chatParams.Messages = a.Messages
-	a.chatParams.Tools = a.Tools
-	resp, err := a.process(ctx, w)
+func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 	var cost float64
 	for _, m := range resp {
 		a.TotalInputTokens += m.Usage.InputTokens
 		a.TotalOutputTokens += m.Usage.OutputTokens
 
+		if a.Model.Metadata == nil {
+			a.logger.Warn().
+				Str("name", a.Model.Name).
+				Msg("Model metadata is nil, can't calculate cost")
+			continue
+		}
 		cost += a.Model.Metadata.OutputCostPerToken * float64(m.Usage.OutputTokens)
 		cost += a.Model.Metadata.InputCostPerToken * float64(m.Usage.InputTokens)
 	}
-	a.logger.Info().Msgf("Total cost: %f\n", cost)
-	return resp, err
+
+	a.TotalCost += cost
+	return cost
+}
+
+func (a *Agent) Do(ctx context.Context, w io.Writer) ([]*chat.ChatResponse, float64, error) {
+	a.chatParams.Messages = a.Messages
+	a.chatParams.Tools = a.Tools
+	resp, err := a.process(ctx, w)
+	cost := a.UpdateCosts(resp...)
+	return resp, cost, err
 }
 
 func processStream(
@@ -278,7 +282,7 @@ func (a *Agent) process(
 				}
 				b, err := json.Marshal(response)
 				if err != nil {
-					panic(err)
+					logger.Err(err).Str("name", content.Name).Msg("Failed to Marshall response")
 				}
 				toolResults = append(
 					toolResults,

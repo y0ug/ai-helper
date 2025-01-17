@@ -78,12 +78,12 @@ func main() {
 	agent.AddMessage(chat.NewMessage("user",
 		// chat.NewTextContent("What time is it at New York?")))
 		chat.NewTextContent("What the weather at Paris?")))
-	_, err = agent.Do(ctx, h)
+	_, cost, err := agent.Do(ctx, h)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
+	logger.Info().Float64("cost", cost).Msgf("cost")
 	agent.StopMCP()
-	// fmt.Println(msg.Choice[0].Content[0].String())
 }
