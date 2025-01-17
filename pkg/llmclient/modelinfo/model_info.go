@@ -1,4 +1,4 @@
-package llmclient
+package modelinfo
 
 import (
 	"encoding/json"
@@ -11,11 +11,11 @@ import (
 	"time"
 )
 
-// Model represents an AI model configuration
-type Model struct {
+// LLMModel represents an provider with model name and metadata about the model feature
+type LLMModel struct {
 	Provider string
 	Name     string
-	Info     *ModelInfoMetadata
+	Metadata *ModelInfoMetadata
 }
 
 type ModelInfoMetadata struct {
@@ -219,7 +219,7 @@ func (t *FileModelInfoProvider) GetModelInfo(modelName string) (*ModelInfoMetada
 }
 
 // ParseModel parses a model string in the format "provider/model"
-func ParseModel(modelStr string, infoProviders ModelInfoProvider) (*Model, error) {
+func ParseModel(modelStr string, infoProviders ModelInfoProvider) (*LLMModel, error) {
 	if modelStr == "" {
 		return nil, fmt.Errorf("empty model string")
 	}
@@ -231,20 +231,20 @@ func ParseModel(modelStr string, infoProviders ModelInfoProvider) (*Model, error
 		if infoProviders != nil {
 			info, err := infoProviders.GetModelInfo(modelStr)
 			if err == nil {
-				return &Model{
+				return &LLMModel{
 					Provider: info.LiteLLMProvider,
 					Name:     modelStr,
-					Info:     info,
+					Metadata: info,
 				}, nil
 			}
 		}
 		// If model not found in info or no providers, try to infer provider from model name
 		provider := inferProvider(modelStr)
 		if provider != "" {
-			return &Model{
+			return &LLMModel{
 				Provider: provider,
 				Name:     modelStr,
-				Info:     nil,
+				Metadata: nil,
 			}, nil
 		}
 		return nil, fmt.Errorf("could not determine provider for model: %s", modelStr)
@@ -262,15 +262,15 @@ func ParseModel(modelStr string, infoProviders ModelInfoProvider) (*Model, error
 		}
 		info2 = info
 	}
-	return &Model{
+	return &LLMModel{
 		Provider: provider,
 		Name:     name,
-		Info:     info2,
+		Metadata: info2,
 	}, nil
 }
 
 // String returns the string representation of the model
-func (m *Model) String() string {
+func (m *LLMModel) String() string {
 	return fmt.Sprintf("%s/%s", m.Provider, m.Name)
 }
 

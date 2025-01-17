@@ -2,6 +2,7 @@ package llmclient
 
 import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
+	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/deepseek"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/gemini"
@@ -12,10 +13,10 @@ import (
 
 func NewProviderByModel(
 	modelName string,
-	infoProvider ModelInfoProvider,
+	infoProvider modelinfo.ModelInfoProvider,
 	requestOpts ...options.RequestOption,
-) (types.LLMProvider, *Model) {
-	model, err := ParseModel(modelName, infoProvider)
+) (types.LLMProvider, *modelinfo.LLMModel) {
+	model, err := modelinfo.ParseModel(modelName, infoProvider)
 	if err != nil {
 		return nil, nil
 	}

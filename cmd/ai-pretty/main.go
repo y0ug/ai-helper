@@ -15,6 +15,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
+	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
@@ -59,7 +60,7 @@ func main() {
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 		options.WithMiddleware(middleware.TimeitMiddleware()),
 	}
-	modelInfoProvider, _ := llmclient.NewModelInfoProvider("")
+	modelInfoProvider, _ := modelinfo.NewModelInfoProvider("")
 	provider, _ := llmclient.NewProviderByModel(model, modelInfoProvider, requestOpts...)
 
 	ctx := context.Background()
