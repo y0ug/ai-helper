@@ -1,16 +1,16 @@
 package anthropic
 
 import (
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/config"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 )
 
-func WithEnvironmentProduction() requestoption.RequestOption {
-	return requestoption.WithBaseURL("https://api.anthropic.com/")
+func WithEnvironmentProduction() options.RequestOption {
+	return options.WithBaseURL("https://api.anthropic.com/")
 }
 
-func WithApiVersionAnthropic() requestoption.RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
-		return r.Apply(requestoption.WithHeader("anthropic-version", "2023-06-01"))
+func WithApiVersionAnthropic() options.RequestOption {
+	return func(r *config.RequestConfig) error {
+		return r.Apply(options.WithHeader("anthropic-version", "2023-06-01"))
 	}
 }

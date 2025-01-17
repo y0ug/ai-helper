@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/client"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/internal"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openai"
 )
@@ -23,17 +23,17 @@ type Client struct {
 	Chat *ChatCompletionService
 }
 
-func WithEnvironmentProduction() requestoption.RequestOption {
-	return requestoption.WithBaseURL("https://api.deepseek.com/v1/")
+func WithEnvironmentProduction() options.RequestOption {
+	return options.WithBaseURL("https://api.deepseek.com/v1/")
 }
 
-func NewClient(opts ...requestoption.RequestOption) (r *Client) {
-	defaults := []requestoption.RequestOption{
+func NewClient(opts ...options.RequestOption) (r *Client) {
+	defaults := []options.RequestOption{
 		WithEnvironmentProduction(),
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 	}
 	if o, ok := os.LookupEnv("DEEPSEEK_API_KEY"); ok {
-		defaults = append(defaults, requestoption.WithAuthToken(o))
+		defaults = append(defaults, options.WithAuthToken(o))
 	}
 	opts = append(defaults, opts...)
 	r = &Client{
@@ -50,7 +50,7 @@ type ChatCompletionService struct {
 }
 
 // Create our custom service that reuses openai.NewChatCompletionService under the hood
-func NewChatCompletionService(opts ...requestoption.RequestOption) *ChatCompletionService {
+func NewChatCompletionService(opts ...options.RequestOption) *ChatCompletionService {
 	baseService := &internal.GenericChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]{
 		Options:  opts,
 		NewError: openai.NewAPIErrorOpenAI,

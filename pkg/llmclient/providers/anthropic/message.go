@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/config"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 	"github.com/y0ug/ai-helper/pkg/llmclient/internal"
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
@@ -18,7 +18,7 @@ type MessageService struct {
 	*internal.GenericChatService[MessageNewParams, Message, MessageStreamEvent]
 }
 
-func NewMessageService(opts ...requestoption.RequestOption) *MessageService {
+func NewMessageService(opts ...options.RequestOption) *MessageService {
 	baseService := &internal.GenericChatService[MessageNewParams, Message, MessageStreamEvent]{
 		Options:  opts,
 		NewError: NewAPIErrorAnthropic,
@@ -33,16 +33,16 @@ func NewMessageService(opts ...requestoption.RequestOption) *MessageService {
 func (svc *MessageService) NewStreaming(
 	ctx context.Context,
 	params MessageNewParams,
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) (streaming.Streamer[MessageStreamEvent], error) {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
-		[]requestoption.RequestOption{requestoption.WithJSONSet("stream", true)},
+		[]options.RequestOption{options.WithJSONSet("stream", true)},
 		combinedOpts...)
 	path := svc.Endpoint
 
 	var raw *http.Response
-	err := requestconfig.ExecuteNewRequest(
+	err := config.ExecuteNewRequest(
 		ctx,
 		http.MethodPost,
 		path,

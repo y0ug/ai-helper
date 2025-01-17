@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
@@ -13,7 +13,7 @@ type OpenAIProvider struct {
 	Client *Client
 }
 
-func NewOpenAIProvider(opts ...requestoption.RequestOption) types.LLMProvider {
+func NewOpenAIProvider(opts ...options.RequestOption) types.LLMProvider {
 	return &OpenAIProvider{
 		Client: NewClient(opts...),
 	}

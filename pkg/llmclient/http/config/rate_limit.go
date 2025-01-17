@@ -1,4 +1,4 @@
-package requestconfig
+package config
 
 import (
 	"net/http"

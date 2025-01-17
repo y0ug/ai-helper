@@ -1,4 +1,4 @@
-package requestoption
+package options
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/tidwall/sjson"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/config"
 )
 
 // RequestOption is an option for the requests made by the openai API Client
@@ -18,7 +18,7 @@ import (
 // options pattern in our [README].
 //
 // [README]: https://pkg.go.dev/github.com/openai/openai-go#readme-requestoptions
-type RequestOption = func(*requestconfig.RequestConfig) error
+type RequestOption = func(*config.RequestConfig) error
 
 // WithBaseURL returns a RequestOption that sets the BaseURL for the client.
 func WithBaseURL(base string) RequestOption {
@@ -26,7 +26,7 @@ func WithBaseURL(base string) RequestOption {
 	if err != nil {
 		log.Fatalf("failed to parse BaseURL: %s\n", err)
 	}
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.BaseURL = u
 		return nil
 	}
@@ -35,7 +35,7 @@ func WithBaseURL(base string) RequestOption {
 // WithHTTPClient returns a RequestOption that changes the underlying [http.Client] used to make this
 // request, which by default is [http.DefaultClient].
 func WithHTTPClient(client *http.Client) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.HTTPClient = client
 		return nil
 	}
@@ -53,7 +53,7 @@ type Middleware = func(*http.Request, MiddlewareNext) (*http.Response, error)
 // WithMiddleware returns a RequestOption that applies the given middleware
 // to the requests made. Each middleware will execute in the order they were given.
 func WithMiddleware(middlewares ...Middleware) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.Middlewares = append(r.Middlewares, middlewares...)
 		return nil
 	}
@@ -68,7 +68,7 @@ func WithMaxRetries(retries int) RequestOption {
 	if retries < 0 {
 		panic("option: cannot have fewer than 0 retries")
 	}
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.MaxRetries = retries
 		return nil
 	}
@@ -77,7 +77,7 @@ func WithMaxRetries(retries int) RequestOption {
 // WithHeader returns a RequestOption that sets the header value to the associated key. It overwrites
 // any value if there was one already present.
 func WithHeader(key, value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.Request.Header.Set(key, value)
 		return nil
 	}
@@ -86,7 +86,7 @@ func WithHeader(key, value string) RequestOption {
 // WithHeaderAdd returns a RequestOption that adds the header value to the associated key. It appends
 // onto any existing values.
 func WithHeaderAdd(key, value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.Request.Header.Add(key, value)
 		return nil
 	}
@@ -94,7 +94,7 @@ func WithHeaderAdd(key, value string) RequestOption {
 
 // WithHeaderDel returns a RequestOption that deletes the header value(s) associated with the given key.
 func WithHeaderDel(key string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.Request.Header.Del(key)
 		return nil
 	}
@@ -103,7 +103,7 @@ func WithHeaderDel(key string) RequestOption {
 // WithQuery returns a RequestOption that sets the query value to the associated key. It overwrites
 // any value if there was one already present.
 func WithQuery(key, value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		query := r.Request.URL.Query()
 		query.Set(key, value)
 		r.Request.URL.RawQuery = query.Encode()
@@ -114,7 +114,7 @@ func WithQuery(key, value string) RequestOption {
 // WithQueryAdd returns a RequestOption that adds the query value to the associated key. It appends
 // onto any existing values.
 func WithQueryAdd(key, value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		query := r.Request.URL.Query()
 		query.Add(key, value)
 		r.Request.URL.RawQuery = query.Encode()
@@ -124,7 +124,7 @@ func WithQueryAdd(key, value string) RequestOption {
 
 // WithQueryDel returns a RequestOption that deletes the query value(s) associated with the key.
 func WithQueryDel(key string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		query := r.Request.URL.Query()
 		query.Del(key)
 		r.Request.URL.RawQuery = query.Encode()
@@ -137,7 +137,7 @@ func WithQueryDel(key string) RequestOption {
 //
 // [sjson format]: https://github.com/tidwall/sjson
 func WithJSONSet(key string, value interface{}) RequestOption {
-	return func(r *requestconfig.RequestConfig) (err error) {
+	return func(r *config.RequestConfig) (err error) {
 		if buffer, ok := r.Body.(*bytes.Buffer); ok {
 			b := buffer.Bytes()
 			b, err = sjson.SetBytes(b, key, value)
@@ -159,7 +159,7 @@ func WithJSONSet(key string, value interface{}) RequestOption {
 //
 // [sjson format]: https://github.com/tidwall/sjson
 func WithJSONDel(key string) RequestOption {
-	return func(r *requestconfig.RequestConfig) (err error) {
+	return func(r *config.RequestConfig) (err error) {
 		if buffer, ok := r.Body.(*bytes.Buffer); ok {
 			b := buffer.Bytes()
 			b, err = sjson.DeleteBytes(b, key)
@@ -179,7 +179,7 @@ func WithJSONDel(key string) RequestOption {
 // WithResponseBodyInto returns a RequestOption that overwrites the deserialization target with
 // the given destination. If provided, we don't deserialize into the default struct.
 func WithResponseBodyInto(dst any) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.ResponseBodyInto = dst
 		return nil
 	}
@@ -187,7 +187,7 @@ func WithResponseBodyInto(dst any) RequestOption {
 
 // WithResponseInto returns a RequestOption that copies the [*http.Response] into the given address.
 func WithResponseInto(dst **http.Response) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.ResponseInto = dst
 		return nil
 	}
@@ -198,7 +198,7 @@ func WithResponseInto(dst **http.Response) RequestOption {
 //
 // body accepts an io.Reader or raw []bytes.
 func WithRequestBody(contentType string, body any) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		if reader, ok := body.(io.Reader); ok {
 			r.Body = reader
 			return r.Apply(WithHeader("Content-Type", contentType))
@@ -217,7 +217,7 @@ func WithRequestBody(contentType string, body any) RequestOption {
 // each request attempt. This should be smaller than the timeout defined in
 // the context, which spans all retries.
 func WithRequestTimeout(dur time.Duration) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.RequestTimeout = dur
 		return nil
 	}
@@ -225,7 +225,7 @@ func WithRequestTimeout(dur time.Duration) RequestOption {
 
 // WithAuthToken returns a RequestOption that sets the client setting "api_key".
 func WithAuthToken(value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.AuthToken = value
 		return r.Apply(WithHeader("authorization", fmt.Sprintf("Bearer %s", r.AuthToken)))
 	}
@@ -233,7 +233,7 @@ func WithAuthToken(value string) RequestOption {
 
 // WithApiKey set in header
 func WithApiKey(headerName string, value string) RequestOption {
-	return func(r *requestconfig.RequestConfig) error {
+	return func(r *config.RequestConfig) error {
 		r.APIKey = value
 		r.APIKeyHeaderName = headerName
 		return r.Apply(WithHeader(r.APIKeyHeaderName, r.APIKey))

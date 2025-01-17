@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/config"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 )
 
 // GenericChatService is a generic base implementation of ChatService.
 type GenericChatService[Params any, Response any, Chunk any] struct {
-	Options  []requestoption.RequestOption
-	NewError requestconfig.NewAPIError
+	Options  []options.RequestOption
+	NewError config.NewAPIError
 	Endpoint string
 }
 
@@ -21,13 +21,13 @@ type GenericChatService[Params any, Response any, Chunk any] struct {
 func (svc *GenericChatService[Params, Response, Chunk]) New(
 	ctx context.Context,
 	params Params,
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) (Response, error) {
 	var res Response
 	combinedOpts := append(svc.Options, opts...)
 	path := svc.Endpoint
 
-	err := requestconfig.ExecuteNewRequest(
+	err := config.ExecuteNewRequest(
 		ctx,
 		http.MethodPost,
 		path,
@@ -43,13 +43,13 @@ func (svc *GenericChatService[Params, Response, Chunk]) New(
 func (svc *GenericChatService[Params, Response, Chunk]) NewStreaming(
 	ctx context.Context,
 	params Params,
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) (streaming.Streamer[Chunk], error) {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
-		[]requestoption.RequestOption{
-			requestoption.WithJSONSet("stream", true),
-			requestoption.WithJSONSet("stream_options", struct {
+		[]options.RequestOption{
+			options.WithJSONSet("stream", true),
+			options.WithJSONSet("stream_options", struct {
 				IncludeUsage bool `json:"include_usage"`
 			}{IncludeUsage: true}),
 		},
@@ -57,7 +57,7 @@ func (svc *GenericChatService[Params, Response, Chunk]) NewStreaming(
 	path := svc.Endpoint
 
 	var raw *http.Response
-	err := requestconfig.ExecuteNewRequest(
+	err := config.ExecuteNewRequest(
 		ctx,
 		http.MethodPost,
 		path,

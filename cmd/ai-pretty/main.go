@@ -14,7 +14,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
@@ -55,9 +55,9 @@ func GetWeather(location string) string {
 func main() {
 	const model = "claude-3-5-sonnet-20241022"
 	// const model = "gpt-4o"
-	requestOpts := []requestoption.RequestOption{
+	requestOpts := []options.RequestOption{
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
-		requestoption.WithMiddleware(middleware.TimeitMiddleware()),
+		options.WithMiddleware(middleware.TimeitMiddleware()),
 	}
 	modelInfoProvider, _ := llmclient.NewModelInfoProvider("")
 	provider, _ := llmclient.NewProviderByModel(model, modelInfoProvider, requestOpts...)

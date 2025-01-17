@@ -4,7 +4,7 @@ package openai
 import (
 	"encoding/json"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/internal"
 )
 
@@ -14,7 +14,7 @@ type ChatCompletionService struct {
 }
 
 // NewOpenAIChatService creates a new OpenAIChatService.
-func NewChatCompletionService(opts ...requestoption.RequestOption) *ChatCompletionService {
+func NewChatCompletionService(opts ...options.RequestOption) *ChatCompletionService {
 	baseService := &internal.GenericChatService[ChatCompletionNewParams, ChatCompletion, ChatCompletionChunk]{
 		Options:  opts,
 		NewError: NewAPIErrorOpenAI,

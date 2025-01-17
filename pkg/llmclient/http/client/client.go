@@ -4,20 +4,20 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/config"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 )
 
 type BaseClient struct {
-	Options  []requestoption.RequestOption
-	NewError requestconfig.NewAPIError
+	Options  []options.RequestOption
+	NewError config.NewAPIError
 }
 
 func NewBaseClient(
-	newError requestconfig.NewAPIError,
-	opts ...requestoption.RequestOption,
+	newError config.NewAPIError,
+	opts ...options.RequestOption,
 ) *BaseClient {
-	defaults := []requestoption.RequestOption{}
+	defaults := []options.RequestOption{}
 
 	return &BaseClient{
 		Options:  append(defaults, opts...),
@@ -54,18 +54,18 @@ func NewBaseClient(
 //     respects UnmarshalJSON if it is defined on the type.
 //   - A nil value will not read the response body.
 //
-// For even greater flexibility, see [requestoption.WithResponseInto] and
-// [requestoption.WithResponseBodyInto].
+// For even greater flexibility, see [options.WithResponseInto] and
+// [options.WithResponseBodyInto].
 func (r *BaseClient) Execute(
 	ctx context.Context,
 	method string,
 	path string,
 	params interface{},
 	res interface{},
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) error {
 	opts = append(r.Options, opts...)
-	return requestconfig.ExecuteNewRequest(ctx, method, path, params, res, r.NewError, opts...)
+	return config.ExecuteNewRequest(ctx, method, path, params, res, r.NewError, opts...)
 }
 
 // Get makes a GET request with the given URL, params, and optionally deserializes
@@ -75,7 +75,7 @@ func (r *BaseClient) Get(
 	path string,
 	params interface{},
 	res interface{},
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) error {
 	return r.Execute(ctx, http.MethodGet, path, params, res, opts...)
 }
@@ -88,7 +88,7 @@ func (r *BaseClient) Post(
 	path string,
 	params interface{},
 	res interface{},
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) error {
 	return r.Execute(ctx, http.MethodPost, path, params, res, opts...)
 }
@@ -100,7 +100,7 @@ func (r *BaseClient) Put(
 	path string,
 	params interface{},
 	res interface{},
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) error {
 	return r.Execute(ctx, http.MethodPut, path, params, res, opts...)
 }
@@ -113,7 +113,7 @@ func (r *BaseClient) Patch(
 	path string,
 	params interface{},
 	res interface{},
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) error {
 	return r.Execute(ctx, http.MethodPatch, path, params, res, opts...)
 }
@@ -126,7 +126,7 @@ func (r *BaseClient) Delete(
 	path string,
 	params interface{},
 	res interface{},
-	opts ...requestoption.RequestOption,
+	opts ...options.RequestOption,
 ) error {
 	return r.Execute(ctx, http.MethodDelete, path, params, res, opts...)
 }

@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/client"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 )
 
 type Client struct {
@@ -12,12 +12,12 @@ type Client struct {
 	Chat *ChatCompletionService
 }
 
-func NewClient(opts ...requestoption.RequestOption) (r *Client) {
-	defaults := []requestoption.RequestOption{
+func NewClient(opts ...options.RequestOption) (r *Client) {
+	defaults := []options.RequestOption{
 		WithEnvironmentProduction(),
 	}
 	if o, ok := os.LookupEnv("OPENAI_API_KEY"); ok {
-		defaults = append(defaults, requestoption.WithAuthToken(o))
+		defaults = append(defaults, options.WithAuthToken(o))
 	}
 	if o, ok := os.LookupEnv("OPENAI_ORG_ID"); ok {
 		defaults = append(defaults, WithOrganization(o))

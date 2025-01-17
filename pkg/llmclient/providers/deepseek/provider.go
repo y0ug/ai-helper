@@ -3,7 +3,7 @@ package deepseek
 import (
 	"context"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openai"
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
@@ -13,7 +13,7 @@ type DeepseekProvider struct {
 	client *Client
 }
 
-func NewDeepSeekProvider(opts ...requestoption.RequestOption) types.LLMProvider {
+func NewDeepSeekProvider(opts ...options.RequestOption) types.LLMProvider {
 	return &DeepseekProvider{
 		client: NewClient(opts...),
 	}
