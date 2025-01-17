@@ -15,7 +15,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
 )
 
 func StrToPtr(s string) *string {
@@ -95,7 +95,7 @@ func main() {
 
 func HandleLLMConversation(
 	ctx context.Context,
-	provider llmclient.LLMProvider,
+	provider common.LLMProvider,
 	params common.ChatMessageNewParams,
 ) (*common.ChatMessage, error) {
 	var msg *common.ChatMessage

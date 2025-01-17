@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 )
 
 // WithModel sets the model for BaseChatMessageNewParams
@@ -93,7 +93,7 @@ func NewChatParams(
 
 func ConsumeStream(
 	ctx context.Context,
-	stream stream.Streamer[common.EventStream],
+	stream streaming.Streamer[common.EventStream],
 	ch chan<- common.EventStream,
 ) error {
 	defer close(ch)

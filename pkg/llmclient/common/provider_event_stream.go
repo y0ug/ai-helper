@@ -1,6 +1,6 @@
 package common
 
-import "github.com/y0ug/ai-helper/pkg/llmclient/stream"
+import "github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 
 // EventStream represents a normalized stream event across providers
 type EventStream struct {
@@ -11,8 +11,8 @@ type EventStream struct {
 
 // NewProviderEventStream creates a new stream that normalizes provider events
 func NewProviderEventStream[TypeIn any](
-	decoder stream.Streamer[TypeIn],
-	handler stream.StreamHandler[EventStream, TypeIn],
-) stream.Streamer[EventStream] {
-	return stream.NewStream(decoder, handler)
+	decoder streaming.Streamer[TypeIn],
+	handler streaming.StreamHandler[EventStream, TypeIn],
+) streaming.Streamer[EventStream] {
+	return streaming.NewStream(decoder, handler)
 }

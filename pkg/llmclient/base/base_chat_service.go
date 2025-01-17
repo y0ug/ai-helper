@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/request/ssestream"
-	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 )
 
 // BaseChatService is a generic base implementation of ChatService.
@@ -45,7 +44,7 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 	ctx context.Context,
 	params Params,
 	opts ...requestoption.RequestOption,
-) (stream.Streamer[Chunk], error) {
+) (streaming.Streamer[Chunk], error) {
 	combinedOpts := append(svc.Options, opts...)
 	combinedOpts = append(
 		[]requestoption.RequestOption{
@@ -70,8 +69,8 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 	if err != nil {
 		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
-	return stream.NewStream(
-		ssestream.NewDecoderSSE(raw),
-		ssestream.NewDefaultStreamHandler[Chunk](),
+	return streaming.NewStream(
+		streaming.NewDecoderSSE(raw),
+		streaming.NewDefaultStreamHandler[Chunk](),
 	), nil
 }

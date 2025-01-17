@@ -3,8 +3,8 @@ package base
 import (
 	"context"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 )
 
 type ChatService[Params any, Response any, Chunk any] interface {
@@ -14,5 +14,5 @@ type ChatService[Params any, Response any, Chunk any] interface {
 		ctx context.Context,
 		params Params,
 		opts ...requestoption.RequestOption,
-	) stream.Streamer[Chunk]
+	) streaming.Streamer[Chunk]
 }
