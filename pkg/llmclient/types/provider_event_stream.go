@@ -6,7 +6,7 @@ import "github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 type EventStream struct {
 	Type    string // text_delta, message_start, message_stop, etc
 	Delta   interface{}
-	Message *ChatMessage
+	Message *ChatResponse
 }
 
 // NewProviderEventStream creates a new stream that normalizes provider events

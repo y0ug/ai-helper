@@ -16,20 +16,20 @@ func TestAnthropicProvider_Send(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	params := types.ChatMessageNewParams{
+	params := types.ChatParams{
 		Model:       "claude-3-opus-20240229",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []*types.ChatMessageParams{
+		Messages: []*types.ChatMessage{
 			{
 				Role: "system",
-				Content: []*types.AIContent{
+				Content: []*types.MessageContent{
 					types.NewTextContent("You are a helpful AI assistant."),
 				},
 			},
 			{
 				Role: "user",
-				Content: []*types.AIContent{
+				Content: []*types.MessageContent{
 					types.NewTextContent("Hello, how are you?"),
 				},
 			},

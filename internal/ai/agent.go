@@ -42,14 +42,14 @@ func MCPClientToolToTool(tools ...mcpclient.Tool) []types.Tool {
 
 // AgentState represents the serializable state of an Agent
 type AgentState struct {
-	ID                string                     `json:"id"`
-	ModelName         string                     `json:"model"`
-	Messages          []*types.ChatMessageParams `json:"messages"`
-	CreatedAt         time.Time                  `json:"created_at"`
-	UpdatedAt         time.Time                  `json:"updated_at"`
-	TotalInputTokens  int                        `json:"total_input_tokens"`
-	TotalOutputTokens int                        `json:"total_output_tokens"`
-	TotalCost         float64                    `json:"total_cost"`
+	ID                string               `json:"id"`
+	ModelName         string               `json:"model"`
+	Messages          []*types.ChatMessage `json:"messages"`
+	CreatedAt         time.Time            `json:"created_at"`
+	UpdatedAt         time.Time            `json:"updated_at"`
+	TotalInputTokens  int                  `json:"total_input_tokens"`
+	TotalOutputTokens int                  `json:"total_output_tokens"`
+	TotalCost         float64              `json:"total_cost"`
 }
 
 // Agent represents an AI conversation agent that maintains state and history
@@ -62,14 +62,14 @@ type Agent struct {
 	MCPClient        map[string]mcpclient.MCPClientInterface
 	MCPServersConfig *config.MCPServers // List of current available MCP server configuration
 
-	ToolsHandler      map[string]ToolHandler     // Map of tools function name to the real function
-	Tools             []types.Tool               // List of tools
-	Messages          []*types.ChatMessageParams // Conversation history
-	CreatedAt         time.Time                  // When the agent was created
-	UpdatedAt         time.Time                  // Last time the agent was updated
-	TotalInputTokens  int                        // Total tokens used in inputs
-	TotalOutputTokens int                        // Total tokens used in outputs
-	TotalCost         float64                    // Total cost accumulated
+	ToolsHandler      map[string]ToolHandler // Map of tools function name to the real function
+	Tools             []types.Tool           // List of tools
+	Messages          []*types.ChatMessage   // Conversation history
+	CreatedAt         time.Time              // When the agent was created
+	UpdatedAt         time.Time              // Last time the agent was updated
+	TotalInputTokens  int                    // Total tokens used in inputs
+	TotalOutputTokens int                    // Total tokens used in outputs
+	TotalCost         float64                // Total cost accumulated
 }
 
 func NewAgent(
@@ -81,7 +81,7 @@ func NewAgent(
 		ID:               id,
 		MCPServersConfig: &mcpServersConfig,
 		MCPClient:        make(map[string]mcpclient.MCPClientInterface),
-		Messages:         make([]*types.ChatMessageParams, 0),
+		Messages:         make([]*types.ChatMessage, 0),
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}
@@ -217,7 +217,7 @@ func LoadAgent(id string, model *llmclient.Model) (*Agent, error) {
 }
 
 // UpdateCosts updates the agent's token and cost tracking with a new response
-func (a *Agent) UpdateCosts(response types.ChatMessage) {
+func (a *Agent) UpdateCosts(response types.ChatResponse) {
 	a.TotalInputTokens += response.Usage.InputTokens
 	a.TotalOutputTokens += response.Usage.OutputTokens
 	// if response.Cost != nil {
@@ -225,7 +225,7 @@ func (a *Agent) UpdateCosts(response types.ChatMessage) {
 	// }
 }
 
-func (a *Agent) SendRequest(ctx context.Context) ([]types.ChatMessage, error) {
+func (a *Agent) SendRequest(ctx context.Context) ([]types.ChatResponse, error) {
 	params := llmclient.NewChatParams(
 		llmclient.WithModel(a.Model.Name),
 		llmclient.WithMaxTokens(1024),
@@ -271,11 +271,11 @@ func ListAgents() ([]string, error) {
 	return agents, nil
 }
 
-func (a *Agent) AddMessage(msg ...*types.ChatMessageParams) {
+func (a *Agent) AddMessage(msg ...*types.ChatMessage) {
 	a.Messages = append(a.Messages, msg...)
 }
 
 // GetMessages returns the current message history
-func (a *Agent) GetMessages() []*types.ChatMessageParams {
+func (a *Agent) GetMessages() []*types.ChatMessage {
 	return a.Messages
 }

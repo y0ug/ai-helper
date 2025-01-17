@@ -28,7 +28,7 @@ func TestClientStreamIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*types.AIContent{types.NewTextContent(
+					Content: []*types.MessageContent{types.NewTextContent(
 						"Write a 100 word essay on the topic of artificial intelligence",
 					)},
 				},
@@ -86,7 +86,7 @@ func TestClientIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*types.AIContent{types.NewTextContent(
+					Content: []*types.MessageContent{types.NewTextContent(
 						"Say hello in exactly 5 words",
 					)},
 				},
@@ -121,7 +121,7 @@ func TestClientIntegration(t *testing.T) {
 			Messages: []MessageParam{
 				{
 					Role: "user",
-					Content: []*types.AIContent{types.NewTextContent(
+					Content: []*types.MessageContent{types.NewTextContent(
 						"Say hello in exactly 5 words",
 					)},
 				},

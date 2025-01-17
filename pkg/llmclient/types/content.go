@@ -6,28 +6,28 @@ import (
 	"log"
 )
 
-// ContentType enumerates possible content types we handle
-type ContentType string
+// MessageContentType enumerates possible content types we handle
+type MessageContentType string
 
 const (
 	// Common Anthropic/OpenAI
-	ContentTypeText      ContentType = "text"
-	ContentTypeTextDelta ContentType = "text_delta"
+	ContentTypeText      MessageContentType = "text"
+	ContentTypeTextDelta MessageContentType = "text_delta"
 
 	// Anthropic
-	ContentTypeInputJsonDelta ContentType = "input_json_delta"
-	ContentTypeToolUse        ContentType = "tool_use"
-	ContentTypeToolResult     ContentType = "tool_result"
-	ContentTypeDocument       ContentType = "document"
-	ContentTypeImage          ContentType = "image"
+	ContentTypeInputJsonDelta MessageContentType = "input_json_delta"
+	ContentTypeToolUse        MessageContentType = "tool_use"
+	ContentTypeToolResult     MessageContentType = "tool_result"
+	ContentTypeDocument       MessageContentType = "document"
+	ContentTypeImage          MessageContentType = "image"
 
 	// OpenAI
-	ContentTypeInputAudio ContentType = "input_audio"
+	ContentTypeInputAudio MessageContentType = "input_audio"
 )
 
-// AIContent holds text, tool calls, or other specialized content
-type AIContent struct {
-	Type ContentType `json:"type"`
+// MessageContent holds text, tool calls, or other specialized content
+type MessageContent struct {
+	Type MessageContentType `json:"type"`
 
 	// Relevant for text content
 	Text        string `json:"text,omitempty"`
@@ -51,8 +51,8 @@ type AIContentSrc struct {
 	Data      []byte `json:"data"`
 }
 
-func NewSourceContent(sourceType string, mediaType string, data []byte) *AIContent {
-	var contentType ContentType
+func NewSourceContent(sourceType string, mediaType string, data []byte) *MessageContent {
+	var contentType MessageContentType
 	switch sourceType {
 	case "document":
 		contentType = ContentTypeDocument
@@ -61,9 +61,9 @@ func NewSourceContent(sourceType string, mediaType string, data []byte) *AIConte
 	default:
 		// TODO: remove this log
 		log.Printf("Unknown source type: %s", sourceType)
-		contentType = ContentType("contentType")
+		contentType = MessageContentType("contentType")
 	}
-	return &AIContent{
+	return &MessageContent{
 		Type: contentType,
 		Source: &AIContentSrc{
 			Type:      "base64",
@@ -74,12 +74,12 @@ func NewSourceContent(sourceType string, mediaType string, data []byte) *AIConte
 }
 
 // GetType returns the content type
-func (c AIContent) GetType() string {
+func (c MessageContent) GetType() string {
 	return string(c.Type)
 }
 
 // String returns a human-readable string (for debugging/logging)
-func (c AIContent) String() string {
+func (c MessageContent) String() string {
 	switch c.Type {
 	case ContentTypeTextDelta:
 		return c.Text
@@ -96,13 +96,13 @@ func (c AIContent) String() string {
 }
 
 // Raw returns the entire struct as a generic interface
-func (c AIContent) Raw() interface{} {
+func (c MessageContent) Raw() interface{} {
 	return c
 }
 
 // NewToolUseContent creates a tool use content message
-func NewToolUseContent(id, name string, args json.RawMessage) *AIContent {
-	return &AIContent{
+func NewToolUseContent(id, name string, args json.RawMessage) *MessageContent {
+	return &MessageContent{
 		Type:  ContentTypeToolUse,
 		ID:    id,
 		Name:  name,
@@ -111,8 +111,8 @@ func NewToolUseContent(id, name string, args json.RawMessage) *AIContent {
 }
 
 // NewToolResultContent creates a tool result content message
-func NewToolResultContent(toolUseID, content string) *AIContent {
-	return &AIContent{
+func NewToolResultContent(toolUseID, content string) *MessageContent {
+	return &MessageContent{
 		Type:      ContentTypeToolResult,
 		ToolUseID: toolUseID,
 		Content:   content,
@@ -120,8 +120,8 @@ func NewToolResultContent(toolUseID, content string) *AIContent {
 }
 
 // NewTextContent creates a text content message
-func NewTextContent(text string) *AIContent {
-	return &AIContent{
+func NewTextContent(text string) *MessageContent {
+	return &MessageContent{
 		Type: ContentTypeText,
 		Text: text,
 	}

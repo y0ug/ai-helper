@@ -21,28 +21,28 @@ func NewDeepSeekProvider(opts ...options.RequestOption) types.LLMProvider {
 
 func (a *DeepseekProvider) Send(
 	ctx context.Context,
-	params types.ChatMessageNewParams,
-) (*types.ChatMessage, error) {
-	paramsProvider := openai.BaseChatMessageNewParamsToOpenAI(params)
+	params types.ChatParams,
+) (*types.ChatResponse, error) {
+	paramsProvider := openai.ToChatCompletionNewParams(params)
 
 	resp, err := a.client.Chat.New(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
 	}
 
-	ret := &types.ChatMessage{}
+	ret := &types.ChatResponse{}
 	ret.ID = resp.ID
 	ret.Model = resp.Model
-	ret.Usage = &types.ChatMessageUsage{}
+	ret.Usage = &types.ChatUsage{}
 	ret.Usage.InputTokens = resp.Usage.PromptTokens
 	ret.Usage.OutputTokens = resp.Usage.CompletionTokens
 	if len(resp.Choices) > 0 {
 		for _, choice := range resp.Choices {
-			c := types.ChatMessageChoice{}
+			c := types.ChatChoice{}
 			for _, call := range choice.Message.ToolCalls {
 				c.Content = append(
 					c.Content,
-					openai.FromOpenaiToolCallToAIContent(call),
+					openai.ToolCallToMessageContent(call),
 				)
 			}
 
@@ -52,7 +52,7 @@ func (a *DeepseekProvider) Send(
 
 			// Role is not choice is our model
 			c.Role = choice.Message.Role
-			c.StopReason = openai.OpenaAIFinishReasonToStopReason(choice.FinishReason)
+			c.StopReason = openai.ToStopReason(choice.FinishReason)
 
 			ret.Choice = append(ret.Choice, c)
 		}
@@ -62,9 +62,9 @@ func (a *DeepseekProvider) Send(
 
 func (a *DeepseekProvider) Stream(
 	ctx context.Context,
-	params types.ChatMessageNewParams,
+	params types.ChatParams,
 ) (streaming.Streamer[types.EventStream], error) {
-	paramsProvider := openai.BaseChatMessageNewParamsToOpenAI(params)
+	paramsProvider := openai.ToChatCompletionNewParams(params)
 
 	stream, err := a.client.Chat.NewStreaming(ctx, paramsProvider)
 	if err != nil {

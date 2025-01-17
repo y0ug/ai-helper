@@ -12,15 +12,15 @@ import (
 func TestFromLLMMessageToOpenAi(t *testing.T) {
 	tests := []struct {
 		name     string
-		messages []*types.ChatMessageParams
+		messages []*types.ChatMessage
 		want     []ChatCompletionMessageParam
 	}{
 		{
 			name: "basic text message",
-			messages: []*types.ChatMessageParams{
+			messages: []*types.ChatMessage{
 				{
 					Role: "user",
-					Content: []*types.AIContent{
+					Content: []*types.MessageContent{
 						types.NewTextContent("Hello"),
 					},
 				},
@@ -34,10 +34,10 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 		},
 		{
 			name: "tool result message",
-			messages: []*types.ChatMessageParams{
+			messages: []*types.ChatMessage{
 				{
 					Role: "tool",
-					Content: []*types.AIContent{
+					Content: []*types.MessageContent{
 						{
 							Type:      types.ContentTypeToolResult,
 							Content:   "Result",
@@ -58,7 +58,7 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FromLLMMessageToOpenAi(tt.messages...)
+			got := MessageToOpenAI(tt.messages...)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -69,14 +69,14 @@ func TestOpenAIProvider_Send(t *testing.T) {
 	adapter := NewOpenAIProvider()
 
 	ctx := context.Background()
-	params := types.ChatMessageNewParams{
+	params := types.ChatParams{
 		Model:       "gpt-3.5-turbo",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []*types.ChatMessageParams{
+		Messages: []*types.ChatMessage{
 			{
 				Role: "user",
-				Content: []*types.AIContent{
+				Content: []*types.MessageContent{
 					types.NewTextContent("Hello, how are you?"),
 				},
 			},

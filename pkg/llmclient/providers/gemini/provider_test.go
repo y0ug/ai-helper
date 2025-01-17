@@ -13,14 +13,14 @@ func TestSend(t *testing.T) {
 	// Create a new provder with a mock client
 	provder := NewGeminiProvider()
 	ctx := context.Background()
-	params := types.ChatMessageNewParams{
+	params := types.ChatParams{
 		Model:       "gemini-exp-1206",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []*types.ChatMessageParams{
+		Messages: []*types.ChatMessage{
 			{
 				Role: "user",
-				Content: []*types.AIContent{
+				Content: []*types.MessageContent{
 					types.NewTextContent("Hello, how are you?"),
 				},
 			},

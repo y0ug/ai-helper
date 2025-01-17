@@ -63,12 +63,12 @@ func main() {
 	provider, _ := llmclient.NewProviderByModel(model, modelInfoProvider, requestOpts...)
 
 	ctx := context.Background()
-	params := types.NewChatMessageParams(
+	params := types.NewChatParams(
 		types.WithModel(model),
 		types.WithMaxTokens(1024),
 		types.WithTemperature(0),
 		types.WithMessages(
-			types.NewUserMessageParams(
+			types.NewUserMessage(
 
 				// Can you write an Hello World in C?
 				"What the weather at Paris ?",
@@ -96,9 +96,9 @@ func main() {
 func HandleLLMConversation(
 	ctx context.Context,
 	provider types.LLMProvider,
-	params types.ChatMessageNewParams,
-) (*types.ChatMessage, error) {
-	var msg *types.ChatMessage
+	params types.ChatParams,
+) (*types.ChatResponse, error) {
+	var msg *types.ChatResponse
 	for {
 
 		stream, err := provider.Stream(ctx, params)
@@ -133,7 +133,7 @@ func HandleLLMConversation(
 		fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
 
 		params.Messages = append(params.Messages, msg.ToMessageParams())
-		toolResults := make([]*types.AIContent, 0)
+		toolResults := make([]*types.MessageContent, 0)
 		// for _, choice := range msg.Choice {
 		choice := msg.Choice[0]
 		for _, content := range choice.Content {
@@ -175,7 +175,7 @@ func HandleLLMConversation(
 		// 	*params.N = 1
 		// }
 
-		params.Messages = append(params.Messages, types.NewMessageParams("user", toolResults...))
+		params.Messages = append(params.Messages, types.NewMessage("user", toolResults...))
 	}
 	return msg, nil
 }
@@ -184,8 +184,8 @@ func processStream(
 	ctx context.Context,
 	w io.Writer,
 	ch <-chan types.EventStream,
-) (*types.ChatMessage, error) {
-	var cm *types.ChatMessage
+) (*types.ChatResponse, error) {
+	var cm *types.ChatResponse
 	for {
 		select {
 		case <-ctx.Done():

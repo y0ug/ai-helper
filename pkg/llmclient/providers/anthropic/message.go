@@ -61,20 +61,20 @@ func (svc *MessageService) NewStreaming(
 }
 
 type MessageParam struct {
-	Role    string             `json:"role"`
-	Content []*types.AIContent `json:"content"`
+	Role    string                  `json:"role"`
+	Content []*types.MessageContent `json:"content"`
 }
 
 // Message response, ToParam methode convert to MessageParam
 type Message struct {
-	ID           string             `json:"id,omitempty"`
-	Content      []*types.AIContent `json:"content,omitempty"`
-	Role         string             `json:"role,omitempty"` // Always "assistant"
-	StopReason   string             `json:"stop_reason,omitempty"`
-	StopSequence string             `json:"stop_sequence,omitempty"`
-	Type         string             `json:"type,omitempty"` // Always "message"
-	Usage        *Usage             `json:"usage,omitempty"`
-	Model        string             `json:"model,omitempty"`
+	ID           string                  `json:"id,omitempty"`
+	Content      []*types.MessageContent `json:"content,omitempty"`
+	Role         string                  `json:"role,omitempty"` // Always "assistant"
+	StopReason   string                  `json:"stop_reason,omitempty"`
+	StopSequence string                  `json:"stop_sequence,omitempty"`
+	Type         string                  `json:"type,omitempty"` // Always "message"
+	Usage        *Usage                  `json:"usage,omitempty"`
+	Model        string                  `json:"model,omitempty"`
 }
 
 func (r *Message) ToParam() MessageParam {
@@ -94,7 +94,7 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 		*a = event.Message
 	case "content_block_start":
 		index := event.Index
-		a.Content = append(a.Content, &types.AIContent{})
+		a.Content = append(a.Content, &types.MessageContent{})
 		if int(index) >= len(a.Content) {
 			return fmt.Errorf("Index %d is out of range, len: %d\n", index, len(a.Content))
 		}
@@ -108,7 +108,7 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 		if int(index) >= len(a.Content) {
 			return fmt.Errorf("Index %d is out of range, len: %d\n", index, len(a.Content))
 		}
-		var delta types.AIContent
+		var delta types.MessageContent
 		err := json.Unmarshal(event.Delta, &delta)
 		if err != nil {
 			return fmt.Errorf("error unmarshalling delta: %w %s", err, event.Delta)

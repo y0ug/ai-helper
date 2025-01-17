@@ -13,14 +13,14 @@ func TestSend(t *testing.T) {
 	// Create a new provder with a mock client
 	provder := NewOpenRouterProvider()
 	ctx := context.Background()
-	params := types.ChatMessageNewParams{
+	params := types.ChatParams{
 		Model:       "google/gemini-flash-1.5-8b",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []*types.ChatMessageParams{
+		Messages: []*types.ChatMessage{
 			{
 				Role: "user",
-				Content: []*types.AIContent{
+				Content: []*types.MessageContent{
 					types.NewTextContent("Hello, how are you?"),
 				},
 			},
