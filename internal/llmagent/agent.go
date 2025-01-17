@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -16,6 +15,18 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
+
+type AgentSessionState struct {
+	ID                string              `json:"id"`
+	ModelName         string              `json:"model_name"`
+	Messages          []*chat.ChatMessage `json:"messages"`
+	CreatedAt         time.Time           `json:"created_at"`
+	UpdatedAt         time.Time           `json:"updated_at"`
+	TotalInputTokens  int                 `json:"total_input_tokens"`
+	TotalOutputTokens int                 `json:"total_output_tokens"`
+	TotalCost         float64             `json:"total_cost"`
+	// ... possibly other fields
+}
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
@@ -45,7 +56,7 @@ func New(
 	id string,
 	logger zerolog.Logger,
 	chatParams *chat.ChatParams,
-	cachePath string,
+	modelInfoProvider modelinfo.Provider,
 	mcpServersConfig *config.MCPServers,
 	requestOpts ...options.RequestOption,
 ) (*Agent, error) {
@@ -60,12 +71,6 @@ func New(
 		UpdatedAt:       now,
 		requestOpts:     requestOpts,
 		chatParams:      chatParams,
-	}
-
-	var err error
-	a.modelInfoProvider, err = modelinfo.New(filepath.Join(cachePath, "modelinfo.json"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create model info provider: %w", err)
 	}
 
 	if a.chatParams.Model != "" {
@@ -131,6 +136,38 @@ func (a *Agent) StartMCP(ctx context.Context) error {
 
 	}
 	return a.setTools()
+}
+
+func (a *Agent) SaveSession() *AgentSessionState {
+	return &AgentSessionState{
+		ID:                a.ID,
+		ModelName:         a.Model.Name,
+		Messages:          a.Messages,
+		CreatedAt:         a.CreatedAt,
+		UpdatedAt:         a.UpdatedAt,
+		TotalInputTokens:  a.TotalInputTokens,
+		TotalOutputTokens: a.TotalOutputTokens,
+		TotalCost:         a.TotalCost,
+	}
+}
+
+func (a *Agent) LoadSession(state *AgentSessionState) error {
+	a.ID = state.ID
+	a.Messages = state.Messages
+	a.CreatedAt = state.CreatedAt
+	a.UpdatedAt = state.UpdatedAt
+	a.TotalInputTokens = state.TotalInputTokens
+	a.TotalOutputTokens = state.TotalOutputTokens
+	a.TotalCost = state.TotalCost
+
+	// If there's a model name in the session, re-set the model
+	if state.ModelName != "" {
+		if err := a.SetModel(state.ModelName); err != nil {
+			return fmt.Errorf("failed to load model from session: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (a *Agent) StopMCP() {

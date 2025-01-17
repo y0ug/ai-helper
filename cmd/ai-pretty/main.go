@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -13,6 +14,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
+	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
 
 var mcpConfig = `
@@ -62,11 +64,25 @@ func main() {
 		return
 	}
 
+	cachePath := "/tmp"
+	modelInfoProvider, err := modelinfo.New(filepath.Join(cachePath, "modelinfo.json"))
+	if err != nil {
+		logger.Err(err).Msg("failed to create model info provider")
+		return
+	}
+
 	chatParams := chat.NewChatParams(
 		chat.WithModel(model),
 		chat.WithMaxTokens(100),
 	)
-	agent, err := llmagent.New("test", logger, chatParams, "/tmp/", &cfg.MCPServers, requestOpts...)
+
+	agent, err := llmagent.New(
+		"test",
+		logger,
+		chatParams,
+		modelInfoProvider,
+		&cfg.MCPServers,
+		requestOpts...)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -76,8 +92,8 @@ func main() {
 
 	h := highlighter.NewHighlighter(os.Stdout)
 	agent.AddMessage(chat.NewMessage("user",
-		// chat.NewTextContent("What time is it at New York?")))
-		chat.NewTextContent("What the weather at Paris?")))
+		chat.NewTextContent("What time is it at New York?")))
+	// chat.NewTextContent("What the weather at Paris?")))
 	_, cost, err := agent.Do(ctx, h)
 	if err != nil {
 		fmt.Println(err)
