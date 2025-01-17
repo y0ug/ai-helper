@@ -25,16 +25,21 @@ func (l *Loader) Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	var config Config
 	ext := strings.ToLower(filepath.Ext(path))
-	
-	switch ext {
-	case ".yaml", ".yml":
+
+	return l.LoadData(data, ext[1:])
+}
+
+func (l *Loader) LoadData(data []byte, dataType string) (*Config, error) {
+	var config Config
+	var err error
+	switch dataType {
+	case "yaml", "yml":
 		err = yaml.Unmarshal(data, &config)
-	case ".json":
+	case "json":
 		err = json.Unmarshal(data, &config)
 	default:
-		return nil, fmt.Errorf("unsupported config file format: %s", ext)
+		return nil, fmt.Errorf("unsupported config file format: %s", dataType)
 	}
 
 	if err != nil {
@@ -44,6 +49,5 @@ func (l *Loader) Load(path string) (*Config, error) {
 	if err := config.ValidateConfig(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
-
 	return &config, nil
 }

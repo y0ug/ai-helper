@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
-	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/y0ug/ai-helper/internal/config"
-	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
@@ -21,7 +19,8 @@ import (
 
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
-	ID                string           // Unique identifier for this agent/session
+	ID                string // Unique identifier for this agent/session
+	logger            zerolog.Logger
 	Model             *modelinfo.Model // The AI model being used
 	Client            chat.Provider
 	modelInfoProvider modelinfo.Provider
@@ -42,8 +41,9 @@ type Agent struct {
 	TotalCost         float64                // Total cost accumulated
 }
 
-func NewAgent(
+func New(
 	id string,
+	logger zerolog.Logger,
 	chatParams *chat.ChatParams,
 	cachePath string,
 	mcpServersConfig *config.MCPServers,
@@ -52,6 +52,7 @@ func NewAgent(
 	now := time.Now()
 	a := &Agent{
 		ID:              id,
+		logger:          logger,
 		mcpServerConfig: mcpServersConfig,
 		mcpClient:       make(map[string]mcpclient.MCPClientInterface),
 		Messages:        make([]*chat.ChatMessage, 0),
@@ -66,6 +67,13 @@ func NewAgent(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create model info provider: %w", err)
 	}
+
+	if a.chatParams.Model != "" {
+		err := a.SetModel(a.chatParams.Model)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set model: %w", err)
+		}
+	}
 	return a, nil
 }
 
@@ -77,9 +85,13 @@ func (a *Agent) SetParams(chatParams *chat.ChatParams) {
 }
 
 func (a *Agent) SetModel(model string) error {
-	provider, modelInfo := llmclient.New(model, a.modelInfoProvider, a.requestOpts...)
-	if provider != nil {
-		return fmt.Errorf("failed to create provider")
+	modelInfo, err := modelinfo.Parse(model, a.modelInfoProvider)
+	if err != nil {
+		return fmt.Errorf("failed to parse model %s: %w", model, err)
+	}
+	provider, err := llmclient.New(modelInfo.Provider, a.requestOpts...)
+	if err != nil {
+		return fmt.Errorf("failed to create provider %s", model)
 	}
 
 	a.Client = provider
@@ -89,7 +101,7 @@ func (a *Agent) SetModel(model string) error {
 }
 
 // InitializeMCPClient
-func (a *Agent) startMCP(ctx context.Context) error {
+func (a *Agent) StartMCP(ctx context.Context) error {
 	if a.mcpServerConfig == nil {
 		return fmt.Errorf("no MCP servers configured")
 	}
@@ -97,13 +109,14 @@ func (a *Agent) startMCP(ctx context.Context) error {
 	ctx, a.mcpCancel = context.WithCancel(ctx)
 
 	for serverName, config := range *a.mcpServerConfig {
-		fmt.Printf("serverName %s", serverName)
+		a.logger.Debug().Str("name", serverName).Msg("starting")
 		if _, ok := a.mcpClient[serverName]; ok {
-			log.Printf("MCP client '%s' already initialized", serverName)
+			a.logger.Warn().Str("name", serverName).Msg("already started")
+			continue
 		}
 
 		// Create new MCP client
-		client, err := mcpclient.NewMCPClient(ctx, config.Command, config.Args...)
+		client, err := mcpclient.NewMCPClient(ctx, a.logger, config.Command, config.Args...)
 		if err != nil {
 			return fmt.Errorf("failed to create MCP client: %w", err)
 		}
@@ -115,8 +128,9 @@ func (a *Agent) startMCP(ctx context.Context) error {
 
 		// Store the client
 		a.mcpClient[serverName] = client
+
 	}
-	return nil
+	return a.setTools()
 }
 
 func (a *Agent) StopMCP() {
@@ -136,7 +150,7 @@ func (a *Agent) setTools() error {
 	for k, v := range a.mcpClient {
 		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
 		if err != nil {
-			fmt.Printf("fetchTools error %s:%v", k, err)
+			a.logger.Warn().Str("name", k).Msg("fetchTools")
 			continue
 		}
 		a.Tools = append(a.Tools, MCPClientToolToTool(tools...)...)
@@ -156,9 +170,19 @@ func (a *Agent) UpdateCosts(response chat.ChatResponse) {
 	// }
 }
 
-func (a *Agent) Do(ctx context.Context, w io.Writer) (*chat.ChatResponse, error) {
+func (a *Agent) Do(ctx context.Context, w io.Writer) ([]*chat.ChatResponse, error) {
 	a.chatParams.Messages = a.Messages
+	a.chatParams.Tools = a.Tools
 	resp, err := a.process(ctx, w)
+	var cost float64
+	for _, m := range resp {
+		a.TotalInputTokens += m.Usage.InputTokens
+		a.TotalOutputTokens += m.Usage.OutputTokens
+
+		cost += a.Model.Metadata.OutputCostPerToken * float64(m.Usage.OutputTokens)
+		cost += a.Model.Metadata.InputCostPerToken * float64(m.Usage.InputTokens)
+	}
+	a.logger.Info().Msgf("Total cost: %f\n", cost)
 	return resp, err
 }
 
@@ -189,13 +213,15 @@ func processStream(
 func (a *Agent) process(
 	ctx context.Context,
 	w io.Writer,
-) (*chat.ChatResponse, error) {
+) ([]*chat.ChatResponse, error) {
+	resp := make([]*chat.ChatResponse, 0)
 	var msg *chat.ChatResponse
 	for {
 
+		logger := a.logger.With().Str("model", a.Model.Name).Logger()
 		stream, err := a.Client.Stream(ctx, *a.chatParams)
 		if err != nil {
-			log.Printf("Error streaming: %v", err)
+			logger.Err(err).Msg("Error streaming")
 			return nil, err
 		}
 
@@ -206,23 +232,22 @@ func (a *Agent) process(
 			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
 			if err := chat.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
 				if err != context.Canceled {
-					log.Printf("Error consuming stream: %v", err)
+					logger.Err(err).Msg("Error consuming stream")
 				}
 			}
 		}()
 
-		h := highlighter.NewHighlighter(os.Stdout)
-		msg, err = processStream(ctx, h, eventCh)
+		msg, err = processStream(ctx, w, eventCh)
 		if err != nil {
-			log.Printf("Error processing stream: %v", err)
+			logger.Err(err).Msg("Error processing stream")
 			return nil, nil
 		}
 
 		if msg == nil {
-			log.Printf("No message returned")
-			return nil, nil
+			logger.Err(nil).Msg("no message return")
+			return resp, nil
 		}
-		fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
+		resp = append(resp, msg)
 
 		a.chatParams.Messages = append(a.chatParams.Messages, msg.ToMessageParams())
 		toolResults := make([]*chat.MessageContent, 0)
@@ -232,25 +257,23 @@ func (a *Agent) process(
 			if content.Type == "tool_use" {
 				handler, ok := a.ToolsHandler[content.Name]
 				if !ok {
-					log.Printf("Tool %s not found", content.Name)
+					logger.Debug().Str("name", content.Name).Msg("Tool not found")
 					continue
 				}
-				log.Printf(
-					"%s execution: %s with \"%s\"",
-					content.ID,
-					content.Name,
-					string(content.Input),
-				)
 
 				var input map[string]interface{}
 				err := json.Unmarshal([]byte(content.Input), &input)
 				// fmt.Println(content.InputJson)
 				if err != nil {
-					log.Printf("Error unmarshalling input: %v", err)
+					logger.Debug().Str("name", content.Name).Msg("Error unmarshalling input")
 				}
+				logger.Debug().Str("name", content.Name).
+					Str("id", content.ID).
+					Interface("input", input).
+					Msg("Tool call")
 				response, err := handler(ctx, input)
 				if err != nil {
-					log.Printf("Error executing tool: %v", err)
+					logger.Err(err).Str("name", content.Name).Msg("Error executing tool")
 					continue
 				}
 				b, err := json.Marshal(response)
@@ -261,24 +284,22 @@ func (a *Agent) process(
 					toolResults,
 					chat.NewToolResultContent(content.ID, string(b)),
 				)
-				log.Printf("Tool result: %s", string(b))
+				logger.Debug().
+					Str("name", content.Name).
+					Interface("result", response).
+					Msg("Tool result")
 			}
 		}
-		// }
 		if len(toolResults) == 0 {
 			break
 		}
-
-		// if params.N != nil {
-		// 	*params.N = 1
-		// }
-
 		a.chatParams.Messages = append(
 			a.chatParams.Messages,
 			chat.NewMessage("user", toolResults...),
 		)
 	}
-	return msg, nil
+	fmt.Fprintf(w, "\n")
+	return resp, nil
 }
 
 func (a *Agent) Reset() {

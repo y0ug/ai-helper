@@ -1,9 +1,10 @@
 package llmclient
 
 import (
+	"fmt"
+
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
-	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/deepseek"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/gemini"
@@ -12,18 +13,10 @@ import (
 )
 
 // New provider factory
-func New(
-	modelName string,
-	infoProvider modelinfo.Provider,
-	requestOpts ...options.RequestOption,
-) (chat.Provider, *modelinfo.Model) {
-	model, err := modelinfo.Parse(modelName, infoProvider)
-	if err != nil {
-		return nil, nil
-	}
-
+func New(providerName string, requestOpts ...options.RequestOption,
+) (chat.Provider, error) {
 	var provider chat.Provider
-	switch model.Provider {
+	switch providerName {
 	case "anthropic":
 		provider = anthropic.New(requestOpts...)
 	case "openrouter":
@@ -36,5 +29,8 @@ func New(
 		provider = deepseek.New(requestOpts...)
 	}
 
-	return provider, model
+	if provider == nil {
+		return nil, fmt.Errorf("provider %s not found", providerName)
+	}
+	return provider, nil
 }

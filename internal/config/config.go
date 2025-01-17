@@ -31,19 +31,23 @@ func (c *Config) GetCommandPrompt(name string) (string, string, error) {
 
 // ValidateConfig checks if the configuration is valid
 func (c *Config) ValidateConfig() error {
-	if len(c.Commands) == 0 {
-		return fmt.Errorf("no commands defined in configuration")
-	}
+	// if len(c.Commands) == 0 {
+	// 	return fmt.Errorf("no commands defined in configuration")
+	// }
 
 	for name, cmd := range c.Commands {
 		if cmd.Prompt == "" {
 			return fmt.Errorf("empty prompt for command '%s'", name)
 		}
-		
+
 		// Validate that referenced MCP servers exist
 		for _, serverName := range cmd.MCPServers {
 			if _, exists := c.MCPServers[serverName]; !exists {
-				return fmt.Errorf("command '%s' references non-existent MCP server '%s'", name, serverName)
+				return fmt.Errorf(
+					"command '%s' references non-existent MCP server '%s'",
+					name,
+					serverName,
+				)
 			}
 		}
 	}
