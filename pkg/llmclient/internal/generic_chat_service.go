@@ -71,6 +71,6 @@ func (svc *GenericChatService[Params, Response, Chunk]) NewStreaming(
 	}
 	return streaming.NewStream(
 		streaming.NewDecoderSSE(raw),
-		streaming.NewDefaultStreamHandler[Chunk](),
+		streaming.NewGenericStreamHandler[Chunk](),
 	), nil
 }

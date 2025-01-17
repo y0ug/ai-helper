@@ -8,7 +8,7 @@ import (
 // GenericStreamHandler implements StreamHandler for basic streaming responses
 type GenericStreamHandler[T any, TypeIn Event] struct{}
 
-func NewDefaultStreamHandler[T any, TypeIn Event]() *GenericStreamHandler[T, Event] {
+func NewGenericStreamHandler[T any, TypeIn Event]() *GenericStreamHandler[T, Event] {
 	return &GenericStreamHandler[T, Event]{}
 }
 

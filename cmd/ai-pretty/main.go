@@ -63,19 +63,19 @@ func main() {
 	provider, _ := llmclient.NewProviderByModel(model, modelInfoProvider, requestOpts...)
 
 	ctx := context.Background()
-	params := llmclient.NewChatParams(
-		llmclient.WithModel(model),
-		llmclient.WithMaxTokens(1024),
-		llmclient.WithTemperature(0),
-		llmclient.WithMessages(
-			llmclient.NewUserMessage(
+	params := types.NewChatMessageParams(
+		types.WithModel(model),
+		types.WithMaxTokens(1024),
+		types.WithTemperature(0),
+		types.WithMessages(
+			types.NewUserMessageParams(
 
 				// Can you write an Hello World in C?
 				"What the weather at Paris ?",
 				// "Write a 500 word essai about Golang and put a some code block in the middle",
 			),
 		),
-		llmclient.WithTools(types.Tool{
+		types.WithTools(types.Tool{
 			Name:        "get_weather",
 			Description: StrToPtr("Get the current weather"),
 			InputSchema: GetWeatherInputSchema,
@@ -112,7 +112,7 @@ func HandleLLMConversation(
 		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
 		go func() {
 			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
-			if err := llmclient.ConsumeStream(ctx, stream, eventCh); err != nil {
+			if err := types.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
 				if err != context.Canceled {
 					log.Printf("Error consuming stream: %v", err)
 				}
@@ -175,7 +175,7 @@ func HandleLLMConversation(
 		// 	*params.N = 1
 		// }
 
-		params.Messages = append(params.Messages, llmclient.NewUserMessageContent(toolResults...))
+		params.Messages = append(params.Messages, types.NewMessageParams("user", toolResults...))
 	}
 	return msg, nil
 }

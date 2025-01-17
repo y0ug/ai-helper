@@ -1,5 +1,11 @@
 package types
 
+import (
+	"context"
+
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
+)
+
 type ChatMessageNewParams struct {
 	Model       string
 	MaxTokens   int
@@ -65,4 +71,86 @@ type Tool struct {
 	Description *string     `json:"description,omitempty"`
 	InputSchema interface{} `json:"input_schema,omitempty"`
 	Name        string      `json:"name"`
+}
+
+// WithModel sets the model for BaseChatMessageNewParams
+func WithModel(model string) func(*ChatMessageNewParams) {
+	return func(p *ChatMessageNewParams) {
+		p.Model = model
+	}
+}
+
+// WithMaxTokens sets the max tokens for BaseChatMessageNewParams
+func WithMaxTokens(tokens int) func(*ChatMessageNewParams) {
+	return func(p *ChatMessageNewParams) {
+		p.MaxTokens = tokens
+	}
+}
+
+// WithTemperature sets the temperature for BaseChatMessageNewParams
+func WithTemperature(temp float64) func(*ChatMessageNewParams) {
+	return func(p *ChatMessageNewParams) {
+		p.Temperature = temp
+	}
+}
+
+// WithMessages sets the messages for BaseChatMessageNewParams
+func WithMessages(
+	messages ...*ChatMessageParams,
+) func(*ChatMessageNewParams) {
+	return func(p *ChatMessageNewParams) {
+		p.Messages = messages
+	}
+}
+
+// WithTools sets the tools/functions for BaseChatMessageNewParams
+func WithTools(tools ...Tool) func(*ChatMessageNewParams) {
+	return func(p *ChatMessageNewParams) {
+		p.Tools = tools
+	}
+}
+
+func NewMessageParams(role string, content ...*AIContent) *ChatMessageParams {
+	return &ChatMessageParams{
+		Role:    role,
+		Content: content,
+	}
+}
+
+func NewSystemMessageParams(text string) *ChatMessageParams {
+	return NewMessageParams("system", NewTextContent(text))
+}
+
+func NewUserMessageParams(text string) *ChatMessageParams {
+	return NewMessageParams("user", NewTextContent(text))
+}
+
+// NewChatMessageParams creates a new BaseChatMessageNewParams with the given options
+func NewChatMessageParams(
+	opts ...func(*ChatMessageNewParams),
+) *ChatMessageNewParams {
+	params := &ChatMessageNewParams{}
+	for _, opt := range opts {
+		opt(params)
+	}
+	return params
+}
+
+func StreamChatMessageToChannel(
+	ctx context.Context,
+	stream streaming.Streamer[EventStream],
+	ch chan<- EventStream,
+) error {
+	defer close(ch)
+
+	for stream.Next() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			ch <- stream.Current()
+		}
+	}
+
+	return stream.Err()
 }

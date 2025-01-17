@@ -51,14 +51,6 @@ type AIContentSrc struct {
 	Data      []byte `json:"data"`
 }
 
-// NewTextContent creates a text content message
-func NewTextContent(text string) *AIContent {
-	return &AIContent{
-		Type: ContentTypeText,
-		Text: text,
-	}
-}
-
 func NewSourceContent(sourceType string, mediaType string, data []byte) *AIContent {
 	var contentType ContentType
 	switch sourceType {
@@ -78,25 +70,6 @@ func NewSourceContent(sourceType string, mediaType string, data []byte) *AIConte
 			MediaType: mediaType,
 			Data:      data,
 		},
-	}
-}
-
-// NewToolUseContent creates a tool use content message
-func NewToolUseContent(id, name string, args json.RawMessage) *AIContent {
-	return &AIContent{
-		Type:  ContentTypeToolUse,
-		ID:    id,
-		Name:  name,
-		Input: args,
-	}
-}
-
-// NewToolResultContent creates a tool result content message
-func NewToolResultContent(toolUseID, content string) *AIContent {
-	return &AIContent{
-		Type:      ContentTypeToolResult,
-		ToolUseID: toolUseID,
-		Content:   content,
 	}
 }
 
@@ -125,4 +98,31 @@ func (c AIContent) String() string {
 // Raw returns the entire struct as a generic interface
 func (c AIContent) Raw() interface{} {
 	return c
+}
+
+// NewToolUseContent creates a tool use content message
+func NewToolUseContent(id, name string, args json.RawMessage) *AIContent {
+	return &AIContent{
+		Type:  ContentTypeToolUse,
+		ID:    id,
+		Name:  name,
+		Input: args,
+	}
+}
+
+// NewToolResultContent creates a tool result content message
+func NewToolResultContent(toolUseID, content string) *AIContent {
+	return &AIContent{
+		Type:      ContentTypeToolResult,
+		ToolUseID: toolUseID,
+		Content:   content,
+	}
+}
+
+// NewTextContent creates a text content message
+func NewTextContent(text string) *AIContent {
+	return &AIContent{
+		Type: ContentTypeText,
+		Text: text,
+	}
 }
