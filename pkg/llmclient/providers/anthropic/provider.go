@@ -8,17 +8,17 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
-type AnthropicProvider struct {
+type Provider struct {
 	client *Client
 }
 
-func NewAnthropicProvider(opts ...options.RequestOption) types.LLMProvider {
-	return &AnthropicProvider{
+func New(opts ...options.RequestOption) types.LLMProvider {
+	return &Provider{
 		client: NewClient(opts...),
 	}
 }
 
-func (a *AnthropicProvider) Send(
+func (a *Provider) Send(
 	ctx context.Context,
 	params types.ChatParams,
 ) (*types.ChatResponse, error) {
@@ -31,7 +31,7 @@ func (a *AnthropicProvider) Send(
 	return AnthropicMessageToChatMessage(&am), nil
 }
 
-func (a *AnthropicProvider) Stream(
+func (a *Provider) Stream(
 	ctx context.Context,
 	params types.ChatParams,
 ) (streaming.Streamer[types.EventStream], error) {

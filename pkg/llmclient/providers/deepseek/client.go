@@ -37,7 +37,7 @@ func NewClient(opts ...options.RequestOption) (r *Client) {
 	}
 	opts = append(defaults, opts...)
 	r = &Client{
-		BaseClient: client.NewBaseClient(openai.NewAPIErrorOpenAI, opts...),
+		BaseClient: client.NewBaseClient(openai.NewAPIError, opts...),
 	}
 
 	r.Chat = NewChatCompletionService(r.BaseClient.Options...)
@@ -53,7 +53,7 @@ type ChatCompletionService struct {
 func NewChatCompletionService(opts ...options.RequestOption) *ChatCompletionService {
 	baseService := &internal.GenericChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]{
 		Options:  opts,
-		NewError: openai.NewAPIErrorOpenAI,
+		NewError: openai.NewAPIError,
 		Endpoint: "chat/completions",
 	}
 

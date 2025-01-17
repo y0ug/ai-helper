@@ -11,12 +11,13 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
-func NewProviderByModel(
+// New provider factory
+func New(
 	modelName string,
-	infoProvider modelinfo.ModelInfoProvider,
+	infoProvider modelinfo.Provider,
 	requestOpts ...options.RequestOption,
-) (types.LLMProvider, *modelinfo.LLMModel) {
-	model, err := modelinfo.ParseModel(modelName, infoProvider)
+) (types.LLMProvider, *modelinfo.Model) {
+	model, err := modelinfo.Parse(modelName, infoProvider)
 	if err != nil {
 		return nil, nil
 	}
@@ -24,15 +25,15 @@ func NewProviderByModel(
 	var provider types.LLMProvider
 	switch model.Provider {
 	case "anthropic":
-		provider = anthropic.NewAnthropicProvider(requestOpts...)
+		provider = anthropic.New(requestOpts...)
 	case "openrouter":
-		provider = openrouter.NewOpenRouterProvider(requestOpts...)
+		provider = openrouter.New(requestOpts...)
 	case "openai":
-		provider = openai.NewOpenAIProvider(requestOpts...)
+		provider = openai.New(requestOpts...)
 	case "gemini":
-		provider = gemini.NewGeminiProvider(requestOpts...)
+		provider = gemini.New(requestOpts...)
 	case "deepseek":
-		provider = deepseek.NewDeepSeekProvider(requestOpts...)
+		provider = deepseek.New(requestOpts...)
 	}
 
 	return provider, model

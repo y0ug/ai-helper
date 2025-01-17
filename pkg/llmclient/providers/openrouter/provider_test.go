@@ -11,7 +11,7 @@ import (
 
 func TestSend(t *testing.T) {
 	// Create a new provder with a mock client
-	provder := NewOpenRouterProvider()
+	provder := New()
 	ctx := context.Background()
 	params := types.ChatParams{
 		Model:       "google/gemini-flash-1.5-8b",

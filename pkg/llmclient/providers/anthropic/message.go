@@ -21,7 +21,7 @@ type MessageService struct {
 func NewMessageService(opts ...options.RequestOption) *MessageService {
 	baseService := &internal.GenericChatService[MessageNewParams, Message, MessageStreamEvent]{
 		Options:  opts,
-		NewError: NewAPIErrorAnthropic,
+		NewError: NewError,
 		Endpoint: "v1/messages",
 	}
 

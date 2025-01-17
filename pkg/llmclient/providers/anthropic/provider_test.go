@@ -11,7 +11,7 @@ import (
 
 func TestAnthropicProvider_Send(t *testing.T) {
 	// Create a new adapter with a client
-	adapter := &AnthropicProvider{
+	adapter := &Provider{
 		client: NewClient(),
 	}
 

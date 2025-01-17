@@ -26,7 +26,7 @@ func NewClient(opts ...options.RequestOption) (r *Client) {
 		defaults = append(defaults, WithProject(o))
 	}
 	r = &Client{
-		BaseClient: client.NewBaseClient(NewAPIErrorOpenAI, append(defaults, opts...)...),
+		BaseClient: client.NewBaseClient(NewAPIError, append(defaults, opts...)...),
 	}
 
 	r.Chat = NewChatCompletionService(r.Options...)

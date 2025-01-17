@@ -56,7 +56,7 @@ func TestInfoProviders(t *testing.T) {
 		defer ctrl.Finish()
 
 		// Initialize InfoProviders with temp file
-		providers, err := NewModelInfoProvider(tmpFile.Name())
+		providers, err := New(tmpFile.Name())
 		if err != nil {
 			t.Fatalf("Failed to create InfoProviders: %v", err)
 		}
@@ -78,7 +78,7 @@ func TestInfoProviders(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.modelName, func(t *testing.T) {
-				info, err := providers.GetModelInfo(tc.modelName)
+				info, err := providers.Get(tc.modelName)
 				if err != nil {
 					t.Errorf("Failed to get info for %s: %v", tc.modelName, err)
 					return
@@ -115,7 +115,7 @@ func TestInfoProviders(t *testing.T) {
 		defer os.Remove(tmpFile.Name())
 
 		// Initialize InfoProviders with temp file
-		providers, err := NewModelInfoProvider(tmpFile.Name())
+		providers, err := New(tmpFile.Name())
 		if err != nil {
 			t.Fatalf("Failed to create InfoProviders: %v", err)
 		}
@@ -141,7 +141,7 @@ func TestInfoProviders(t *testing.T) {
 		}
 
 		for _, model := range knownModels {
-			info, err := providers.GetModelInfo(fmt.Sprintf("%s/%s", model.provider, model.name))
+			info, err := providers.Get(fmt.Sprintf("%s/%s", model.provider, model.name))
 			if err != nil {
 				t.Errorf("Failed to get info for %s: %v", model.name, err)
 				continue

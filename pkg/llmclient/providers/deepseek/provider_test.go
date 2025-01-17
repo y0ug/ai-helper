@@ -11,7 +11,7 @@ import (
 
 func TestSend(t *testing.T) {
 	// Create a new provder with a mock client
-	provder := NewDeepSeekProvider()
+	provder := New()
 	ctx := context.Background()
 	params := types.ChatParams{
 		Model:       "deepseek-chat",

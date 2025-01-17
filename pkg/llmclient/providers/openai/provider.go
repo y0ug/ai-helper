@@ -8,17 +8,17 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
-type OpenAIProvider struct {
+type Provider struct {
 	Client *Client
 }
 
-func NewOpenAIProvider(opts ...options.RequestOption) types.LLMProvider {
-	return &OpenAIProvider{
+func New(opts ...options.RequestOption) types.LLMProvider {
+	return &Provider{
 		Client: NewClient(opts...),
 	}
 }
 
-func (a *OpenAIProvider) Send(
+func (a *Provider) Send(
 	ctx context.Context,
 	params types.ChatParams,
 ) (*types.ChatResponse, error) {
@@ -32,7 +32,7 @@ func (a *OpenAIProvider) Send(
 	return ToChatResponse(&resp), nil
 }
 
-func (a *OpenAIProvider) Stream(
+func (a *Provider) Stream(
 	ctx context.Context,
 	params types.ChatParams,
 ) (streaming.Streamer[types.EventStream], error) {

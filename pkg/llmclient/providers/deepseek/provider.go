@@ -9,17 +9,17 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
-type DeepseekProvider struct {
+type Provider struct {
 	client *Client
 }
 
-func NewDeepSeekProvider(opts ...options.RequestOption) types.LLMProvider {
-	return &DeepseekProvider{
+func New(opts ...options.RequestOption) types.LLMProvider {
+	return &Provider{
 		client: NewClient(opts...),
 	}
 }
 
-func (a *DeepseekProvider) Send(
+func (a *Provider) Send(
 	ctx context.Context,
 	params types.ChatParams,
 ) (*types.ChatResponse, error) {
@@ -60,7 +60,7 @@ func (a *DeepseekProvider) Send(
 	return ret, nil
 }
 
-func (a *DeepseekProvider) Stream(
+func (a *Provider) Stream(
 	ctx context.Context,
 	params types.ChatParams,
 ) (streaming.Streamer[types.EventStream], error) {

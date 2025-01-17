@@ -6,13 +6,13 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
-type OpenRouterProvider struct {
-	*openai.OpenAIProvider
+type Provider struct {
+	*openai.Provider
 }
 
-func NewOpenRouterProvider(opts ...options.RequestOption) types.LLMProvider {
-	return &OpenRouterProvider{
-		&openai.OpenAIProvider{
+func New(opts ...options.RequestOption) types.LLMProvider {
+	return &Provider{
+		&openai.Provider{
 			Client: NewClient(opts...).Client,
 		},
 	}

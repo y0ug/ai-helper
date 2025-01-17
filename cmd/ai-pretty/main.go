@@ -60,8 +60,8 @@ func main() {
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
 		options.WithMiddleware(middleware.TimeitMiddleware()),
 	}
-	modelInfoProvider, _ := modelinfo.NewModelInfoProvider("")
-	provider, _ := llmclient.NewProviderByModel(model, modelInfoProvider, requestOpts...)
+	modelInfoProvider, _ := modelinfo.New("")
+	provider, _ := llmclient.New(model, modelInfoProvider, requestOpts...)
 
 	ctx := context.Background()
 	params := types.NewChatParams(

@@ -17,7 +17,7 @@ type ChatCompletionService struct {
 func NewChatCompletionService(opts ...options.RequestOption) *ChatCompletionService {
 	baseService := &internal.GenericChatService[ChatCompletionNewParams, ChatCompletion, ChatCompletionChunk]{
 		Options:  opts,
-		NewError: NewAPIErrorOpenAI,
+		NewError: NewAPIError,
 		Endpoint: "chat/completions",
 	}
 

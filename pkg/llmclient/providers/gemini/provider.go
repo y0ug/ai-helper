@@ -6,13 +6,13 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
-type GeminiProvider struct {
-	*openai.OpenAIProvider
+type Provider struct {
+	*openai.Provider
 }
 
-func NewGeminiProvider(opts ...options.RequestOption) types.LLMProvider {
-	return &GeminiProvider{
-		&openai.OpenAIProvider{
+func New(opts ...options.RequestOption) types.LLMProvider {
+	return &Provider{
+		&openai.Provider{
 			Client: NewClient(opts...).Client,
 		},
 	}

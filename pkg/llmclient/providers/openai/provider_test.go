@@ -66,7 +66,7 @@ func TestFromLLMMessageToOpenAi(t *testing.T) {
 
 func TestOpenAIProvider_Send(t *testing.T) {
 	// Create a new adapter with a mock client
-	adapter := NewOpenAIProvider()
+	adapter := New()
 
 	ctx := context.Background()
 	params := types.ChatParams{

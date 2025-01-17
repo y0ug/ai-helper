@@ -7,8 +7,8 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/errors"
 )
 
-func NewAPIErrorAnthropic(resp *http.Response, req *http.Request) errors.APIError {
-	return &APIErrorAnthropic{
+func NewError(resp *http.Response, req *http.Request) errors.APIError {
+	return &APIError{
 		APIErrorBase: errors.APIErrorBase{
 			StatusCode: resp.StatusCode,
 			Request:    req,
@@ -17,12 +17,12 @@ func NewAPIErrorAnthropic(resp *http.Response, req *http.Request) errors.APIErro
 	}
 }
 
-type APIErrorAnthropic struct {
+type APIError struct {
 	errors.APIErrorBase
 	ExtraFields map[string]interface{} `json:"-"`
 }
 
-func (r *APIErrorAnthropic) UnmarshalJSON(data []byte) (err error) {
+func (r *APIError) UnmarshalJSON(data []byte) (err error) {
 	r.JSON = string(data)
 	r.ExtraFields = make(map[string]interface{})
 	return json.Unmarshal(data, &r.ExtraFields)

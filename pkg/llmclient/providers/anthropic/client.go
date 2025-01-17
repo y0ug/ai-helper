@@ -22,7 +22,7 @@ func NewClient(opts ...options.RequestOption) (r *Client) {
 	r = &Client{
 		BaseClient: &client.BaseClient{
 			Options:  append(defaults, opts...),
-			NewError: NewAPIErrorAnthropic,
+			NewError: NewError,
 		},
 	}
 

@@ -7,7 +7,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/errors"
 )
 
-type APIErrorOpenAI struct {
+type APIError struct {
 	errors.APIErrorBase
 	Code    string `json:"code,required,nullable"`
 	Message string `json:"message,required"`
@@ -16,14 +16,14 @@ type APIErrorOpenAI struct {
 	JSON    string `json:"-"`
 }
 
-func (r *APIErrorOpenAI) UnmarshalJSON(data []byte) (err error) {
+func (r *APIError) UnmarshalJSON(data []byte) (err error) {
 	r.JSON = string(data)
-	type Alias APIErrorOpenAI
+	type Alias APIError
 	return json.Unmarshal(data, (*Alias)(r))
 }
 
-func NewAPIErrorOpenAI(resp *http.Response, req *http.Request) errors.APIError {
-	return &APIErrorOpenAI{
+func NewAPIError(resp *http.Response, req *http.Request) errors.APIError {
+	return &APIError{
 		APIErrorBase: errors.APIErrorBase{
 			StatusCode: resp.StatusCode,
 			Request:    req,
