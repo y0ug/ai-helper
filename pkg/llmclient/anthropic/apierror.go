@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/apierror"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/apierror"
 )
 
 func NewAPIErrorAnthropic(resp *http.Response, req *http.Request) apierror.APIError {

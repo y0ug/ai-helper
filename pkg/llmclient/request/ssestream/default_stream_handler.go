@@ -6,13 +6,13 @@ import (
 )
 
 // DefaultStreamHandler implements StreamHandler for basic streaming responses
-type DefaultStreamHandler[T any] struct{}
+type DefaultStreamHandler[T any, TypeIn Event] struct{}
 
-func NewDefaultStreamHandler[T any]() *DefaultStreamHandler[T] {
-	return &DefaultStreamHandler[T]{}
+func NewDefaultStreamHandler[T any, TypeIn Event]() *DefaultStreamHandler[T, Event] {
+	return &DefaultStreamHandler[T, Event]{}
 }
 
-func (h *DefaultStreamHandler[T]) HandleEvent(event Event) (T, error) {
+func (h *DefaultStreamHandler[T, TypeIn]) HandleEvent(event Event) (T, error) {
 	var result T
 
 	if len(event.Data) == 0 {
@@ -26,6 +26,6 @@ func (h *DefaultStreamHandler[T]) HandleEvent(event Event) (T, error) {
 	return result, nil
 }
 
-func (h *DefaultStreamHandler[T]) ShouldContinue(event Event) bool {
+func (h *DefaultStreamHandler[T, TypeIn]) ShouldContinue(event Event) bool {
 	return string(event.Data) != "[DONE]"
 }

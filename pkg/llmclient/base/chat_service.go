@@ -3,7 +3,7 @@ package base
 import (
 	"context"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 

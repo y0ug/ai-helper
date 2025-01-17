@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/ssestream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/ssestream"
 	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
@@ -71,7 +71,7 @@ func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
 		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
 	return stream.NewStream(
-		ssestream.NewDecoder(raw),
+		ssestream.NewDecoderSSE(raw),
 		ssestream.NewDefaultStreamHandler[Chunk](),
 	), nil
 }

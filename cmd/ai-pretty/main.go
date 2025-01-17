@@ -15,7 +15,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
 )
 
 func StrToPtr(s string) *string {

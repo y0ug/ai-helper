@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/apierror"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/apierror"
 )
 
 // MockTransport mocks HTTP responses returning 400 status code

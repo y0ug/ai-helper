@@ -10,7 +10,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
-func NewDecoder(res *http.Response) stream.Decoder[Event] {
+func NewDecoderSSE(res *http.Response) stream.Decoder[Event] {
 	if res == nil || res.Body == nil {
 		return nil
 	}

@@ -8,9 +8,9 @@ import (
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/base"
 	"github.com/y0ug/ai-helper/pkg/llmclient/common"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
-	"github.com/y0ug/ai-helper/pkg/llmclient/ssestream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/ssestream"
 	"github.com/y0ug/ai-helper/pkg/llmclient/stream"
 )
 
@@ -56,8 +56,8 @@ func (svc *MessageService) NewStreaming(
 		return nil, fmt.Errorf("error executing new request streaming: %w", err)
 	}
 	return stream.NewStream(
-		ssestream.NewDecoder(raw),
-		NewAnthropicStreamHandler[MessageStreamEvent](),
+		ssestream.NewDecoderSSE(raw),
+		NewAnthropicStreamHandler(),
 	), nil
 }
 

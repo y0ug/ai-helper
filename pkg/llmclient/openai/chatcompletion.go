@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	base "github.com/y0ug/ai-helper/pkg/llmclient/base"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
 )
 
 // ChatCompletionService implements llmclient.ChatService using OpenAI's types.

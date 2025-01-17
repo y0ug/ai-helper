@@ -6,7 +6,7 @@ import (
 
 	base "github.com/y0ug/ai-helper/pkg/llmclient/base"
 	"github.com/y0ug/ai-helper/pkg/llmclient/openai"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
 )
 
 type DeepSeekUsage struct {

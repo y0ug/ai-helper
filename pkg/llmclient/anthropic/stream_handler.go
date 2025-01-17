@@ -4,18 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/ssestream"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/ssestream"
 )
 
 // AnthropicStreamHandler implements BaseStreamHandler for Anthropic's streaming responses
-type AnthropicStreamHandler[T any] struct{}
+type AnthropicStreamHandler struct{}
 
-func NewAnthropicStreamHandler[T any]() *AnthropicStreamHandler[T] {
-	return &AnthropicStreamHandler[T]{}
+func NewAnthropicStreamHandler() *AnthropicStreamHandler {
+	return &AnthropicStreamHandler{}
 }
 
-func (h *AnthropicStreamHandler[T]) HandleEvent(event ssestream.Event) (T, error) {
-	var result T
+func (h *AnthropicStreamHandler) HandleEvent(event ssestream.Event) (MessageStreamEvent, error) {
+	var result MessageStreamEvent
 
 	switch event.Type {
 	case "completion":
@@ -38,7 +38,7 @@ func (h *AnthropicStreamHandler[T]) HandleEvent(event ssestream.Event) (T, error
 	return result, nil
 }
 
-func (h *AnthropicStreamHandler[T]) ShouldContinue(event ssestream.Event) bool {
+func (h *AnthropicStreamHandler) ShouldContinue(event ssestream.Event) bool {
 	if event.Type == "ping" {
 		return true
 	}

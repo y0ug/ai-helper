@@ -1,8 +1,8 @@
 package openai
 
 import (
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
 )
 
 // WithOrganization returns a RequestOption that sets the client setting "organization".

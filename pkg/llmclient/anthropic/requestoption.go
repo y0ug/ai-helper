@@ -1,8 +1,8 @@
 package anthropic
 
 import (
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestconfig"
-	"github.com/y0ug/ai-helper/pkg/llmclient/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestconfig"
+	"github.com/y0ug/ai-helper/pkg/llmclient/request/requestoption"
 )
 
 func WithEnvironmentProduction() requestoption.RequestOption {
