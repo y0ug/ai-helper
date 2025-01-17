@@ -4,30 +4,30 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
+	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 type AnthropicProvider struct {
 	client *Client
 }
 
-func NewAnthropicProvider(opts ...requestoption.RequestOption) common.LLMProvider {
+func NewAnthropicProvider(opts ...requestoption.RequestOption) types.LLMProvider {
 	return &AnthropicProvider{
 		client: NewClient(opts...),
 	}
 }
 
-func AnthropicMessageToChatMessage(am *Message) *common.ChatMessage {
-	cm := &common.ChatMessage{}
+func AnthropicMessageToChatMessage(am *Message) *types.ChatMessage {
+	cm := &types.ChatMessage{}
 	cm.ID = am.ID
 	cm.Model = am.Model
-	cm.Usage = &common.ChatMessageUsage{}
+	cm.Usage = &types.ChatMessageUsage{}
 	cm.Usage.InputTokens = am.Usage.InputTokens
 	cm.Usage.OutputTokens = am.Usage.OutputTokens
 
-	c := common.ChatMessageChoice{}
+	c := types.ChatMessageChoice{}
 	c.Content = append(c.Content, am.Content...)
 	c.Role = am.Role
 	c.StopReason = am.StopReason
@@ -37,8 +37,8 @@ func AnthropicMessageToChatMessage(am *Message) *common.ChatMessage {
 
 func (a *AnthropicProvider) Send(
 	ctx context.Context,
-	params common.ChatMessageNewParams,
-) (*common.ChatMessage, error) {
+	params types.ChatMessageNewParams,
+) (*types.ChatMessage, error) {
 	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
 	am, err := a.client.Message.New(ctx, paramsProvider)
 	if err != nil {
@@ -50,21 +50,21 @@ func (a *AnthropicProvider) Send(
 
 func (a *AnthropicProvider) Stream(
 	ctx context.Context,
-	params common.ChatMessageNewParams,
-) (streaming.Streamer[common.EventStream], error) {
+	params types.ChatMessageNewParams,
+) (streaming.Streamer[types.EventStream], error) {
 	paramsProvider := BaseChatMessageNewParamsToAnthropic(params)
 	stream, err := a.client.Message.NewStreaming(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
 	}
-	return common.NewProviderEventStream[MessageStreamEvent](
+	return types.NewProviderEventStream[MessageStreamEvent](
 		stream,
 		NewAnthropicEventHandler(),
 	), nil
 }
 
 func BaseChatMessageNewParamsToAnthropic(
-	params common.ChatMessageNewParams,
+	params types.ChatMessageNewParams,
 ) MessageNewParams {
 	systemPromt := ""
 	msgs := make([]MessageParam, 0)
@@ -104,13 +104,13 @@ func (h *AnthropicEventHandler) ShouldContinue(event MessageStreamEvent) bool {
 
 func (h *AnthropicEventHandler) HandleEvent(
 	event MessageStreamEvent,
-) (common.EventStream, error) {
+) (types.EventStream, error) {
 	h.message.Accumulate(event)
-	evt := common.EventStream{Type: event.Type}
+	evt := types.EventStream{Type: event.Type}
 
 	switch event.Type {
 	case "content_block_delta":
-		var delta common.AIContent
+		var delta types.AIContent
 		if err := json.Unmarshal(event.Delta, &delta); err != nil {
 			return evt, nil
 		}

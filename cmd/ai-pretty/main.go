@@ -14,8 +14,8 @@ import (
 	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
-	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 func StrToPtr(s string) *string {
@@ -75,7 +75,7 @@ func main() {
 				// "Write a 500 word essai about Golang and put a some code block in the middle",
 			),
 		),
-		llmclient.WithTools(common.Tool{
+		llmclient.WithTools(types.Tool{
 			Name:        "get_weather",
 			Description: StrToPtr("Get the current weather"),
 			InputSchema: GetWeatherInputSchema,
@@ -95,10 +95,10 @@ func main() {
 
 func HandleLLMConversation(
 	ctx context.Context,
-	provider common.LLMProvider,
-	params common.ChatMessageNewParams,
-) (*common.ChatMessage, error) {
-	var msg *common.ChatMessage
+	provider types.LLMProvider,
+	params types.ChatMessageNewParams,
+) (*types.ChatMessage, error) {
+	var msg *types.ChatMessage
 	for {
 
 		stream, err := provider.Stream(ctx, params)
@@ -107,7 +107,7 @@ func HandleLLMConversation(
 			return nil, err
 		}
 
-		eventCh := make(chan common.EventStream)
+		eventCh := make(chan types.EventStream)
 
 		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
 		go func() {
@@ -133,7 +133,7 @@ func HandleLLMConversation(
 		fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
 
 		params.Messages = append(params.Messages, msg.ToMessageParams())
-		toolResults := make([]*common.AIContent, 0)
+		toolResults := make([]*types.AIContent, 0)
 		// for _, choice := range msg.Choice {
 		choice := msg.Choice[0]
 		for _, content := range choice.Content {
@@ -161,7 +161,7 @@ func HandleLLMConversation(
 					}
 					toolResults = append(
 						toolResults,
-						common.NewToolResultContent(content.ID, string(b)),
+						types.NewToolResultContent(content.ID, string(b)),
 					)
 				}
 			}
@@ -183,9 +183,9 @@ func HandleLLMConversation(
 func processStream(
 	ctx context.Context,
 	w io.Writer,
-	ch <-chan common.EventStream,
-) (*common.ChatMessage, error) {
-	var cm *common.ChatMessage
+	ch <-chan types.EventStream,
+) (*types.ChatMessage, error) {
+	var cm *types.ChatMessage
 	for {
 		select {
 		case <-ctx.Done():

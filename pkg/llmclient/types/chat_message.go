@@ -1,4 +1,4 @@
-package common
+package types
 
 type ChatMessageNewParams struct {
 	Model       string

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/base"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/client"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
+	"github.com/y0ug/ai-helper/pkg/llmclient/internal"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openai"
 )
 
@@ -46,19 +46,19 @@ func NewClient(opts ...requestoption.RequestOption) (r *Client) {
 
 // We define the new ChatCompletionService that embeds the BaseChatService
 type ChatCompletionService struct {
-	*base.BaseChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]
+	*internal.GenericChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]
 }
 
 // Create our custom service that reuses openai.NewChatCompletionService under the hood
 func NewChatCompletionService(opts ...requestoption.RequestOption) *ChatCompletionService {
-	baseService := &base.BaseChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]{
+	baseService := &internal.GenericChatService[openai.ChatCompletionNewParams, ChatCompletion, openai.ChatCompletionChunk]{
 		Options:  opts,
 		NewError: openai.NewAPIErrorOpenAI,
 		Endpoint: "chat/completions",
 	}
 
 	return &ChatCompletionService{
-		BaseChatService: baseService,
+		GenericChatService: baseService,
 	}
 }
 

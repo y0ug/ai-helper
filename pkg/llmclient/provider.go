@@ -1,26 +1,26 @@
 package llmclient
 
 import (
-	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/anthropic"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/deepseek"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/gemini"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openai"
 	"github.com/y0ug/ai-helper/pkg/llmclient/providers/openrouter"
+	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 func NewProviderByModel(
 	modelName string,
 	infoProvider ModelInfoProvider,
 	requestOpts ...requestoption.RequestOption,
-) (common.LLMProvider, *Model) {
+) (types.LLMProvider, *Model) {
 	model, err := ParseModel(modelName, infoProvider)
 	if err != nil {
 		return nil, nil
 	}
 
-	var provider common.LLMProvider
+	var provider types.LLMProvider
 	switch model.Provider {
 	case "anthropic":
 		provider = anthropic.NewAnthropicProvider(requestOpts...)

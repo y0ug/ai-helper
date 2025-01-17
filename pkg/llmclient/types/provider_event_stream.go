@@ -1,4 +1,4 @@
-package common
+package types
 
 import "github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 

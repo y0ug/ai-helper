@@ -1,4 +1,4 @@
-package base
+package internal
 
 import (
 	"context"
@@ -10,15 +10,15 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 )
 
-// BaseChatService is a generic base implementation of ChatService.
-type BaseChatService[Params any, Response any, Chunk any] struct {
+// GenericChatService is a generic base implementation of ChatService.
+type GenericChatService[Params any, Response any, Chunk any] struct {
 	Options  []requestoption.RequestOption
 	NewError requestconfig.NewAPIError
 	Endpoint string
 }
 
 // New creates a new chat completion.
-func (svc *BaseChatService[Params, Response, Chunk]) New(
+func (svc *GenericChatService[Params, Response, Chunk]) New(
 	ctx context.Context,
 	params Params,
 	opts ...requestoption.RequestOption,
@@ -40,7 +40,7 @@ func (svc *BaseChatService[Params, Response, Chunk]) New(
 }
 
 // NewStreaming creates a new streaming chat completion.
-func (svc *BaseChatService[Params, Response, Chunk]) NewStreaming(
+func (svc *GenericChatService[Params, Response, Chunk]) NewStreaming(
 	ctx context.Context,
 	params Params,
 	opts ...requestoption.RequestOption,

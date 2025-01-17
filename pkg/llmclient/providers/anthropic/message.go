@@ -6,27 +6,27 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/base"
-	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestconfig"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
+	"github.com/y0ug/ai-helper/pkg/llmclient/internal"
+	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 // ChatCompletionService implements llmclient.ChatService using OpenAI's types.
 type MessageService struct {
-	*base.BaseChatService[MessageNewParams, Message, MessageStreamEvent]
+	*internal.GenericChatService[MessageNewParams, Message, MessageStreamEvent]
 }
 
 func NewMessageService(opts ...requestoption.RequestOption) *MessageService {
-	baseService := &base.BaseChatService[MessageNewParams, Message, MessageStreamEvent]{
+	baseService := &internal.GenericChatService[MessageNewParams, Message, MessageStreamEvent]{
 		Options:  opts,
 		NewError: NewAPIErrorAnthropic,
 		Endpoint: "v1/messages",
 	}
 
 	return &MessageService{
-		BaseChatService: baseService,
+		GenericChatService: baseService,
 	}
 }
 
@@ -61,20 +61,20 @@ func (svc *MessageService) NewStreaming(
 }
 
 type MessageParam struct {
-	Role    string              `json:"role"`
-	Content []*common.AIContent `json:"content"`
+	Role    string             `json:"role"`
+	Content []*types.AIContent `json:"content"`
 }
 
 // Message response, ToParam methode convert to MessageParam
 type Message struct {
-	ID           string              `json:"id,omitempty"`
-	Content      []*common.AIContent `json:"content,omitempty"`
-	Role         string              `json:"role,omitempty"` // Always "assistant"
-	StopReason   string              `json:"stop_reason,omitempty"`
-	StopSequence string              `json:"stop_sequence,omitempty"`
-	Type         string              `json:"type,omitempty"` // Always "message"
-	Usage        *Usage              `json:"usage,omitempty"`
-	Model        string              `json:"model,omitempty"`
+	ID           string             `json:"id,omitempty"`
+	Content      []*types.AIContent `json:"content,omitempty"`
+	Role         string             `json:"role,omitempty"` // Always "assistant"
+	StopReason   string             `json:"stop_reason,omitempty"`
+	StopSequence string             `json:"stop_sequence,omitempty"`
+	Type         string             `json:"type,omitempty"` // Always "message"
+	Usage        *Usage             `json:"usage,omitempty"`
+	Model        string             `json:"model,omitempty"`
 }
 
 func (r *Message) ToParam() MessageParam {
@@ -94,7 +94,7 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 		*a = event.Message
 	case "content_block_start":
 		index := event.Index
-		a.Content = append(a.Content, &common.AIContent{})
+		a.Content = append(a.Content, &types.AIContent{})
 		if int(index) >= len(a.Content) {
 			return fmt.Errorf("Index %d is out of range, len: %d\n", index, len(a.Content))
 		}
@@ -108,7 +108,7 @@ func (a *Message) Accumulate(event MessageStreamEvent) error {
 		if int(index) >= len(a.Content) {
 			return fmt.Errorf("Index %d is out of range, len: %d\n", index, len(a.Content))
 		}
-		var delta common.AIContent
+		var delta types.AIContent
 		err := json.Unmarshal(event.Delta, &delta)
 		if err != nil {
 			return fmt.Errorf("error unmarshalling delta: %w %s", err, event.Delta)
@@ -193,7 +193,7 @@ type MessageNewParams struct {
 	Stream        bool           `json:"stream,omitempty"`
 	System        string         `json:"system,omitempty"`
 
-	Temperature float64       `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
-	Tools       []common.Tool `json:"tools,omitempty"`       // ToolParam
-	ToolChoice  interface{}   `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
+	Temperature float64      `json:"temperature,omitempty"` // Number between 0 and 1 that controls randomness of the output.
+	Tools       []types.Tool `json:"tools,omitempty"`       // ToolParam
+	ToolChoice  interface{}  `json:"tool_choice,omitempty"` // Auto but can be used to force to used a tools
 }

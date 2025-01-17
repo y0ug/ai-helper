@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/y0ug/ai-helper/pkg/llmclient/common"
+	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 func TestAnthropicProvider_Send(t *testing.T) {
@@ -16,21 +16,21 @@ func TestAnthropicProvider_Send(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	params := common.ChatMessageNewParams{
+	params := types.ChatMessageNewParams{
 		Model:       "claude-3-opus-20240229",
 		MaxTokens:   100,
 		Temperature: 0.7,
-		Messages: []*common.ChatMessageParams{
+		Messages: []*types.ChatMessageParams{
 			{
 				Role: "system",
-				Content: []*common.AIContent{
-					common.NewTextContent("You are a helpful AI assistant."),
+				Content: []*types.AIContent{
+					types.NewTextContent("You are a helpful AI assistant."),
 				},
 			},
 			{
 				Role: "user",
-				Content: []*common.AIContent{
-					common.NewTextContent("Hello, how are you?"),
+				Content: []*types.AIContent{
+					types.NewTextContent("Hello, how are you?"),
 				},
 			},
 		},

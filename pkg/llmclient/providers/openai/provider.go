@@ -4,16 +4,16 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/common"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/requestoption"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
+	"github.com/y0ug/ai-helper/pkg/llmclient/types"
 )
 
 type OpenAIProvider struct {
 	Client *Client
 }
 
-func NewOpenAIProvider(opts ...requestoption.RequestOption) common.LLMProvider {
+func NewOpenAIProvider(opts ...requestoption.RequestOption) types.LLMProvider {
 	return &OpenAIProvider{
 		Client: NewClient(opts...),
 	}
@@ -33,15 +33,15 @@ func OpenaAIFinishReasonToStopReason(reason string) string {
 	}
 }
 
-func OpenaiChatCompletionToChatMessage(cc *ChatCompletion) *common.ChatMessage {
-	cm := &common.ChatMessage{}
+func OpenaiChatCompletionToChatMessage(cc *ChatCompletion) *types.ChatMessage {
+	cm := &types.ChatMessage{}
 	cm.ID = cc.ID
 	cm.Model = cc.Model
-	cm.Usage = &common.ChatMessageUsage{}
+	cm.Usage = &types.ChatMessageUsage{}
 	cm.Usage.InputTokens = cc.Usage.PromptTokens
 	cm.Usage.OutputTokens = cc.Usage.CompletionTokens
 	for _, choice := range cc.Choices {
-		c := common.ChatMessageChoice{}
+		c := types.ChatMessageChoice{}
 		for _, call := range choice.Message.ToolCalls {
 			c.Content = append(
 				c.Content,
@@ -50,7 +50,7 @@ func OpenaiChatCompletionToChatMessage(cc *ChatCompletion) *common.ChatMessage {
 		}
 
 		if choice.Message.Content != "" {
-			c.Content = append(c.Content, common.NewTextContent(choice.Message.Content))
+			c.Content = append(c.Content, types.NewTextContent(choice.Message.Content))
 		}
 
 		// Role is not choice is our model
@@ -69,7 +69,7 @@ func OpenaiChatCompletionToChatMessage(cc *ChatCompletion) *common.ChatMessage {
 }
 
 func BaseChatMessageNewParamsToOpenAI(
-	params common.ChatMessageNewParams,
+	params types.ChatMessageNewParams,
 ) ChatCompletionNewParams {
 	return ChatCompletionNewParams{
 		Model:               params.Model,
@@ -83,8 +83,8 @@ func BaseChatMessageNewParamsToOpenAI(
 
 func (a *OpenAIProvider) Send(
 	ctx context.Context,
-	params common.ChatMessageNewParams,
-) (*common.ChatMessage, error) {
+	params types.ChatMessageNewParams,
+) (*types.ChatMessage, error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	resp, err := a.Client.Chat.New(ctx, paramsProvider)
@@ -97,21 +97,21 @@ func (a *OpenAIProvider) Send(
 
 func (a *OpenAIProvider) Stream(
 	ctx context.Context,
-	params common.ChatMessageNewParams,
-) (streaming.Streamer[common.EventStream], error) {
+	params types.ChatMessageNewParams,
+) (streaming.Streamer[types.EventStream], error) {
 	paramsProvider := BaseChatMessageNewParamsToOpenAI(params)
 
 	stream, err := a.Client.Chat.NewStreaming(ctx, paramsProvider)
 	if err != nil {
 		return nil, err
 	}
-	return common.NewProviderEventStream(
+	return types.NewProviderEventStream(
 		stream,
 		NewOpenAIEventHandler(),
 	), nil
 }
 
-func FromLLMToolToOpenAI(tools ...common.Tool) []Tool {
+func FromLLMToolToOpenAI(tools ...types.Tool) []Tool {
 	result := make([]Tool, 0)
 	for _, tool := range tools {
 		var desc *string
@@ -137,16 +137,16 @@ func FromLLMToolToOpenAI(tools ...common.Tool) []Tool {
 	return result
 }
 
-func FromOpenaiToolCallToAIContent(t ToolCall) *common.AIContent {
+func FromOpenaiToolCallToAIContent(t ToolCall) *types.AIContent {
 	// var args map[string]interface{}
 	// _ = json.Unmarshal([]byte(t.Function.Arguments), &args)
-	return common.NewToolUseContent(t.ID, t.Function.Name, json.RawMessage(t.Function.Arguments))
+	return types.NewToolUseContent(t.ID, t.Function.Name, json.RawMessage(t.Function.Arguments))
 }
 
-func AIContentToolCallsToOpenAI(t ...*common.AIContent) []ToolCall {
+func AIContentToolCallsToOpenAI(t ...*types.AIContent) []ToolCall {
 	d := make([]ToolCall, 0)
 	for _, content := range t {
-		if content.Type == common.ContentTypeToolUse {
+		if content.Type == types.ContentTypeToolUse {
 			d = append(d, ToolCall{
 				ID:   content.ID,
 				Type: "function",
@@ -161,19 +161,19 @@ func AIContentToolCallsToOpenAI(t ...*common.AIContent) []ToolCall {
 }
 
 func FromLLMMessageToOpenAi(
-	m ...*common.ChatMessageParams,
+	m ...*types.ChatMessageParams,
 ) []ChatCompletionMessageParam {
 	userMessages := make([]ChatCompletionMessageParam, 0)
 	for _, msg := range m {
 		content := msg.Content[0]
 		switch content.Type {
-		case common.ContentTypeToolUse:
+		case types.ContentTypeToolUse:
 			// For toolCalls we need to process all of them in one time
 			userMessages = append(userMessages, ChatCompletionMessageParam{
 				Role:      "assistant",
 				ToolCalls: AIContentToolCallsToOpenAI(msg.Content...),
 			})
-		case common.ContentTypeToolResult:
+		case types.ContentTypeToolResult:
 			userMessages = append(userMessages, ChatCompletionMessageParam{
 				Role:       "tool",
 				Content:    content.Content,
@@ -205,9 +205,9 @@ func (h *OpenAIEventHandler) ShouldContinue(chunk ChatCompletionChunk) bool {
 
 func (h *OpenAIEventHandler) HandleEvent(
 	chunk ChatCompletionChunk,
-) (common.EventStream, error) {
+) (types.EventStream, error) {
 	h.completion.Accumulate(chunk)
-	evt := common.EventStream{Message: OpenaiChatCompletionToChatMessage(&h.completion)}
+	evt := types.EventStream{Message: OpenaiChatCompletionToChatMessage(&h.completion)}
 
 	if chunk.Usage.CompletionTokens != 0 || len(chunk.Choices) == 0 {
 		evt.Type = "message_stop"
