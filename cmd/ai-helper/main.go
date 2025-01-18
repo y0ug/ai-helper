@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"html/template"
@@ -11,12 +12,14 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/y0ug/ai-helper/internal/ai"
+	"github.com/y0ug/ai-helper/cmd/ai-helper/console"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
+	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/internal/stats"
 	"github.com/y0ug/ai-helper/internal/version"
-	"github.com/y0ug/ai-helper/pkg/llmclient"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
 
 const (
@@ -27,13 +30,13 @@ func generateSessionID() string {
 	return fmt.Sprintf("%x", time.Now().UnixNano())
 }
 
-func GetEnvAIModel(infoProviders *llmclient.InfoProviders) (*llmclient.Model, error) {
+func GetEnvAIModel(infoProviders modelinfo.Provider) (*modelinfo.Model, error) {
 	modelStr := os.Getenv(EnvAIModel)
 	if modelStr == "" {
 		return nil, fmt.Errorf("AI_MODEL environment variable not set")
 	}
 
-	model, err := llmclient.ParseModel(modelStr, infoProviders)
+	model, err := modelinfo.Parse(modelStr, infoProviders)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse model: %w", err)
 	}
@@ -43,20 +46,24 @@ func GetEnvAIModel(infoProviders *llmclient.InfoProviders) (*llmclient.Model, er
 
 func main() {
 	// Parse command line flags
-	outputFile := flag.String("output", "", "Output file path")
+	// outputFile := flag.String("output", "", "Output file path")
 	configFile := flag.String("config", "", "Config file path")
 	showStats := flag.Bool("stats", false, "Show usage statistics")
 	showList := flag.Bool("list", false, "List available commands")
 	verbose := flag.Bool("v", false, "Show verbose cost information")
 	genCompletion := flag.String("completion", "", "Generate shell completion script (zsh|bash)")
-	showPrompt := flag.Bool("show-prompt", false, "Show only the generated prompt")
-	attachFiles := flag.String("files", "", "Comma-separated list of files to attach")
+	// showPrompt := flag.Bool("show-prompt", false, "Show only the generated prompt")
+	// attachFiles := flag.String("files", "", "Comma-separated list of files to attach")
 	showVersion := flag.Bool("version", false, "Show version information")
 	interactiveMode := flag.Bool("i", false, "Interactive chat mode")
 	flag.Parse()
 
 	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
-	logger := zerolog.New(output).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	level := zerolog.InfoLevel
+	if *verbose {
+		level = zerolog.DebugLevel
+	}
+	logger := zerolog.New(output).Level(level).With().Timestamp().Logger()
 
 	// Create AI client early as it's needed for multiple features
 	configDir, err := os.UserHomeDir()
@@ -79,7 +86,7 @@ func main() {
 	statsTracker, err := stats.NewTracker(cacheDir)
 
 	infoProviderCacheFile := filepath.Join(configDir, "provider_cache.json")
-	infoProviders, err := llmclient.NewInfoProviders(infoProviderCacheFile)
+	infoProviders, err := modelinfo.New(infoProviderCacheFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating info providers: %v\n", err)
 		os.Exit(1)
@@ -87,12 +94,6 @@ func main() {
 	model, err := GetEnvAIModel(infoProviders)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error getting model: %v\n", err)
-		os.Exit(1)
-	}
-
-	client, err := llmclient.NewClient(model, statsTracker, &logger)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating AI client: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -192,8 +193,19 @@ func main() {
 		os.Exit(0)
 	}
 
+	chatParams := chat.NewChatParams(
+		chat.WithModel(model.Name),
+		chat.WithMaxTokens(100),
+	)
+
 	// Create an agent for this command
-	agent := ai.NewAgent(generateSessionID(), model, client, cfg.MCPServers)
+	agent, err := llmagent.New(
+		generateSessionID(),
+		logger,
+		chatParams,
+		infoProviders,
+		&cfg.MCPServers,
+	)
 
 	// Handle interactive mode
 	if *interactiveMode {
@@ -260,139 +272,140 @@ func main() {
 		}
 
 		if systemPrompt != "" {
-			agent.AddMessage("system", initialPrompt)
+			agent.AddMessage(chat.NewSystemMessage(systemPrompt))
 		}
 		if initialPrompt != "" {
-			agent.AddMessage("user", initialPrompt)
+			agent.AddMessage(chat.NewUserMessage(initialPrompt))
 		}
 
-		StartConsole(agent)
+		agent.StartMCP(context.Background())
+		console.StartConsole(agent)
 		return
 	}
 
-	// Get the command and remaining args
-	args := flag.Args()
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Error: Command required")
-		os.Exit(1)
-	}
-	command := args[0]
-	inputArgs := args[1:]
-
-	// Create config loader and load config
-	if err := cfg.ValidateConfig(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Get command configuration
-	cmd, ok := cfg.Commands[command]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
-		os.Exit(1)
-	}
-
-	// Prepare input configuration
-	var inputTypes []string
-	var fallbackCmd string
-
-	// Look for input variable configuration
-	for _, v := range cmd.Variables {
-		if v.Name == "Input" && v.Type != "" {
-			// Split type string in case it contains multiple types (e.g. "stdin|arg")
-			inputTypes = strings.Split(v.Type, "|")
-			fallbackCmd = v.Exec
-			break
-		}
-	}
-
-	// Read input only if command requires it
-	var input string
-	if cmd.Input {
-		var err error
-		input, err = io.ReadInput(inputArgs, inputTypes, fallbackCmd)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-			os.Exit(1)
-		}
-		agent.TemplateData.Input = input
-	}
-
-	// Load command configuration into agent
-	if err := agent.LoadCommand(&cmd); err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading command: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Add files from command line flag
-	if *attachFiles != "" {
-		additionalFiles := strings.Split(*attachFiles, ",")
-		for _, filepath := range additionalFiles {
-			filepath = strings.TrimSpace(filepath)
-			if err := agent.TemplateData.LoadFiles([]string{filepath}); err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading additional file %s: %v\n", filepath, err)
-				os.Exit(1)
-			}
-		}
-	}
-
-	// Apply the command with input
-	if err := agent.ApplyCommand(input); err != nil {
-		fmt.Fprintf(os.Stderr, "Error applying command: %v\n", err)
-		os.Exit(1)
-	}
-
-	// If show-prompt flag is set, print the last user message and exit
-	if *showPrompt {
-		msgs := agent.GetMessages()
-		for _, v := range msgs {
-			fmt.Printf("%s: %s\n", v.GetRole(), v.GetContent())
-		}
-		os.Exit(1)
-	}
-
-	// Generate response using the agent
-	_, responses, err := agent.SendRequest()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
-		os.Exit(1)
-	}
-
-	for _, resp := range responses {
-		// Print token usage and cost to stderr
-		if *verbose {
-			fmt.Fprintf(
-				os.Stderr,
-				"Tokens - Input: %d, Output: %d\n",
-				resp.GetUsage().GetInputTokens(),
-				resp.GetUsage().GetOutputTokens(),
-			)
-		}
-		cost := fmt.Sprintf("$%.4f", resp.GetUsage().GetCost())
-		fmt.Fprintf(
-			os.Stderr,
-			"Session: %s | Model: %s | Estimated cost: %s\n",
-			agent.ID,
-			agent.Model.Name,
-			cost,
-		)
-
-		// Ensure output directory exists if writing to file
-		if *outputFile != "" {
-			if err := io.EnsureDirectory(*outputFile); err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
-				os.Exit(1)
-			}
-		}
-
-		// Write output
-		if err := io.WriteOutput(resp.GetChoice().GetMessage().GetContent().String(), *outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
-	agent.Save()
+	// // Get the command and remaining args
+	// args := flag.Args()
+	// if len(args) < 1 {
+	// 	fmt.Fprintln(os.Stderr, "Error: Command required")
+	// 	os.Exit(1)
+	// }
+	// command := args[0]
+	// inputArgs := args[1:]
+	//
+	// // Create config loader and load config
+	// if err := cfg.ValidateConfig(); err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+	// 	os.Exit(1)
+	// }
+	//
+	// // Get command configuration
+	// cmd, ok := cfg.Commands[command]
+	// if !ok {
+	// 	fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
+	// 	os.Exit(1)
+	// }
+	//
+	// // Prepare input configuration
+	// var inputTypes []string
+	// var fallbackCmd string
+	//
+	// // Look for input variable configuration
+	// for _, v := range cmd.Variables {
+	// 	if v.Name == "Input" && v.Type != "" {
+	// 		// Split type string in case it contains multiple types (e.g. "stdin|arg")
+	// 		inputTypes = strings.Split(v.Type, "|")
+	// 		fallbackCmd = v.Exec
+	// 		break
+	// 	}
+	// }
+	//
+	// // Read input only if command requires it
+	// var input string
+	// if cmd.Input {
+	// 	var err error
+	// 	input, err = io.ReadInput(inputArgs, inputTypes, fallbackCmd)
+	// 	if err != nil {
+	// 		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+	// 		os.Exit(1)
+	// 	}
+	// 	agent.TemplateData.Input = input
+	// }
+	//
+	// // Load command configuration into agent
+	// if err := agent.LoadCommand(&cmd); err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Error loading command: %v\n", err)
+	// 	os.Exit(1)
+	// }
+	//
+	// // Add files from command line flag
+	// if *attachFiles != "" {
+	// 	additionalFiles := strings.Split(*attachFiles, ",")
+	// 	for _, filepath := range additionalFiles {
+	// 		filepath = strings.TrimSpace(filepath)
+	// 		if err := agent.TemplateData.LoadFiles([]string{filepath}); err != nil {
+	// 			fmt.Fprintf(os.Stderr, "Error loading additional file %s: %v\n", filepath, err)
+	// 			os.Exit(1)
+	// 		}
+	// 	}
+	// }
+	//
+	// // Apply the command with input
+	// if err := agent.ApplyCommand(input); err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Error applying command: %v\n", err)
+	// 	os.Exit(1)
+	// }
+	//
+	// // If show-prompt flag is set, print the last user message and exit
+	// if *showPrompt {
+	// 	msgs := agent.GetMessages()
+	// 	for _, v := range msgs {
+	// 		fmt.Printf("%s: %s\n", v.GetRole(), v.GetContent())
+	// 	}
+	// 	os.Exit(1)
+	// }
+	//
+	// // Generate response using the agent
+	// _, responses, err := agent.SendRequest()
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Error generating response: %v\n", err)
+	// 	os.Exit(1)
+	// }
+	//
+	// for _, resp := range responses {
+	// 	// Print token usage and cost to stderr
+	// 	if *verbose {
+	// 		fmt.Fprintf(
+	// 			os.Stderr,
+	// 			"Tokens - Input: %d, Output: %d\n",
+	// 			resp.GetUsage().GetInputTokens(),
+	// 			resp.GetUsage().GetOutputTokens(),
+	// 		)
+	// 	}
+	// 	cost := fmt.Sprintf("$%.4f", resp.GetUsage().GetCost())
+	// 	fmt.Fprintf(
+	// 		os.Stderr,
+	// 		"Session: %s | Model: %s | Estimated cost: %s\n",
+	// 		agent.ID,
+	// 		agent.Model.Name,
+	// 		cost,
+	// 	)
+	//
+	// 	// Ensure output directory exists if writing to file
+	// 	if *outputFile != "" {
+	// 		if err := io.EnsureDirectory(*outputFile); err != nil {
+	// 			fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
+	// 			os.Exit(1)
+	// 		}
+	// 	}
+	//
+	// 	// Write output
+	// 	if err := io.WriteOutput(resp.GetChoice().GetMessage().GetContent().String(), *outputFile); err != nil {
+	// 		fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
+	// 		os.Exit(1)
+	// 	}
+	// }
+	//
+	// agent.Save()
 }
 
 func generateBashCompletion() string {

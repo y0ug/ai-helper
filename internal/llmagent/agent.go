@@ -44,7 +44,6 @@ type Agent struct {
 	mcpCancel         context.CancelFunc
 	ToolsHandler      map[string]ToolHandler // Map of tools function name to the real function
 	Tools             []chat.Tool            // List of tools
-	Messages          []*chat.ChatMessage    // Conversation history
 	CreatedAt         time.Time              // When the agent was created
 	UpdatedAt         time.Time              // Last time the agent was updated
 	TotalInputTokens  int                    // Total tokens used in inputs
@@ -62,23 +61,20 @@ func New(
 ) (*Agent, error) {
 	now := time.Now()
 	a := &Agent{
-		ID:              id,
-		logger:          logger,
-		mcpServerConfig: mcpServersConfig,
-		mcpClient:       make(map[string]mcpclient.MCPClientInterface),
-		Messages:        make([]*chat.ChatMessage, 0),
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		requestOpts:     requestOpts,
-		chatParams:      chatParams,
+		ID:                id,
+		logger:            logger,
+		mcpServerConfig:   mcpServersConfig,
+		mcpClient:         make(map[string]mcpclient.MCPClientInterface),
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		requestOpts:       requestOpts,
+		modelInfoProvider: modelInfoProvider,
 	}
 
-	if a.chatParams.Model != "" {
-		err := a.SetModel(a.chatParams.Model)
-		if err != nil {
-			return nil, fmt.Errorf("failed to set model: %w", err)
-		}
+	if chatParams == nil {
+		chatParams = chat.NewChatParams(chat.WithMaxTokens(1024))
 	}
+	a.SetParams(chatParams)
 	return a, nil
 }
 
@@ -91,6 +87,11 @@ func (a *Agent) SetParams(chatParams *chat.ChatParams) {
 
 func (a *Agent) SetModel(model string) error {
 	modelInfo, err := modelinfo.Parse(model, a.modelInfoProvider)
+	a.logger.Debug().
+		Str("model", model).
+		Str("provider", modelInfo.Provider).
+		Interface("metadata", modelInfo.Metadata).
+		Msg("SetModel")
 	if err != nil {
 		return fmt.Errorf("failed to parse model %s: %w", model, err)
 	}
@@ -142,7 +143,7 @@ func (a *Agent) SaveSession() *AgentSessionState {
 	return &AgentSessionState{
 		ID:                a.ID,
 		ModelName:         a.Model.Name,
-		Messages:          a.Messages,
+		Messages:          a.chatParams.Messages,
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
 		TotalInputTokens:  a.TotalInputTokens,
@@ -153,7 +154,7 @@ func (a *Agent) SaveSession() *AgentSessionState {
 
 func (a *Agent) LoadSession(state *AgentSessionState) error {
 	a.ID = state.ID
-	a.Messages = state.Messages
+	a.chatParams.Messages = state.Messages
 	a.CreatedAt = state.CreatedAt
 	a.UpdatedAt = state.UpdatedAt
 	a.TotalInputTokens = state.TotalInputTokens
@@ -220,7 +221,6 @@ func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 }
 
 func (a *Agent) Do(ctx context.Context, w io.Writer) ([]*chat.ChatResponse, float64, error) {
-	a.chatParams.Messages = a.Messages
 	a.chatParams.Tools = a.Tools
 	resp, err := a.process(ctx, w)
 	cost := a.UpdateCosts(resp...)
@@ -242,7 +242,9 @@ func processStream(
 				return cm, nil
 			}
 			if set.Type == "text_delta" {
-				fmt.Fprintf(w, "%v", set.Delta)
+				if w != nil {
+					fmt.Fprintf(w, "%v", set.Delta)
+				}
 			}
 			if set.Type == "message_stop" {
 				cm = set.Message
@@ -290,7 +292,7 @@ func (a *Agent) process(
 		}
 		resp = append(resp, msg)
 
-		a.chatParams.Messages = append(a.chatParams.Messages, msg.ToMessageParams())
+		a.AddMessage(msg.ToMessageParams())
 		toolResults := make([]*chat.MessageContent, 0)
 		// for _, choice := range msg.Choice {
 		choice := msg.Choice[0]
@@ -334,27 +336,26 @@ func (a *Agent) process(
 		if len(toolResults) == 0 {
 			break
 		}
-		a.chatParams.Messages = append(
-			a.chatParams.Messages,
-			chat.NewMessage("user", toolResults...),
-		)
+		a.AddMessage(chat.NewMessage("tool", toolResults...))
 	}
-	fmt.Fprintf(w, "\n")
+	if w != nil {
+		fmt.Fprintf(w, "\n")
+	}
 	return resp, nil
 }
 
 func (a *Agent) Reset() {
-	a.Messages = make([]*chat.ChatMessage, 0)
+	a.chatParams.Messages = make([]*chat.ChatMessage, 0)
 	a.TotalInputTokens = 0
 	a.TotalOutputTokens = 0
 	a.TotalCost = 0
 }
 
 func (a *Agent) AddMessage(msg ...*chat.ChatMessage) {
-	a.Messages = append(a.Messages, msg...)
+	a.chatParams.Messages = append(a.chatParams.Messages, msg...)
 }
 
 // GetMessages returns the current message history
 func (a *Agent) GetMessages() []*chat.ChatMessage {
-	return a.Messages
+	return a.chatParams.Messages
 }

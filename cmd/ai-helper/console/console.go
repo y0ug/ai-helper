@@ -1,7 +1,8 @@
-package main
+package console
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -9,8 +10,11 @@ import (
 
 	"github.com/reeflective/console"
 	"github.com/spf13/cobra"
-	"github.com/y0ug/ai-helper/internal/ai"
+
+	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/internal/version"
+	"github.com/y0ug/ai-helper/pkg/highlighter"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 type MyCmd struct {
@@ -44,7 +48,7 @@ func (c *MyCmd) Find(args []string) (*cobra.Command, []string, error) {
 // 	}
 // }
 
-func StartConsole(agent *ai.Agent) {
+func StartConsole(agent *llmagent.Agent) {
 	app := console.New("ai-helper")
 
 	app.NewlineBefore = true
@@ -66,7 +70,7 @@ func exitCtrlD(c *console.Console) {
 	}
 }
 
-func mainMenuCommands(app *console.Console, agent *ai.Agent) console.Commands {
+func mainMenuCommands(app *console.Console, agent *llmagent.Agent) console.Commands {
 	return func() *cobra.Command {
 		rootCmd := &cobra.Command{
 			Use: "ai-helper",
@@ -86,40 +90,55 @@ func mainMenuCommands(app *console.Console, agent *ai.Agent) console.Commands {
 		msgCmd := &cobra.Command{
 			Use: "msg",
 			Run: func(cmd *cobra.Command, args []string) {
-				fullCommand := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
+				fullCommand := fmt.Sprintf("%s", strings.Join(args, " "))
 
 				// Add the command to the agent's message queue
-				agent.AddMessage("user", fullCommand)
+				agent.AddMessage(chat.NewUserMessage(fullCommand))
 
+				h := highlighter.NewHighlighter(os.Stdout)
 				// Send the request to the AI agent
-				_, responses, err := agent.SendRequest()
+				_, cost, err := agent.Do(context.Background(), h)
 				if err != nil {
 					fmt.Printf("Error generating response: %v\n", err)
 					return
 				}
 
-				// Print AI agent responses
-				for _, resp := range responses {
-					fmt.Println(resp.GetChoice().GetMessage().GetContent().String())
-				}
+				fmt.Printf("Cost: %f\n", cost)
+				// // Print AI agent responses
+				// for _, resp := range responses {
+				// 	fmt.Println(resp.Choice[0].Content[0].String())
+				// }
 			},
 		}
-
-		sessionCmd := &cobra.Command{
-			Use: "/session",
+		startMCP := &cobra.Command{
+			Use: "/startmcp",
 			Run: func(cmd *cobra.Command, args []string) {
-				sessions, err := ai.ListAgents()
-				if err != nil {
-					fmt.Printf("%w\n", err)
-				}
-				for _, v := range sessions {
-					fmt.Println(v)
-				}
+				agent.StartMCP(context.Background())
 			},
 		}
+		stopMCP := &cobra.Command{
+			Use: "/stopmcp",
+			Run: func(cmd *cobra.Command, args []string) {
+				agent.StopMCP()
+			},
+		}
+		// sessionCmd := &cobra.Command{
+		// 	Use: "/session",
+		// 	Run: func(cmd *cobra.Command, args []string) {
+		// 		sessions, err := ai.ListAgents()
+		// 		if err != nil {
+		// 			fmt.Printf("%w\n", err)
+		// 		}
+		// 		for _, v := range sessions {
+		// 			fmt.Println(v)
+		// 		}
+		// 	},
+		// }
 
 		rootCmd.AddCommand(versionCmd)
-		rootCmd.AddCommand(sessionCmd)
+		rootCmd.AddCommand(startMCP)
+		rootCmd.AddCommand(stopMCP)
+		// rootCmd.AddCommand(sessionCmd)
 		rootCmd.AddCommand(msgCmd)
 
 		return rootCmd
