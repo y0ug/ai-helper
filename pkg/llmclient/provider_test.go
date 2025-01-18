@@ -14,10 +14,8 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/stretchr/testify/assert"
-	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
-	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
 
 func StrToPtr(s string) *string {
@@ -59,10 +57,10 @@ func TestStreamIntegration(t *testing.T) {
 	// const model = "gpt-4o"
 	requestOpts := []options.RequestOption{
 		// requestoption.WithMiddleware(middleware.LoggingMiddleware()),
-		options.WithMiddleware(middleware.TimeitMiddleware()),
+		// options.WithMiddleware(middleware.TimeitMiddleware(nil)),
 	}
-	modelInfoProvider, _ := modelinfo.New("")
-	provider, _ := New(model, modelInfoProvider, requestOpts...)
+	// modelInfoProvider, _ := modelinfo.New("")
+	provider, _ := New(model, requestOpts...)
 
 	ctx := context.Background()
 	params := chat.NewChatParams(

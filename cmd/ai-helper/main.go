@@ -195,7 +195,7 @@ func main() {
 
 	chatParams := chat.NewChatParams(
 		chat.WithModel(model.Name),
-		chat.WithMaxTokens(100),
+		chat.WithMaxTokens(model.Metadata.MaxTokens),
 	)
 
 	// Create an agent for this command
@@ -206,6 +206,10 @@ func main() {
 		infoProviders,
 		&cfg.MCPServers,
 	)
+	if err != nil {
+		logger.Err(err).Msg("failed to create agent")
+		return
+	}
 
 	// Handle interactive mode
 	if *interactiveMode {

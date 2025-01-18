@@ -308,7 +308,10 @@ func (a *Agent) process(
 				err := json.Unmarshal([]byte(content.Input), &input)
 				// fmt.Println(content.InputJson)
 				if err != nil {
-					logger.Debug().Str("name", content.Name).Msg("Error unmarshalling input")
+					logger.Debug().
+						Str("name", content.Name).
+						Str("input", string(content.Input)).
+						Msg("Error unmarshalling input")
 				}
 				logger.Debug().Str("name", content.Name).
 					Str("id", content.ID).
