@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rs/zerolog"
+	"log/slog"
+	"os"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/internal/middleware"
@@ -45,8 +46,9 @@ mcpServers:
 `
 
 func main() {
-	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
-	logger := zerolog.New(output).Level(zerolog.DebugLevel).With().Timestamp().Logger()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
 
 	// const model = "gpt-4o"
 	const model = "gpt-4o-mini"
@@ -67,7 +69,7 @@ func main() {
 	cachePath := "/tmp"
 	modelInfoProvider, err := modelinfo.New(filepath.Join(cachePath, "modelinfo.json"))
 	if err != nil {
-		logger.Err(err).Msg("failed to create model info provider")
+		logger.Error("failed to create model info provider", "error", err)
 		return
 	}
 
@@ -100,6 +102,6 @@ func main() {
 		return
 	}
 
-	logger.Info().Float64("cost", cost).Msgf("cost")
+	logger.Info("cost", "value", cost)
 	agent.StopMCP()
 }
