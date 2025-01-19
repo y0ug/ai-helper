@@ -6,8 +6,8 @@ import (
 	"log"
 	"os/exec"
 
-	"github.com/rs/zerolog"
 	"golang.org/x/exp/jsonrpc2"
+	"log/slog"
 )
 
 // MCPClientInterface defines the interface for MCP client operations
@@ -38,7 +38,7 @@ type MCPClient struct {
 	conn     *jsonrpc2.Connection
 	cancelFn context.CancelFunc
 
-	logger zerolog.Logger
+	logger *slog.Logger
 
 	// Track initialization state
 	initialized bool
@@ -72,15 +72,12 @@ func FetchAll[T any](
 	return allItems, nil
 }
 
-func logHandler(logger zerolog.Logger) jsonrpc2.HandlerFunc {
+func logHandler(logger *slog.Logger) jsonrpc2.HandlerFunc {
 	return func(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
-		log.Print("Request received", "Method",
-			req.Method, "Id", req.ID, "params", string(req.Params))
-		logger.Info().
-			Str("Method", req.Method).
-			Interface("Id", req.ID.Raw()).
-			Str("params", string(req.Params)).
-			Msg("Request received")
+		logger.Info("Request received",
+			"method", req.Method,
+			"id", req.ID.Raw(),
+			"params", string(req.Params))
 		return nil, jsonrpc2.ErrNotHandled
 	}
 }
@@ -167,17 +164,15 @@ func (c *MCPClient) Initialize(ctx context.Context) (*ServerInfo, error) {
 	c.ServerInfo = (*ServerInfo)(&result)
 	c.initialized = true
 
-	c.logger.Debug().
-		Str("name", c.ServerInfo.ServerInfo.Name).
-		Str("version", c.ServerInfo.ServerInfo.Version).
-		Msg("Server initialized")
+	c.logger.Debug("Server initialized",
+		"name", c.ServerInfo.ServerInfo.Name,
+		"version", c.ServerInfo.ServerInfo.Version)
 	if c.ServerInfo.Instructions != nil {
-		log.Printf("Server instructions: %s", *c.ServerInfo.Instructions)
-		c.logger.Debug().Str("instructions", *c.ServerInfo.Instructions).Msg("Server instructions")
+		c.logger.Debug("Server instructions", "instructions", *c.ServerInfo.Instructions)
 	}
 
 	for k, v := range c.ServerInfo.Capabilities.Logging {
-		c.logger.Debug().Str("key", k).Interface("value", v).Msg("Capabilities Logging")
+		c.logger.Debug("Capabilities Logging", "key", k, "value", v)
 	}
 
 	// Send initialized notification
@@ -261,7 +256,7 @@ func (c *MCPClient) Close() error {
 
 	// Send exit notification
 	if err := c.conn.Notify(ctx, "exit", nil); err != nil {
-		c.logger.Err(err).Msg("exit notification failed")
+		c.logger.Error("exit notification failed", "error", err)
 	}
 
 	// Close the connection
