@@ -1,15 +1,14 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/rs/zerolog"
 )
 
 // LoggingMiddleware creates a middleware that logs request and response details
 func TimeitMiddleware(
-	logger zerolog.Logger,
+	logger *slog.Logger,
 ) func(*http.Request, func(*http.Request) (*http.Response, error)) (*http.Response, error) {
 	return func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
 		start := time.Now()
@@ -22,8 +21,7 @@ func TimeitMiddleware(
 
 		end := time.Now()
 
-		logger.Debug().Dur("time", end.Sub(start)).Msg("Request took")
-
+		logger.Debug("Request tool", "time", end.Sub(start))
 		return resp, err
 	}
 }

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
-	"log/slog"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
@@ -87,7 +87,7 @@ func (a *Agent) SetParams(chatParams *chat.ChatParams) {
 
 func (a *Agent) SetModel(model string) error {
 	modelInfo, err := modelinfo.Parse(model, a.modelInfoProvider)
-	a.logger.Debug("SetModel", 
+	a.logger.Debug("SetModel",
 		"model", model,
 		"provider", modelInfo.Provider,
 		"metadata", modelInfo.Metadata)
@@ -187,7 +187,7 @@ func (a *Agent) setTools() error {
 	for k, v := range a.mcpClient {
 		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
 		if err != nil {
-			a.logger.Warn().Str("name", k).Msg("fetchTools")
+			a.logger.Warn("fetchTools", "name", k)
 			continue
 		}
 		a.Tools = append(a.Tools, MCPClientToolToTool(tools...)...)
@@ -316,7 +316,7 @@ func (a *Agent) process(
 					"input", input)
 				response, err := handler(ctx, input)
 				if err != nil {
-					logger.Error("Error executing tool", 
+					logger.Error("Error executing tool",
 						"error", err,
 						"name", content.Name)
 					continue

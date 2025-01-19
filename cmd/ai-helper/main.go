@@ -6,12 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/y0ug/ai-helper/cmd/ai-helper/console"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
@@ -57,13 +57,13 @@ func main() {
 	showVersion := flag.Bool("version", false, "Show version information")
 	interactiveMode := flag.Bool("i", false, "Interactive chat mode")
 	flag.Parse()
-
-	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
-	level := zerolog.InfoLevel
+	level := slog.LevelInfo
 	if *verbose {
-		level = zerolog.DebugLevel
+		level = slog.LevelDebug
 	}
-	logger := zerolog.New(output).Level(level).With().Timestamp().Logger()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	}))
 
 	// Create AI client early as it's needed for multiple features
 	configDir, err := os.UserHomeDir()
@@ -207,7 +207,8 @@ func main() {
 		&cfg.MCPServers,
 	)
 	if err != nil {
-		logger.Err(err).Msg("failed to create agent")
+		logger.Error("failed to create agent", err)
+
 		return
 	}
 
