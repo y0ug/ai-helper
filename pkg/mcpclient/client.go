@@ -3,11 +3,10 @@ package mcpclient
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 
 	"golang.org/x/exp/jsonrpc2"
-	"log/slog"
 )
 
 // MCPClientInterface defines the interface for MCP client operations
@@ -85,7 +84,7 @@ func logHandler(logger *slog.Logger) jsonrpc2.HandlerFunc {
 // NewMCPClient creates a new MCP client and starts the language server
 func NewMCPClient(
 	ctxParent context.Context,
-	logger zerolog.Logger,
+	logger *slog.Logger,
 	serverCmd string,
 	args ...string,
 ) (MCPClientInterface, error) {
