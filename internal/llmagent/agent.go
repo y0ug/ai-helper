@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/rs/zerolog"
+	"log/slog"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
@@ -31,7 +31,7 @@ type AgentSessionState struct {
 // Agent represents an AI conversation agent that maintains state and history
 type Agent struct {
 	ID                string // Unique identifier for this agent/session
-	logger            zerolog.Logger
+	logger            *slog.Logger
 	Model             *modelinfo.Model // The AI model being used
 	Client            chat.Provider
 	modelInfoProvider modelinfo.Provider
@@ -53,7 +53,7 @@ type Agent struct {
 
 func New(
 	id string,
-	logger zerolog.Logger,
+	logger *slog.Logger,
 	chatParams *chat.ChatParams,
 	modelInfoProvider modelinfo.Provider,
 	mcpServersConfig *config.MCPServers,
@@ -87,11 +87,10 @@ func (a *Agent) SetParams(chatParams *chat.ChatParams) {
 
 func (a *Agent) SetModel(model string) error {
 	modelInfo, err := modelinfo.Parse(model, a.modelInfoProvider)
-	a.logger.Debug().
-		Str("model", model).
-		Str("provider", modelInfo.Provider).
-		Interface("metadata", modelInfo.Metadata).
-		Msg("SetModel")
+	a.logger.Debug("SetModel", 
+		"model", model,
+		"provider", modelInfo.Provider,
+		"metadata", modelInfo.Metadata)
 	if err != nil {
 		return fmt.Errorf("failed to parse model %s: %w", model, err)
 	}
@@ -115,9 +114,9 @@ func (a *Agent) StartMCP(ctx context.Context) error {
 	ctx, a.mcpCancel = context.WithCancel(ctx)
 
 	for serverName, config := range *a.mcpServerConfig {
-		a.logger.Debug().Str("name", serverName).Msg("starting")
+		a.logger.Debug("starting", "name", serverName)
 		if _, ok := a.mcpClient[serverName]; ok {
-			a.logger.Warn().Str("name", serverName).Msg("already started")
+			a.logger.Warn("already started", "name", serverName)
 			continue
 		}
 
@@ -207,9 +206,8 @@ func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 		a.TotalOutputTokens += m.Usage.OutputTokens
 
 		if a.Model.Metadata == nil {
-			a.logger.Warn().
-				Str("name", a.Model.Name).
-				Msg("Model metadata is nil, can't calculate cost")
+			a.logger.Warn("Model metadata is nil, can't calculate cost",
+				"name", a.Model.Name)
 			continue
 		}
 		cost += a.Model.Metadata.OutputCostPerToken * float64(m.Usage.OutputTokens)
@@ -261,10 +259,10 @@ func (a *Agent) process(
 	var msg *chat.ChatResponse
 	for {
 
-		logger := a.logger.With().Str("model", a.Model.Name).Logger()
+		logger := slog.With("model", a.Model.Name)
 		stream, err := a.Client.Stream(ctx, *a.chatParams)
 		if err != nil {
-			logger.Err(err).Msg("Error streaming")
+			logger.Error("Error streaming", "error", err)
 			return nil, err
 		}
 
@@ -275,19 +273,19 @@ func (a *Agent) process(
 			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
 			if err := chat.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
 				if err != context.Canceled {
-					logger.Err(err).Msg("Error consuming stream")
+					logger.Error("Error consuming stream", "error", err)
 				}
 			}
 		}()
 
 		msg, err = processStream(ctx, w, eventCh)
 		if err != nil {
-			logger.Err(err).Msg("Error processing stream")
+			logger.Error("Error processing stream", "error", err)
 			return nil, nil
 		}
 
 		if msg == nil {
-			logger.Err(nil).Msg("no message return")
+			logger.Error("no message return")
 			return resp, nil
 		}
 		resp = append(resp, msg)
@@ -300,7 +298,7 @@ func (a *Agent) process(
 			if content.Type == "tool_use" {
 				handler, ok := a.ToolsHandler[content.Name]
 				if !ok {
-					logger.Debug().Str("name", content.Name).Msg("Tool not found")
+					logger.Debug("Tool not found", "name", content.Name)
 					continue
 				}
 
@@ -308,32 +306,34 @@ func (a *Agent) process(
 				err := json.Unmarshal([]byte(content.Input), &input)
 				// fmt.Println(content.InputJson)
 				if err != nil {
-					logger.Debug().
-						Str("name", content.Name).
-						Str("input", string(content.Input)).
-						Msg("Error unmarshalling input")
+					logger.Debug("Error unmarshalling input",
+						"name", content.Name,
+						"input", string(content.Input))
 				}
-				logger.Debug().Str("name", content.Name).
-					Str("id", content.ID).
-					Interface("input", input).
-					Msg("Tool call")
+				logger.Debug("Tool call",
+					"name", content.Name,
+					"id", content.ID,
+					"input", input)
 				response, err := handler(ctx, input)
 				if err != nil {
-					logger.Err(err).Str("name", content.Name).Msg("Error executing tool")
+					logger.Error("Error executing tool", 
+						"error", err,
+						"name", content.Name)
 					continue
 				}
 				b, err := json.Marshal(response)
 				if err != nil {
-					logger.Err(err).Str("name", content.Name).Msg("Failed to Marshall response")
+					logger.Error("Failed to Marshall response",
+						"error", err,
+						"name", content.Name)
 				}
 				toolResults = append(
 					toolResults,
 					chat.NewToolResultContent(content.ID, string(b)),
 				)
-				logger.Debug().
-					Str("name", content.Name).
-					Interface("result", response).
-					Msg("Tool result")
+				logger.Debug("Tool result",
+					"name", content.Name,
+					"result", response)
 			}
 		}
 		if len(toolResults) == 0 {
