@@ -55,7 +55,7 @@ func main() {
 	verbose := flag.Bool("v", false, "Show verbose cost information")
 	genCompletion := flag.String("completion", "", "Generate shell completion script (zsh|bash)")
 	// showPrompt := flag.Bool("show-prompt", false, "Show only the generated prompt")
-	// attachFiles := flag.String("files", "", "Comma-separated list of files to attach")
+	attachFiles := flag.String("files", "", "Comma-separated list of files to attach")
 	showVersion := flag.Bool("version", false, "Show version information")
 	interactiveMode := flag.Bool("i", false, "Interactive chat mode")
 	flag.Parse()
@@ -236,7 +236,7 @@ func main() {
 			&cfg.MCPServers,
 		)
 		if err != nil {
-			logger.Error("failed to create agent", err)
+			logger.Error("failed to create agent", "error", err)
 
 			return
 		}
@@ -277,8 +277,8 @@ func main() {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error parsing system template: %v\n", err)
 				os.Exit(1)
-			}
 
+			}
 			var systemBuf bytes.Buffer
 			if err := systemTmpl.Execute(&systemBuf, templateData); err != nil {
 				fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
@@ -288,14 +288,15 @@ func main() {
 			if systemPrompt != "" {
 				agent.AddMessage(chat.NewSystemMessage(systemPrompt))
 			}
-			if initialPrompt != "" {
-				agent.AddMessage(chat.NewUserMessage(initialPrompt))
-			}
-
-			agent.StartMCP(context.Background())
-			console.StartConsole(agent)
-			return
 		}
+		if initialPrompt != "" {
+			agent.AddMessage(chat.NewUserMessage(initialPrompt))
+		}
+
+		agent.StartMCP(context.Background())
+		console := console.New(agent)
+		console.Run()
+		return
 	}
 
 	agent, err := llmagent.NewTemplateAgent(
@@ -307,8 +308,7 @@ func main() {
 		&cfg.MCPServers,
 	)
 	if err != nil {
-		logger.Error("failed to create agent", err)
-
+		logger.Error("failed to create agent", "error", err)
 		return
 	}
 
@@ -318,17 +318,29 @@ func main() {
 	argsCmd["Input"] = strings.Join(inputArgs, " ")
 	err = agent.LoadArgs(argsCmd)
 	if err != nil {
-
-		logger.Error("failed to load args", err)
+		logger.Error("failed to load args", "Error", err)
 		return
 	}
-	msg, cost, err := agent.Execute(context.Background(), h)
+
+	if *attachFiles != "" {
+		additionalFiles := strings.Split(*attachFiles, ",")
+		for _, filepath := range additionalFiles {
+			filepath = strings.TrimSpace(filepath)
+			logger.Debug("Loading file", "path", filepath)
+			if err := agent.LoadFiles(filepath); err != nil {
+				logger.Error("failed to load files", "Error", err)
+				return
+			}
+		}
+	}
+
+	_, cost, err := agent.Execute(context.Background(), h)
 	if err != nil {
-		logger.Error("failed to execute agent", err)
+		logger.Error("failed to execute agent", "Error", err)
 		return
 	}
 
-	logger.Debug("Message", "msg", msg)
+	// logger.Debug("Message", "msg", msg)
 	logger.Debug("Cost", "cost", cost)
 
 	// // Get the command and remaining args
@@ -385,17 +397,8 @@ func main() {
 	// 	os.Exit(1)
 	// }
 	//
-	// // Add files from command line flag
-	// if *attachFiles != "" {
-	// 	additionalFiles := strings.Split(*attachFiles, ",")
-	// 	for _, filepath := range additionalFiles {
-	// 		filepath = strings.TrimSpace(filepath)
-	// 		if err := agent.TemplateData.LoadFiles([]string{filepath}); err != nil {
-	// 			fmt.Fprintf(os.Stderr, "Error loading additional file %s: %v\n", filepath, err)
-	// 			os.Exit(1)
-	// 		}
-	// 	}
-	// }
+	// Add files from command line flag
+
 	//
 	// // Apply the command with input
 	// if err := agent.ApplyCommand(input); err != nil {

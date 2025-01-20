@@ -52,6 +52,10 @@ func (ta *TemplateAgent) LoadArgs(args map[string]string) error {
 	return ta.reqctx.Process(args)
 }
 
+func (ta *TemplateAgent) LoadFiles(filePath ...string) error {
+	return ta.reqctx.LoadFiles(filePath...)
+}
+
 // Execute runs the command with the prepared context
 func (ta *TemplateAgent) Execute(
 	ctx context.Context,

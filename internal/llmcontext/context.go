@@ -71,15 +71,12 @@ func (rc *RequestContext) Process(args map[string]string) error {
 		var value string
 
 		for _, t := range types {
-			fmt.Println("Variable: ", v.Name, "Type: ", t)
 			switch t {
 			case config.VarTypeExec:
 				if v.Exec != "" {
 					// Execute the command and capture output
 					cmd := exec.Command("sh", "-c", v.Exec)
 					output, err := cmd.Output()
-					fmt.Println("Command: ", v.Exec, output)
-					fmt.Println("Error: ", err)
 					if err == nil {
 						value = strings.TrimSpace(string(output))
 						break
@@ -114,7 +111,6 @@ func (rc *RequestContext) Process(args map[string]string) error {
 		}
 
 		rc.Vars[v.Name] = value
-		fmt.Println("Variable: ", v.Name, "Value: ", value)
 	}
 	return nil
 }

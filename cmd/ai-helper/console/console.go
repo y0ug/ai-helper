@@ -1,146 +1,128 @@
 package console
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
-	"github.com/reeflective/console"
-	"github.com/spf13/cobra"
-
+	"github.com/c-bata/go-prompt"
 	"github.com/y0ug/ai-helper/internal/llmagent"
-	"github.com/y0ug/ai-helper/internal/version"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
-type MyCmd struct {
-	cobra.Command
+type Console struct {
+	agent    *llmagent.Agent
+	h        *highlighter.Highlighter
+	commands map[string]Command
+	pt       *prompt.Prompt
 }
 
-func (c *MyCmd) Find(args []string) (*cobra.Command, []string, error) {
-	fmt.Println("Finding command")
-	return nil, nil, nil
+// Command represents a chat command
+type Command struct {
+	name        string
+	description string
+	handler     func(args []string)
 }
 
-//
-// func (c *MyConsole) execute(
-// 	ctx context.Context,
-// 	menu *console.Menu,
-// 	args []string,
-// 	async bool,
-// ) error {
-// 	fmt.Println("Executing command")
-// 	if strings.HasPrefix(args[0], "/") {
-// 		return c.execute(ctx, menu, args, async)
-// 	} else {
-// 		args = append([]string{"msg"}, args...)
-// 		return c.execute(ctx, menu, args, async)
-// 	}
-// }
-//
-// func NewMyConsole(name string) *MyConsole {
-// 	return &MyConsole{
-// 		Console: *console.New(name),
-// 	}
-// }
+func New(agent *llmagent.Agent) *Console {
+	c := &Console{
+		agent: agent,
+		h:     highlighter.NewHighlighter(os.Stdout),
+	}
+	c.commands = map[string]Command{
+		"/help": {
+			name:        "help",
+			description: "Show available commands",
+			handler:     c.handleHelp,
+		},
+		"/quit": {
+			name:        "quit",
+			description: "Exit the chat",
+			handler:     c.handleQuit,
+		},
+	}
 
-func StartConsole(agent *llmagent.Agent) {
-	app := console.New("ai-helper")
+	c.pt = prompt.New(
+		c.executor,
+		c.completer,
+		prompt.OptionTitle("Chat"),
+		prompt.OptionPrefix(fmt.Sprintf("%s ➜ ", agent.Model.Name)),
+		prompt.OptionInputTextColor(prompt.Yellow),
+		prompt.OptionPrefixTextColor(prompt.Blue),
+		prompt.OptionMaxSuggestion(5),
+		prompt.OptionHistory([]string{}),
+		prompt.OptionAddKeyBind(prompt.KeyBind{
+			Key: prompt.ControlC,
+			Fn:  func(*prompt.Buffer) { c.handleQuit(nil) },
+		}),
+	)
 
-	app.NewlineBefore = true
-	app.NewlineAfter = true
-	menu := app.ActiveMenu()
-	menu.AddInterrupt(io.EOF, exitCtrlD)
-	menu.SetCommands(mainMenuCommands(app, agent))
-	app.Start()
+	return c
 }
 
-func exitCtrlD(c *console.Console) {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Confirm exit (Y/y): ")
-	text, _ := reader.ReadString('\n')
-	answer := strings.TrimSpace(text)
+func (c *Console) Run() {
+	c.pt.Run()
+}
 
-	if (answer == "Y") || (answer == "y") {
-		os.Exit(0)
+func (c *Console) handleHelp(args []string) {
+	fmt.Println("Available commands:")
+	for _, cmd := range c.commands {
+		fmt.Printf("/%s - %s\n", cmd.name, cmd.description)
 	}
 }
 
-func mainMenuCommands(app *console.Console, agent *llmagent.Agent) console.Commands {
-	return func() *cobra.Command {
-		rootCmd := &cobra.Command{
-			Use: "ai-helper",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("XXXXX")
-			},
+func (c *Console) handleQuit(args []string) {
+	fmt.Println("Goodbye!")
+	// You might want to cleanup here
+	// Example: close connections, save state, etc.
+	panic("quit") // Quick way to exit, you might want to handle this more gracefully
+}
+
+func (c *Console) completer(d prompt.Document) []prompt.Suggest {
+	var suggestions []prompt.Suggest
+
+	word := d.GetWordBeforeCursor()
+
+	// If the word starts with /, suggest commands
+	if strings.HasPrefix(word, "/") {
+		for cmdName, cmd := range c.commands {
+			suggestions = append(suggestions, prompt.Suggest{
+				Text:        cmdName,
+				Description: cmd.description,
+			})
 		}
+	}
 
-		versionCmd := &cobra.Command{
-			Use:   "/version",
-			Short: "Print the version number of Hugo",
-			Long:  `All software has versions. This is Hugo's`,
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Printf("ai-helper %s\n", version.Version)
-			},
+	return prompt.FilterHasPrefix(suggestions, word, true)
+}
+
+func (c *Console) executor(input string) {
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		return
+	}
+
+	// Handle commands
+	if strings.HasPrefix(input, "/") {
+		parts := strings.Fields(input)
+		cmd, exists := c.commands[parts[0]]
+		if exists {
+			cmd.handler(parts[1:])
+			return
 		}
-		msgCmd := &cobra.Command{
-			Use: "msg",
-			Run: func(cmd *cobra.Command, args []string) {
-				fullCommand := fmt.Sprintf("%s", strings.Join(args, " "))
+		fmt.Printf("Unknown command: %s\n", parts[0])
+		return
+	}
+	// Add the command to the agent's message queue
+	c.agent.AddMessage(chat.NewUserMessage(input))
 
-				// Add the command to the agent's message queue
-				agent.AddMessage(chat.NewUserMessage(fullCommand))
-
-				h := highlighter.NewHighlighter(os.Stdout)
-				// Send the request to the AI agent
-				_, cost, err := agent.Do(context.Background(), h)
-				if err != nil {
-					fmt.Printf("Error generating response: %v\n", err)
-					return
-				}
-
-				fmt.Printf("Cost: %f\n", cost)
-				// // Print AI agent responses
-				// for _, resp := range responses {
-				// 	fmt.Println(resp.Choice[0].Content[0].String())
-				// }
-			},
-		}
-		startMCP := &cobra.Command{
-			Use: "/startmcp",
-			Run: func(cmd *cobra.Command, args []string) {
-				agent.StartMCP(context.Background())
-			},
-		}
-		stopMCP := &cobra.Command{
-			Use: "/stopmcp",
-			Run: func(cmd *cobra.Command, args []string) {
-				agent.StopMCP()
-			},
-		}
-		// sessionCmd := &cobra.Command{
-		// 	Use: "/session",
-		// 	Run: func(cmd *cobra.Command, args []string) {
-		// 		sessions, err := ai.ListAgents()
-		// 		if err != nil {
-		// 			fmt.Printf("%w\n", err)
-		// 		}
-		// 		for _, v := range sessions {
-		// 			fmt.Println(v)
-		// 		}
-		// 	},
-		// }
-
-		rootCmd.AddCommand(versionCmd)
-		rootCmd.AddCommand(startMCP)
-		rootCmd.AddCommand(stopMCP)
-		// rootCmd.AddCommand(sessionCmd)
-		rootCmd.AddCommand(msgCmd)
-
-		return rootCmd
+	// Send the request to the AI agent
+	_, _, err := c.agent.Do(context.Background(), c.h)
+	if err != nil {
+		fmt.Printf("Error generating response: %v\n", err)
+		return
 	}
 }
