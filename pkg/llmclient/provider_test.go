@@ -60,7 +60,13 @@ func TestStreamIntegration(t *testing.T) {
 		// options.WithMiddleware(middleware.TimeitMiddleware(nil)),
 	}
 	// modelInfoProvider, _ := modelinfo.New("")
-	provider, _ := New(model, requestOpts...)
+	provider, err := New(model, requestOpts...)
+	if err != nil {
+		t.Fatalf("Failed to create provider: %v", err)
+	}
+	if provider == nil {
+		t.Fatal("Provider is nil")
+	}
 
 	ctx := context.Background()
 	params := chat.NewChatParams(
