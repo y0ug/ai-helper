@@ -113,6 +113,14 @@ func (cm *ConversationManager) LoadCommand(command *config.Command) error {
 			PostTurnCmds: tmpl.PostTurnCmds,
 		}
 
+		// Register handlers
+		for _, handlerName := range tmpl.Handlers {
+			switch handlerName {
+			case "codediff":
+				template.Handlers[handlerName] = handlers.NewCodeDiffHandler()
+			}
+		}
+
 		if err := cm.AddTemplate(template); err != nil {
 			return fmt.Errorf("failed to add template %s: %w", id, err)
 		}

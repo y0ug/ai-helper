@@ -116,6 +116,8 @@ commands:
     initial_states: instruction
     templates:
       instruction:
+        handlers:
+          - codediff
         prompt: |
           Act as an expert software developer.
           Always use best practices when coding.
