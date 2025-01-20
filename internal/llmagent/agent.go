@@ -16,6 +16,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
+// NOP go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=llmagent .  Agenter
 type AgentSessionState struct {
 	ID                string              `json:"id"`
 	ModelName         string              `json:"model_name"`
@@ -32,7 +33,7 @@ type AgentSessionState struct {
 type Agent struct {
 	ID                string // Unique identifier for this agent/session
 	logger            *slog.Logger
-	Model             *modelinfo.Model // The AI model being used
+	ModelInfo         *modelinfo.Model // The AI model being used
 	Client            chat.Provider
 	modelInfoProvider modelinfo.Provider
 
@@ -74,15 +75,19 @@ func New(
 	if chatParams == nil {
 		chatParams = chat.NewChatParams(chat.WithMaxTokens(1024))
 	}
-	a.SetParams(chatParams)
+	err := a.SetParams(chatParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set params: %w", err)
+	}
 	return a, nil
 }
 
-func (a *Agent) SetParams(chatParams *chat.ChatParams) {
+func (a *Agent) SetParams(chatParams *chat.ChatParams) error {
 	a.chatParams = chatParams
 	if a.chatParams.Model != "" {
-		a.SetModel(a.chatParams.Model)
+		return a.SetModel(a.chatParams.Model)
 	}
+	return nil
 }
 
 func (a *Agent) SetModel(model string) error {
@@ -96,12 +101,15 @@ func (a *Agent) SetModel(model string) error {
 	}
 	provider, err := llmclient.New(modelInfo.Provider, a.requestOpts...)
 	if err != nil {
-		return fmt.Errorf("failed to create provider %s", model)
+		return fmt.Errorf("failed to create provider %s / %s", modelInfo.Provider, model)
 	}
 
+	if modelInfo == nil {
+		return fmt.Errorf("modelInfo is nil")
+	}
 	a.Client = provider
-	a.Model = modelInfo
-	a.chatParams.Model = a.Model.Name
+	a.ModelInfo = modelInfo
+	a.chatParams.Model = a.ModelInfo.Name
 	return nil
 }
 
@@ -141,7 +149,7 @@ func (a *Agent) StartMCP(ctx context.Context) error {
 func (a *Agent) SaveSession() *AgentSessionState {
 	return &AgentSessionState{
 		ID:                a.ID,
-		ModelName:         a.Model.Name,
+		ModelName:         a.ModelInfo.Name,
 		Messages:          a.chatParams.Messages,
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
@@ -205,13 +213,13 @@ func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 		a.TotalInputTokens += m.Usage.InputTokens
 		a.TotalOutputTokens += m.Usage.OutputTokens
 
-		if a.Model.Metadata == nil {
+		if a.ModelInfo.Metadata == nil {
 			a.logger.Warn("Model metadata is nil, can't calculate cost",
-				"name", a.Model.Name)
+				"name", a.ModelInfo.Name)
 			continue
 		}
-		cost += a.Model.Metadata.OutputCostPerToken * float64(m.Usage.OutputTokens)
-		cost += a.Model.Metadata.InputCostPerToken * float64(m.Usage.InputTokens)
+		cost += a.ModelInfo.Metadata.OutputCostPerToken * float64(m.Usage.OutputTokens)
+		cost += a.ModelInfo.Metadata.InputCostPerToken * float64(m.Usage.InputTokens)
 	}
 
 	a.TotalCost += cost
@@ -259,7 +267,8 @@ func (a *Agent) process(
 	var msg *chat.ChatResponse
 	for {
 
-		logger := slog.With("model", a.Model.Name)
+		logger := a.logger.With("test", "") // slog.With("model", a.Model.Name)
+
 		stream, err := a.Client.Stream(ctx, *a.chatParams)
 		if err != nil {
 			logger.Error("Error streaming", "error", err)
