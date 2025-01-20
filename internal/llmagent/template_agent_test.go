@@ -128,6 +128,15 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	}
 
 	mockStream := streaming.NewMockStreamer[chat.EventStream](ctrl)
+	mockStream.EXPECT().Next().Return(true).Times(1)
+	mockStream.EXPECT().Current().Return(chat.EventStream{
+		Type:    "message_stop",
+		Message: initialResponse,
+	}).Times(1)
+	mockStream.EXPECT().Next().Return(false).Times(1)
+	mockStream.EXPECT().Err().Return(nil).Times(1)
+	mockStream.EXPECT().Close().Return(nil).Times(1)
+
 	mockChat.EXPECT().Stream(
 		gomock.Any(),
 		gomock.Any(),
