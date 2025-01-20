@@ -17,7 +17,7 @@
 - [x] Add variable persistence
 
 ## Phase 4: Testing & Integration
-- [ ] Add unit tests
+- [x] Add unit tests
 - [ ] Integration testing
 - [ ] Documentation updates
 
