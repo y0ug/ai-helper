@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/c-bata/go-prompt"
@@ -108,22 +109,58 @@ func (c *Console) handleQuit(args []string) {
 	panic("quit") // Quick way to exit, you might want to handle this more gracefully
 }
 
-func (c *Console) completer(d prompt.Document) []prompt.Suggest {
+func (c *Console) getFileSuggestions(pattern string) []prompt.Suggest {
 	var suggestions []prompt.Suggest
-
-	word := d.GetWordBeforeCursor()
-
-	// If the word starts with /, suggest commands
-	if strings.HasPrefix(word, "/") {
-		for cmdName, cmd := range c.commands {
-			suggestions = append(suggestions, prompt.Suggest{
-				Text:        cmdName,
-				Description: cmd.description,
-			})
-		}
+	matches, err := filepath.Glob(pattern + "*")
+	if err != nil {
+		return suggestions
 	}
 
-	return prompt.FilterHasPrefix(suggestions, word, true)
+	for _, match := range matches {
+		info, err := os.Stat(match)
+		if err != nil {
+			continue
+		}
+		description := "file"
+		if info.IsDir() {
+			description = "directory"
+		}
+		suggestions = append(suggestions, prompt.Suggest{
+			Text:        match,
+			Description: description,
+		})
+	}
+	return suggestions
+}
+
+func (c *Console) completer(d prompt.Document) []prompt.Suggest {
+	var suggestions []prompt.Suggest
+	input := d.TextBeforeCursor()
+	words := strings.Fields(input)
+
+	if len(words) <= 1 {
+		// If the word starts with /, suggest commands
+		word := d.GetWordBeforeCursor()
+		if strings.HasPrefix(word, "/") {
+			for cmdName, cmd := range c.commands {
+				suggestions = append(suggestions, prompt.Suggest{
+					Text:        cmdName,
+					Description: cmd.description,
+				})
+			}
+			return prompt.FilterHasPrefix(suggestions, word, true)
+		}
+	} else if words[0] == "/add" {
+		// Get the word being typed
+		word := d.GetWordBeforeCursor()
+		// If word is empty, suggest current directory
+		if word == "" {
+			word = "."
+		}
+		return c.getFileSuggestions(word)
+	}
+
+	return suggestions
 }
 
 func (c *Console) handleAddFile(args []string) {
