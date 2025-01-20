@@ -28,12 +28,12 @@ type Turn struct {
 
 // PromptTemplate defines a template for a conversation state
 type PromptTemplate struct {
-	ID            string
-	SystemPrompt  string
-	UserPrompt    string
-	RequiredVars  []string
-	NextStates    []string
-	Handlers      map[string]TurnHandler
+	ID           string
+	SystemPrompt string
+	UserPrompt   string
+	RequiredVars []string
+	NextStates   []string
+	Handlers     map[string]TurnHandler
 }
 
 // TurnHandler defines the interface for custom turn processing
@@ -52,7 +52,7 @@ func NewConversationManager(id string) *ConversationManager {
 	return &ConversationManager{
 		ID:        id,
 		Templates: make(map[string]*PromptTemplate),
-		History:   make([]*Turn),
+		History:   make([]*Turn, 0),
 		Variables: make(map[string]interface{}),
 	}
 }
