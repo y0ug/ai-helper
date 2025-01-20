@@ -128,7 +128,11 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	}
 
 	mockStream := streaming.NewMockStreamer[chat.EventStream](ctrl)
-	mockStream.EXPECT().Next().Return(true).Times(1)
+	mockStream.EXPECT().Next().Return(true).Times(2)
+	mockStream.EXPECT().Current().Return(chat.EventStream{
+		Type:  "text_delta",
+		Delta: "Initial response",
+	}).Times(1)
 	mockStream.EXPECT().Current().Return(chat.EventStream{
 		Type:    "message_stop",
 		Message: initialResponse,
@@ -172,7 +176,11 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	}
 
 	mockStream = streaming.NewMockStreamer[chat.EventStream](ctrl)
-	mockStream.EXPECT().Next().Return(true).Times(1)
+	mockStream.EXPECT().Next().Return(true).Times(2)
+	mockStream.EXPECT().Current().Return(chat.EventStream{
+		Type:  "text_delta",
+		Delta: "Follow-up response",
+	}).Times(1)
 	mockStream.EXPECT().Current().Return(chat.EventStream{
 		Type:    "message_stop",
 		Message: followUpResponse,
