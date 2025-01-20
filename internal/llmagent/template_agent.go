@@ -16,8 +16,10 @@ import (
 // TemplateAgent represents an AI agent that works with templates and commands
 type TemplateAgent struct {
 	*Agent
-	command *config.Command
-	reqctx  *llmcontext.RequestContext
+	ConversationManager *ConversationManager
+	StateTransitioner  StateTransitioner
+	command           *config.Command
+	reqctx            *llmcontext.RequestContext
 }
 
 // NewTemplateAgent creates a new template-based agent
@@ -41,10 +43,31 @@ func NewTemplateAgent(
 		return nil, fmt.Errorf("failed to create base agent: %w", err)
 	}
 
+	conversationManager := NewConversationManager(id)
+	
+	// Convert command config to PromptTemplate
+	template := &PromptTemplate{
+		ID:           "initial",
+		SystemPrompt: command.System,
+		UserPrompt:   command.Prompt,
+		RequiredVars: make([]string, 0),
+		NextStates:   make([]string, 0),
+		Handlers:     make(map[string]TurnHandler),
+	}
+	
+	if err := conversationManager.AddTemplate(template); err != nil {
+		return nil, fmt.Errorf("failed to add template: %w", err)
+	}
+
+	if err := conversationManager.StartConversation("initial"); err != nil {
+		return nil, fmt.Errorf("failed to start conversation: %w", err)
+	}
+
 	return &TemplateAgent{
-		Agent:   baseAgent,
-		command: command,
-		reqctx:  llmcontext.NewRequestContext(command),
+		Agent:              baseAgent,
+		ConversationManager: conversationManager,
+		command:            command,
+		reqctx:             llmcontext.NewRequestContext(command),
 	}, nil
 }
 

@@ -7,9 +7,9 @@
 - [x] Create core interfaces (TurnHandler, StateTransitioner)
 
 ## Phase 2: Template Agent Refactoring
-- [ ] Split current functionality
-- [ ] Add conversation state management
-- [ ] Implement template switching
+- [x] Split current functionality
+- [x] Add conversation state management
+- [x] Implement template switching
 
 ## Phase 3: Configuration Updates
 - [ ] Extend command configuration

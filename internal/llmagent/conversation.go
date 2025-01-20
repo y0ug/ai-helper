@@ -56,3 +56,56 @@ func NewConversationManager(id string) *ConversationManager {
 		Variables: make(map[string]interface{}),
 	}
 }
+
+// AddTemplate adds a new template to the conversation manager
+func (cm *ConversationManager) AddTemplate(template *PromptTemplate) error {
+	if template.ID == "" {
+		return fmt.Errorf("template ID cannot be empty")
+	}
+	cm.Templates[template.ID] = template
+	return nil
+}
+
+// StartConversation initializes a conversation with a specific template
+func (cm *ConversationManager) StartConversation(templateID string) error {
+	if _, exists := cm.Templates[templateID]; !exists {
+		return fmt.Errorf("template %s not found", templateID)
+	}
+	cm.CurrentState = templateID
+	return nil
+}
+
+// ProcessTurn handles a single conversation turn
+func (cm *ConversationManager) ProcessTurn(ctx context.Context, input *llmcontext.RequestContext) (*Turn, error) {
+	template, exists := cm.Templates[cm.CurrentState]
+	if !exists {
+		return nil, fmt.Errorf("no template found for current state: %s", cm.CurrentState)
+	}
+
+	turn := &Turn{
+		TemplateID: cm.CurrentState,
+		Input:      input,
+		Timestamp:  time.Now(),
+		State:      make(map[string]interface{}),
+	}
+
+	// Run pre-processing handlers
+	for _, handler := range template.Handlers {
+		if err := handler.PreProcess(ctx, turn); err != nil {
+			return nil, fmt.Errorf("pre-process error: %w", err)
+		}
+	}
+
+	cm.History = append(cm.History, turn)
+	return turn, nil
+}
+
+// GetCurrentTemplate returns the currently active template
+func (cm *ConversationManager) GetCurrentTemplate() *PromptTemplate {
+	return cm.Templates[cm.CurrentState]
+}
+
+// GetHistory returns the conversation history
+func (cm *ConversationManager) GetHistory() []*Turn {
+	return cm.History
+}
