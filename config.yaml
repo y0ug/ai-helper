@@ -1,111 +1,112 @@
 commands:
   ask:
-    variables:
-      - name: Input
-        type: stdin|arg
     description: Ask a computer expert
-    prompt: |
-      I want you to act as a computer expert. 
-      I will ask you questions about Linux/Windows shell commands, scripting, 
-      and system administration tasks, vim. For each question:
+    initial_state: initial
+    templates:
+      initial:
+        variables:
+          - name: Input
+            type: stdin|arg
+        system: |
+          You are a computer expert specializing in Linux/Windows shell commands, scripting, 
+          and system administration tasks. Be concise and direct in your responses.
+        prompt: |
+          For each question:
 
-      1. If it's a command request:
-        - Provide the exact command without explanation
-        - Add only critical flags/options
-        - Include a single-line comment explaining the command (if needed)
-        - Format as a code block
+          1. If it's a command request:
+            - Provide the exact command without explanation
+            - Add only critical flags/options
+            - Include a single-line comment explaining the command (if needed)
+            - Format as a code block
 
-      2. If it's a scripting question:
-        - Give the shortest working solution
-        - Include only essential error handling
-        - Format as a code block
+          2. If it's a scripting question:
+            - Give the shortest working solution
+            - Include only essential error handling
+            - Format as a code block
 
-      3. If it's a conceptual question:
-        - Provide a max 2-sentence answer
-        - Include a command example if relevant
+          3. If it's a conceptual question:
+            - Provide a max 2-sentence answer
+            - Include a command example if relevant
 
-      Don't explain basic concepts unless asked. Don't provide alternatives unless requested. Focus on the most direct solution.
+          Question: {{ .Vars.Input }}
+        next_states: [follow_up]
 
-      {{ .Vars.Input }}
+      follow_up:
+        variables:
+          - name: Input
+            type: stdin|arg
+        system: |
+          Continue the computer expert conversation, maintaining context from previous responses.
+        prompt: |
+          Follow-up question: {{ .Vars.Input }}
+        next_states: [follow_up, initial]
 
   summarize:
     description: Summarize a text
-    variables:
-      - name: Input
-        type: stdin|arg
-    prompt: |
-      Please summarize the following text:
-      {{ .Vars.Input }}
-
-  whoami:
-    description: Demo whoami
-    variables:
-      - name: WhoAmi
-        type: exec
-        exec: whoami
-    prompt: |
-      **Return ONLY** with my name on json format.
-
-      I'm {{ .Vars.WhoAmi }}. Can you say who I'm?
+    initial_state: summarize
+    templates:
+      summarize:
+        variables:
+          - name: Input
+            type: stdin|arg
+        system: |
+          You are a text summarization expert. Provide clear, concise summaries.
+        prompt: |
+          Please summarize the following text:
+          {{ .Vars.Input }}
 
   git-commit:
-    variables:
-      - name: RecentCommits
-        type: exec
-        exec: git log -3 --pretty=format:"%s"
-      - name: Input
-        type: stdin|arg|exec
-        exec: git diff --cached
-    prompt: |
-      Generate a git commit message following this structure:
+    description: Generate semantic git commit messages
+    initial_state: analyze
+    templates:
+      analyze:
+        variables:
+          - name: RecentCommits
+            type: exec
+            exec: git log -3 --pretty=format:"%s"
+          - name: Input
+            type: stdin|arg|exec
+            exec: git diff --cached
+        system: |
+          You are a git commit message expert. Generate semantic commit messages following conventions.
+        prompt: |
+          Generate a git commit message following this structure:
 
-      1. First line: conventional commit format (type: concise description) (remember to use semantic
-      types like feat, fix, docs, style, refactor, perf, test, chore, etc.)
-      2. Optional bullet points if more context helps:
-        - Keep the second line blank
-        - Keep them short and direct
-        - Focus on what changed
-        - Always be terse
-        - Don't overly explain
-        - Drop any fluffy or formal language
+          1. First line: conventional commit format (type: concise description)
+          2. Optional bullet points for additional context
 
-      **Important:** if the diff is empty return
+          Recent commits:
+          {{ .Vars.RecentCommits }}
 
-      "#ERROR# empty diff. Commit aborted!"
+          Changes:
+          ```
+          {{ .Vars.Input }}
+          ```
+        next_states: [security_check]
 
-      **Important:** Before generating the commit message, analyze the git diff for sensitive information.
-      If the diff contains any secrets (e.g., API keys, passwords, tokens, private keys, or anything resembling credentials),
-      return the following exact response and nothing else: 
-
-      "#ERROR# 🚨 Potential secret detected in the git diff. Commit aborted!"
-
-      Return **ONLY** the commit message if no secret are detected - no introduction, no explanation, no quotes around it.
-
-      **Patterns to watch for include (but are not limited to):**
-      - Any variable containing words like `token`, `password`, `secret`, `apikey`, `private_key`
-      - Any base64-encoded or hex-encoded long strings
-      - Any obvious credentials in JSON, YAML, ENV files, or config changes
-
-      If no secrets are detected, proceed with generating the commit message.
-
-      Recent commits from this repo (for style reference):
-      {{ .Vars.RecentCommits }}
-
-      Here's the diff:
-
-      ```
-      {{ .Vars.Input }}
-      ```
+      security_check:
+        system: |
+          You are a security expert checking for sensitive information in git diffs.
+        prompt: |
+          Check the following diff for sensitive information (API keys, passwords, tokens, etc.):
+          ```
+          {{ .Vars.Input }}
+          ```
+          Return "#ERROR# 🚨 Potential secret detected" if found, otherwise proceed with commit message.
 
   analyze:
-    description: "Analyze code files"
-    prompt: |
-      Please analyze these code files:
+    description: Analyze code files
+    initial_state: analyze
+    templates:
+      analyze:
+        system: |
+          You are a code analysis expert. Provide clear insights about code structure and quality.
+        prompt: |
+          Please analyze these code files:
 
-      {{range $filePath, $content := .Files}}
-      File: {{$filePath}}
-      ```
-      {{$content}}
-      ```
-
-      {{end}}
+          {{range $filePath, $content := .Files}}
+          File: {{$filePath}}
+          ```
+          {{$content}}
+          ```
+          {{end}}
