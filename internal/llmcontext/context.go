@@ -1,30 +1,41 @@
 package llmcontext
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/y0ug/ai-helper/internal/config"
 )
 
 // RequestContext holds all data available to templates
 type RequestContext struct {
-	Input string
+	cmd   *config.Command
 	Env   map[string]string
 	Files map[string]string
 	Vars  map[string]interface{}
 }
 
 // NewRequestContext creates a new RequestContext with initialized maps
-func NewRequestContext(input string) *RequestContext {
-	return &RequestContext{
-		Input: input,
+func NewRequestContext(cmd *config.Command) *RequestContext {
+	req := &RequestContext{
+		cmd:   cmd,
 		Env:   make(map[string]string),
 		Files: make(map[string]string),
 		Vars:  make(map[string]interface{}),
 	}
+
+	req.LoadEnvironment()
+	for _, file := range cmd.Files {
+		req.LoadFiles(file)
+	}
+	return req
 }
 
 // LoadEnvironment loads all environment variables into the template data
@@ -38,7 +49,7 @@ func (rc *RequestContext) LoadEnvironment() {
 }
 
 // LoadFiles loads content of specified files into the template data
-func (rc *RequestContext) LoadFiles(paths []string) error {
+func (rc *RequestContext) LoadFiles(paths ...string) error {
 	for _, path := range paths {
 		content, err := os.ReadFile(path)
 		if err != nil {
@@ -49,8 +60,67 @@ func (rc *RequestContext) LoadFiles(paths []string) error {
 	return nil
 }
 
+func (rc *RequestContext) Process(args map[string]string) error {
+	// Process variables if any
+	for _, v := range rc.cmd.Variables {
+		types := v.GetTypes()
+		if len(types) == 0 {
+			continue
+		}
+
+		var value string
+
+		for _, t := range types {
+			fmt.Println("Variable: ", v.Name, "Type: ", t)
+			switch t {
+			case config.VarTypeExec:
+				if v.Exec != "" {
+					// Execute the command and capture output
+					cmd := exec.Command("sh", "-c", v.Exec)
+					output, err := cmd.Output()
+					fmt.Println("Command: ", v.Exec, output)
+					fmt.Println("Error: ", err)
+					if err == nil {
+						value = strings.TrimSpace(string(output))
+						break
+					} else {
+					}
+				}
+			case config.VarTypeArg:
+				// Check if value was provided as argument
+				if val, ok := args[v.Name]; ok {
+					value = val
+					break
+				}
+			case config.VarTypeStdin:
+				val, err := readStdin()
+				if err == nil {
+					value = val
+				}
+				break
+			}
+
+			if value != "" {
+				break
+			}
+		}
+
+		if value == "" {
+			return fmt.Errorf(
+				"no value found for variable %s after trying types: %v",
+				v.Name,
+				types,
+			)
+		}
+
+		rc.Vars[v.Name] = value
+		fmt.Println("Variable: ", v.Name, "Value: ", value)
+	}
+	return nil
+}
+
 // GetTemplateFuncs returns the map of template helper functions
-func GetTemplateFuncs(rc *RequestContext) template.FuncMap {
+func (rc *RequestContext) GetTemplateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"fileContent": func(path string) string {
 			content, ok := rc.Files[path]
@@ -75,18 +145,46 @@ func GetTemplateFuncs(rc *RequestContext) template.FuncMap {
 }
 
 // Execute processes a template with the provided template data
-func Execute(templateContent string, data *RequestContext) (string, error) {
+func (rc *RequestContext) Execute(templateText string) (string, error) {
 	tmpl, err := template.New("prompt").
-		Funcs(GetTemplateFuncs(data)).
-		Parse(templateContent)
+		Funcs(rc.GetTemplateFuncs()).
+		Parse(templateText)
 	if err != nil {
 		return "", fmt.Errorf("error parsing template: %w", err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := tmpl.Execute(&buf, rc); err != nil {
 		return "", fmt.Errorf("error executing template: %w", err)
 	}
 
 	return buf.String(), nil
+}
+
+func readStdin() (string, error) {
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to stat stdin: %w", err)
+	}
+
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		reader := bufio.NewReader(os.Stdin)
+		var builder strings.Builder
+
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return "", fmt.Errorf("failed to read stdin: %w", err)
+			}
+			builder.WriteString(line)
+		}
+
+		if builder.Len() > 0 {
+			return strings.TrimSpace(builder.String()), nil
+		}
+	}
+	return "", fmt.Errorf("no input provided")
 }

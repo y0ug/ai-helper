@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os/exec"
-	"strings"
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/llmcontext"
@@ -19,7 +17,7 @@ import (
 type TemplateAgent struct {
 	*Agent
 	command *config.Command
-	ctx     *llmcontext.RequestContext
+	reqctx  *llmcontext.RequestContext
 }
 
 // NewTemplateAgent creates a new template-based agent
@@ -46,71 +44,12 @@ func NewTemplateAgent(
 	return &TemplateAgent{
 		Agent:   baseAgent,
 		command: command,
-		ctx:     llmcontext.NewRequestContext(""),
+		reqctx:  llmcontext.NewRequestContext(command),
 	}, nil
 }
 
-// LoadCommand prepares the agent with the command configuration
-func (ta *TemplateAgent) LoadCommand(input string) error {
-	ta.ctx = llmcontext.NewRequestContext(input)
-	ta.ctx.LoadEnvironment()
-
-	// Load any files specified in the command
-	if len(ta.command.Files) > 0 {
-		if err := ta.ctx.LoadFiles(ta.command.Files); err != nil {
-			return fmt.Errorf("failed to load command files: %w", err)
-		}
-	}
-
-	// Process variables if any
-	for _, v := range ta.command.Variables {
-		types := v.GetTypes()
-		if len(types) == 0 {
-			continue
-		}
-
-		var value string
-		var err error
-		
-		for _, t := range types {
-			switch t {
-			case config.VarTypeExec:
-				if v.Exec != "" {
-					// Execute the command and capture output
-					cmd := exec.Command("sh", "-c", v.Exec)
-					output, err := cmd.Output()
-					if err == nil {
-						value = strings.TrimSpace(string(output))
-						break
-					}
-				}
-			case config.VarTypeArg:
-				// Check if value was provided as argument
-				if val, ok := ta.ctx.Args[v.Name]; ok {
-					value = val
-					break
-				}
-			case config.VarTypeStdin:
-				// Try to read from stdin if input is available
-				if ta.ctx.Input != "" {
-					value = ta.ctx.Input
-					break
-				}
-			}
-			
-			if value != "" {
-				break
-			}
-		}
-
-		if value == "" {
-			return fmt.Errorf("no value found for variable %s after trying types: %v", v.Name, types)
-		}
-
-		ta.ctx.Vars[v.Name] = value
-	}
-
-	return nil
+func (ta *TemplateAgent) LoadArgs(args map[string]string) error {
+	return ta.reqctx.Process(args)
 }
 
 // Execute runs the command with the prepared context
@@ -120,7 +59,7 @@ func (ta *TemplateAgent) Execute(
 ) ([]*chat.ChatResponse, float64, error) {
 	// Generate system message from template if provided
 	if ta.command.System != "" {
-		systemContent, err := llmcontext.Execute(ta.command.System, ta.ctx)
+		systemContent, err := ta.reqctx.Execute(ta.command.System)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to execute system template: %w", err)
 		}
@@ -128,12 +67,13 @@ func (ta *TemplateAgent) Execute(
 	}
 
 	// Generate user message from prompt template
-	promptContent, err := llmcontext.Execute(ta.command.Prompt, ta.ctx)
+	promptContent, err := ta.reqctx.Execute(ta.command.Prompt)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to execute prompt template: %w", err)
 	}
 	ta.AddMessage(chat.NewMessage("user", chat.NewTextContent(promptContent)))
 
+	fmt.Printf("promptContent: %s\n", promptContent)
 	// Execute the chat completion
 	return ta.Do(ctx, w)
 }

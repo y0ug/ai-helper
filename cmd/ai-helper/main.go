@@ -12,12 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/cmd/ai-helper/console"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/internal/stats"
 	"github.com/y0ug/ai-helper/internal/version"
+	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
@@ -61,9 +63,14 @@ func main() {
 	if *verbose {
 		level = slog.LevelDebug
 	}
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: level,
+	logger := slog.New(tint.NewHandler(os.Stderr, &tint.Options{
+		Level:      level,
+		TimeFormat: time.Kitchen,
 	}))
+
+	//    &slog.HandlerOptions{
+	// 	Level: level,
+	// }))
 
 	// Create AI client early as it's needed for multiple features
 	configDir, err := os.UserHomeDir()
@@ -198,10 +205,103 @@ func main() {
 		chat.WithMaxTokens(model.Metadata.MaxTokens),
 	)
 
-	// Create an agent for this command
-	agent, err := llmagent.New(
+	command := ""
+	var args []string
+	if len(flag.Args()) > 0 {
+		args = flag.Args()
+		command = args[0]
+	}
+
+	command = strings.TrimSpace(command)
+	var initialPrompt, systemPrompt string
+	if command == "" {
+		logger.Error("Error: Command required")
+		os.Exit(0)
+	}
+	// Get command configuration
+	cmd, ok := cfg.Commands[command]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
+		os.Exit(1)
+	}
+
+	// Handle interactive mode
+	if *interactiveMode {
+		// Create an agent for this command
+		agent, err := llmagent.New(
+			generateSessionID(),
+			logger,
+			chatParams,
+			infoProviders,
+			&cfg.MCPServers,
+		)
+		if err != nil {
+			logger.Error("failed to create agent", err)
+
+			return
+		}
+
+		// Load prompt and system prompt content
+		promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading prompt: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Process the prompts with template data
+		templateData := map[string]interface{}{
+			"env":   make(map[string]string),
+			"Files": make(map[string]string),
+		}
+		// Add variables from command config
+		for k, v := range vars {
+			templateData[k] = v
+		}
+
+		// Parse and execute the prompts
+		tmpl, err := template.New("prompt").Parse(promptContent)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing prompt template: %v\n", err)
+			os.Exit(1)
+		}
+
+		var promptBuf bytes.Buffer
+		if err := tmpl.Execute(&promptBuf, templateData); err != nil {
+			fmt.Fprintf(os.Stderr, "Error executing prompt template: %v\n", err)
+			os.Exit(1)
+		}
+		initialPrompt = promptBuf.String()
+
+		if systemContent != "" {
+			systemTmpl, err := template.New("system").Parse(systemContent)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error parsing system template: %v\n", err)
+				os.Exit(1)
+			}
+
+			var systemBuf bytes.Buffer
+			if err := systemTmpl.Execute(&systemBuf, templateData); err != nil {
+				fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
+				os.Exit(1)
+			}
+			systemPrompt = systemBuf.String()
+			if systemPrompt != "" {
+				agent.AddMessage(chat.NewSystemMessage(systemPrompt))
+			}
+			if initialPrompt != "" {
+				agent.AddMessage(chat.NewUserMessage(initialPrompt))
+			}
+
+			agent.StartMCP(context.Background())
+			console.StartConsole(agent)
+			return
+		}
+	}
+
+	agent, err := llmagent.NewTemplateAgent(
 		generateSessionID(),
 		logger,
+		&cmd,
 		chatParams,
 		infoProviders,
 		&cfg.MCPServers,
@@ -212,81 +312,24 @@ func main() {
 		return
 	}
 
-	// Handle interactive mode
-	if *interactiveMode {
-		command := ""
-		if len(flag.Args()) > 0 {
-			command = flag.Args()[0]
-		}
+	inputArgs := args[1:]
+	h := highlighter.NewHighlighter(os.Stdout)
+	argsCmd := make(map[string]string, 0)
+	argsCmd["Input"] = strings.Join(inputArgs, " ")
+	err = agent.LoadArgs(argsCmd)
+	if err != nil {
 
-		command = strings.TrimSpace(command)
-		var initialPrompt, systemPrompt string
-		if command != "" {
-			// Get command configuration
-			cmd, ok := cfg.Commands[command]
-			if !ok {
-				fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
-				os.Exit(1)
-			}
-
-			// Load prompt and system prompt content
-			promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading prompt: %v\n", err)
-				os.Exit(1)
-			}
-
-			// Process the prompts with template data
-			templateData := map[string]interface{}{
-				"env":   make(map[string]string),
-				"Files": make(map[string]string),
-			}
-			// Add variables from command config
-			for k, v := range vars {
-				templateData[k] = v
-			}
-
-			// Parse and execute the prompts
-			tmpl, err := template.New("prompt").Parse(promptContent)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error parsing prompt template: %v\n", err)
-				os.Exit(1)
-			}
-
-			var promptBuf bytes.Buffer
-			if err := tmpl.Execute(&promptBuf, templateData); err != nil {
-				fmt.Fprintf(os.Stderr, "Error executing prompt template: %v\n", err)
-				os.Exit(1)
-			}
-			initialPrompt = promptBuf.String()
-
-			if systemContent != "" {
-				systemTmpl, err := template.New("system").Parse(systemContent)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error parsing system template: %v\n", err)
-					os.Exit(1)
-				}
-
-				var systemBuf bytes.Buffer
-				if err := systemTmpl.Execute(&systemBuf, templateData); err != nil {
-					fmt.Fprintf(os.Stderr, "Error executing system template: %v\n", err)
-					os.Exit(1)
-				}
-				systemPrompt = systemBuf.String()
-			}
-		}
-
-		if systemPrompt != "" {
-			agent.AddMessage(chat.NewSystemMessage(systemPrompt))
-		}
-		if initialPrompt != "" {
-			agent.AddMessage(chat.NewUserMessage(initialPrompt))
-		}
-
-		agent.StartMCP(context.Background())
-		console.StartConsole(agent)
+		logger.Error("failed to load args", err)
 		return
 	}
+	msg, cost, err := agent.Execute(context.Background(), h)
+	if err != nil {
+		logger.Error("failed to execute agent", err)
+		return
+	}
+
+	logger.Debug("Message", "msg", msg)
+	logger.Debug("Cost", "cost", cost)
 
 	// // Get the command and remaining args
 	// args := flag.Args()
