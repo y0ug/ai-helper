@@ -45,21 +45,32 @@ func NewTemplateAgent(
 
 	conversationManager := NewConversationManager(id)
 	
-	// Convert command config to PromptTemplate
-	template := &PromptTemplate{
-		ID:           "initial",
-		SystemPrompt: command.System,
-		UserPrompt:   command.Prompt,
-		RequiredVars: make([]string, 0),
-		NextStates:   make([]string, 0),
-		Handlers:     make(map[string]TurnHandler),
-	}
-	
-	if err := conversationManager.AddTemplate(template); err != nil {
-		return nil, fmt.Errorf("failed to add template: %w", err)
+	// Convert command templates to PromptTemplates
+	for id, tmpl := range command.Templates {
+		template := &PromptTemplate{
+			ID:           id,
+			SystemPrompt: tmpl.System,
+			UserPrompt:   tmpl.Prompt,
+			RequiredVars: extractRequiredVars(tmpl.Variables),
+			NextStates:   tmpl.NextStates,
+			Handlers:     make(map[string]TurnHandler),
+		}
+		
+		if err := conversationManager.AddTemplate(template); err != nil {
+			return nil, fmt.Errorf("failed to add template %s: %w", id, err)
+		}
 	}
 
-	if err := conversationManager.StartConversation("initial"); err != nil {
+	initialState := command.InitialState
+	if initialState == "" {
+		// If no initial state specified, use the first template
+		for id := range command.Templates {
+			initialState = id
+			break
+		}
+	}
+
+	if err := conversationManager.StartConversation(initialState); err != nil {
 		return nil, fmt.Errorf("failed to start conversation: %w", err)
 	}
 
@@ -69,6 +80,17 @@ func NewTemplateAgent(
 		command:            command,
 		reqctx:             llmcontext.NewRequestContext(command),
 	}, nil
+}
+
+// extractRequiredVars extracts required variable names from Variable slice
+func extractRequiredVars(vars []config.Variable) []string {
+	required := make([]string, 0)
+	for _, v := range vars {
+		if v.Type != "" {
+			required = append(required, v.Name)
+		}
+	}
+	return required
 }
 
 func (ta *TemplateAgent) LoadArgs(args map[string]string) error {

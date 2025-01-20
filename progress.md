@@ -12,9 +12,9 @@
 - [x] Implement template switching
 
 ## Phase 3: Configuration Updates
-- [ ] Extend command configuration
-- [ ] Add template state definitions
-- [ ] Add variable persistence
+- [x] Extend command configuration
+- [x] Add template state definitions
+- [x] Add variable persistence
 
 ## Phase 4: Testing & Integration
 - [ ] Add unit tests
