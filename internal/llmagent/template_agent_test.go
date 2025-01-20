@@ -128,18 +128,21 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	}
 
 	mockStream := streaming.NewMockStreamer[chat.EventStream](ctrl)
-	mockStream.EXPECT().Next().Return(true).Times(2)
-	mockStream.EXPECT().Current().Return(chat.EventStream{
-		Type:  "text_delta",
-		Delta: "Initial response",
-	}).Times(1)
-	mockStream.EXPECT().Current().Return(chat.EventStream{
-		Type:    "message_stop",
-		Message: initialResponse,
-	}).Times(1)
-	mockStream.EXPECT().Next().Return(false).Times(1)
-	mockStream.EXPECT().Err().Return(nil).Times(1)
-	mockStream.EXPECT().Close().Return(nil).Times(1)
+	gomock.InOrder(
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:  "text_delta",
+			Delta: "Initial response",
+		}),
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:    "message_stop",
+			Message: initialResponse,
+		}),
+		mockStream.EXPECT().Next().Return(false),
+		mockStream.EXPECT().Err().Return(nil),
+		mockStream.EXPECT().Close().Return(nil),
+	)
 
 	mockChat.EXPECT().Stream(
 		gomock.Any(),
@@ -176,18 +179,21 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	}
 
 	mockStream = streaming.NewMockStreamer[chat.EventStream](ctrl)
-	mockStream.EXPECT().Next().Return(true).Times(2)
-	mockStream.EXPECT().Current().Return(chat.EventStream{
-		Type:  "text_delta",
-		Delta: "Follow-up response",
-	}).Times(1)
-	mockStream.EXPECT().Current().Return(chat.EventStream{
-		Type:    "message_stop",
-		Message: followUpResponse,
-	}).Times(1)
-	mockStream.EXPECT().Next().Return(false).Times(1)
-	mockStream.EXPECT().Err().Return(nil).Times(1)
-	mockStream.EXPECT().Close().Return(nil).Times(1)
+	gomock.InOrder(
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:  "text_delta",
+			Delta: "Follow-up response",
+		}),
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:    "message_stop",
+			Message: followUpResponse,
+		}),
+		mockStream.EXPECT().Next().Return(false),
+		mockStream.EXPECT().Err().Return(nil),
+		mockStream.EXPECT().Close().Return(nil),
+	)
 
 	mockChat.EXPECT().Stream(
 		gomock.Any(),
