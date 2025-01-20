@@ -140,40 +140,17 @@ func (ta *TemplateAgent) Execute(
 		ta.reqctx.Vars[k] = v
 	}
 
-	// Process the turn through conversation manager
-	turn, err := ta.ConversationManager.ProcessTurn(ctx, ta.reqctx)
+	// Process the turn and get messages through conversation manager
+	turn, messages, err := ta.ConversationManager.ProcessTurn(ctx, ta.reqctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
 	}
 
-	// Clear previous messages
-	// ta.ClearMessages()
-
-	// Generate system message from template if provided
-	if currentTemplate.SystemPrompt != "" {
-		systemContent, err := ta.reqctx.Execute(currentTemplate.SystemPrompt)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to execute system template: %w", err)
-		}
-		ta.AddMessage(chat.NewMessage("system", chat.NewTextContent(systemContent)))
+	// Clear previous messages and add the new ones
+	ta.ClearMessages()
+	for _, msg := range messages {
+		ta.AddMessage(msg)
 	}
-
-	// Add conversation history
-	for _, prevTurn := range ta.ConversationManager.GetHistory() {
-		if prevTurn.TemplateID == turn.TemplateID {
-			continue // Skip current turn
-		}
-		for _, msg := range prevTurn.Messages {
-			ta.AddMessage(msg)
-		}
-	}
-
-	// Generate user message from prompt template
-	promptContent, err := ta.reqctx.Execute(currentTemplate.UserPrompt)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to execute prompt template: %w", err)
-	}
-	ta.AddMessage(chat.NewMessage("user", chat.NewTextContent(promptContent)))
 
 	// Execute the chat completion with timeout handling
 	responses, cost, err := ta.Do(ctx, w)

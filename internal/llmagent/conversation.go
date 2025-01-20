@@ -93,10 +93,10 @@ func (cm *ConversationManager) StartConversation(templateID string) error {
 func (cm *ConversationManager) ProcessTurn(
 	ctx context.Context,
 	input *llmcontext.RequestContext,
-) (*Turn, error) {
+) (*Turn, []*chat.ChatMessage, error) {
 	template, exists := cm.Templates[cm.CurrentState]
 	if !exists {
-		return nil, fmt.Errorf("no template found for current state: %s", cm.CurrentState)
+		return nil, nil, fmt.Errorf("no template found for current state: %s", cm.CurrentState)
 	}
 
 	turn := &Turn{
@@ -110,12 +110,50 @@ func (cm *ConversationManager) ProcessTurn(
 	// Run pre-processing handlers
 	for _, handler := range template.Handlers {
 		if err := handler.PreProcess(ctx, turn); err != nil {
-			return nil, fmt.Errorf("pre-process error: %w", err)
+			return nil, nil, fmt.Errorf("pre-process error: %w", err)
 		}
 	}
 
+	// Generate messages for this turn
+	messages, err := cm.generateMessages(turn)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate messages: %w", err)
+	}
+
+	turn.Messages = messages
 	cm.History = append(cm.History, turn)
-	return turn, nil
+	return turn, messages, nil
+}
+
+// generateMessages creates the message sequence for a turn
+func (cm *ConversationManager) generateMessages(turn *Turn) ([]*chat.ChatMessage, error) {
+	var messages []*chat.ChatMessage
+
+	// Generate system message if provided
+	if turn.Template.SystemPrompt != "" {
+		systemContent, err := turn.Input.Execute(turn.Template.SystemPrompt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute system template: %w", err)
+		}
+		messages = append(messages, chat.NewMessage("system", chat.NewTextContent(systemContent)))
+	}
+
+	// Add conversation history from previous turns
+	for _, prevTurn := range cm.History {
+		if prevTurn.TemplateID == turn.TemplateID {
+			continue // Skip current turn
+		}
+		messages = append(messages, prevTurn.Messages...)
+	}
+
+	// Generate user message from prompt template
+	promptContent, err := turn.Input.Execute(turn.Template.UserPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute prompt template: %w", err)
+	}
+	messages = append(messages, chat.NewMessage("user", chat.NewTextContent(promptContent)))
+
+	return messages, nil
 }
 
 // GetCurrentTemplate returns the currently active template
