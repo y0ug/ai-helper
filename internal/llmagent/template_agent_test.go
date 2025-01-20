@@ -9,6 +9,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
+	"go.uber.org/mock/gomock"
 )
 
 // mockModelInfoProvider implements a simple mock for testing
@@ -80,7 +81,12 @@ func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
 	}
 
 	chatParams := chat.NewChatParams()
-	modelInfoProvider := modelinfo.NewMockProvider()
+	mockProvider := modelinfo.NewMockProvider(ctrl)
+	mockProvider.EXPECT().Get(gomock.Any()).Return(&modelinfo.Metadata{
+		MaxTokens:          2048,
+		InputCostPerToken:  0.001,
+		OutputCostPerToken: 0.002,
+	}, nil).AnyTimes()
 
 	agent, err := NewTemplateAgent(
 		"test-id",
