@@ -17,9 +17,9 @@ import (
 type TemplateAgent struct {
 	*Agent
 	ConversationManager *ConversationManager
-	StateTransitioner  StateTransitioner
-	command           *config.Command
-	reqctx            *llmcontext.RequestContext
+	StateTransitioner   StateTransitioner
+	Command             *config.Command
+	reqctx              *llmcontext.RequestContext
 }
 
 // NewTemplateAgent creates a new template-based agent
@@ -44,7 +44,7 @@ func NewTemplateAgent(
 	}
 
 	conversationManager := NewConversationManager(id)
-	
+
 	// Convert command templates to PromptTemplates
 	for id, tmpl := range command.Templates {
 		template := &PromptTemplate{
@@ -55,7 +55,7 @@ func NewTemplateAgent(
 			NextStates:   tmpl.NextStates,
 			Handlers:     make(map[string]TurnHandler),
 		}
-		
+
 		if err := conversationManager.AddTemplate(template); err != nil {
 			return nil, fmt.Errorf("failed to add template %s: %w", id, err)
 		}
@@ -75,10 +75,10 @@ func NewTemplateAgent(
 	}
 
 	return &TemplateAgent{
-		Agent:              baseAgent,
+		Agent:               baseAgent,
 		ConversationManager: conversationManager,
-		command:            command,
-		reqctx:             llmcontext.NewRequestContext(command),
+		Command:             command,
+		reqctx:              llmcontext.NewRequestContext(command),
 	}, nil
 }
 
@@ -98,7 +98,18 @@ func (ta *TemplateAgent) LoadArgs(args map[string]string) error {
 }
 
 func (ta *TemplateAgent) LoadFiles(filePath ...string) error {
-	return ta.reqctx.LoadFiles(filePath...)
+	if err := ta.reqctx.LoadFiles(filePath...); err != nil {
+		return err
+	}
+	
+	// Get current template and update its prompt with file contents
+	currentTemplate := ta.ConversationManager.GetCurrentTemplate()
+	if currentTemplate != nil {
+		// Append file contents to the current prompt
+		currentTemplate.UserPrompt = fmt.Sprintf("%s\n\nFiles that have been added to the chat:\n{{.Files}}", 
+			currentTemplate.UserPrompt)
+	}
+	return nil
 }
 
 // Execute runs the command with the prepared context
