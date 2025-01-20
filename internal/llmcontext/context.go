@@ -62,7 +62,21 @@ func (rc *RequestContext) LoadFiles(paths ...string) error {
 
 func (rc *RequestContext) Process(args map[string]string) error {
 	// Process variables if any
-	for _, v := range rc.cmd.Variables {
+	var variables []config.Variable
+	// Get variables from initial template or first available template
+	if rc.cmd.InitialState != "" {
+		if tmpl, ok := rc.cmd.Templates[rc.cmd.InitialState]; ok {
+			variables = tmpl.Variables
+		}
+	} else {
+		// Get first template's variables
+		for _, tmpl := range rc.cmd.Templates {
+			variables = tmpl.Variables
+			break
+		}
+	}
+
+	for _, v := range variables {
 		types := v.GetTypes()
 		if len(types) == 0 {
 			continue
