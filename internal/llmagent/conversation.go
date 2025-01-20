@@ -27,10 +27,47 @@ type ConversationManager struct {
 type Turn struct {
 	TemplateID string
 	Template   *PromptTemplate
-	Input      *llmcontext.RequestContext
+	Context    *llmcontext.RequestContext
 	Messages   []*chat.ChatMessage
 	Timestamp  time.Time
-	State      map[string]interface{}
+	Variables  map[string]interface{}
+	Files      map[string]string
+}
+
+// NewTurn creates a new turn with initialized maps
+func NewTurn(templateID string, template *PromptTemplate) *Turn {
+	return &Turn{
+		TemplateID: templateID,
+		Template:   template,
+		Timestamp:  time.Now(),
+		Variables:  make(map[string]interface{}),
+		Files:      make(map[string]string),
+	}
+}
+
+// ValidateRequiredVars checks if all required variables are present
+func (t *Turn) ValidateRequiredVars() error {
+	for _, required := range t.Template.RequiredVars {
+		if _, exists := t.Variables[required]; !exists {
+			return fmt.Errorf("missing required variable: %s", required)
+		}
+	}
+	return nil
+}
+
+// SetVariable sets a variable for the turn
+func (t *Turn) SetVariable(name string, value interface{}) {
+	t.Variables[name] = value
+}
+
+// LoadFile loads a file into the turn context
+func (t *Turn) LoadFile(path string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("error reading file %s: %w", path, err)
+	}
+	t.Files[path] = string(content)
+	return nil
 }
 
 // PromptTemplate defines a template for a conversation state
@@ -149,20 +186,28 @@ func (cm *ConversationManager) StartConversation(templateID string) error {
 }
 
 // ProcessTurn handles a single conversation turn
-func (cm *ConversationManager) ProcessTurn(
-	ctx context.Context,
-) (*Turn, []*chat.ChatMessage, error) {
+func (cm *ConversationManager) ProcessTurn(ctx context.Context) (*Turn, []*chat.ChatMessage, error) {
 	template, exists := cm.Templates[cm.CurrentState]
 	if !exists {
 		return nil, nil, fmt.Errorf("no template found for current state: %s", cm.CurrentState)
 	}
 
-	turn := &Turn{
-		TemplateID: cm.CurrentState,
-		Template:   template,
-		Timestamp:  time.Now(),
-		State:      make(map[string]interface{}),
+	turn := NewTurn(cm.CurrentState, template)
+	
+	// Copy current variables and files to the turn
+	for k, v := range cm.Variables {
+		turn.SetVariable(k, v)
 	}
+	
+	// Validate required variables
+	if err := turn.ValidateRequiredVars(); err != nil {
+		return nil, nil, fmt.Errorf("variable validation failed: %w", err)
+	}
+
+	// Create request context for template execution
+	turn.Context = llmcontext.NewRequestContext(cm.Command)
+	turn.Context.Vars = turn.Variables
+	turn.Context.Files = turn.Files
 
 	// Run pre-processing handlers
 	for _, handler := range template.Handlers {
@@ -196,23 +241,20 @@ func (cm *ConversationManager) generateMessages(turn *Turn) ([]*chat.ChatMessage
 
 	// Generate system message if provided
 	if turn.Template.SystemPrompt != "" {
-		systemContent, err := turn.Input.Execute(turn.Template.SystemPrompt)
+		systemContent, err := turn.Context.Execute(turn.Template.SystemPrompt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute system template: %w", err)
 		}
 		messages = append(messages, chat.NewMessage("system", chat.NewTextContent(systemContent)))
 	}
 
-	// Add conversation history from previous turns
+	// Add relevant conversation history from previous turns
 	for _, prevTurn := range cm.History {
-		if prevTurn.TemplateID == turn.TemplateID {
-			continue // Skip current turn
-		}
 		messages = append(messages, prevTurn.Messages...)
 	}
 
 	// Generate user message from prompt template
-	promptContent, err := turn.Input.Execute(turn.Template.UserPrompt)
+	promptContent, err := turn.Context.Execute(turn.Template.UserPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute prompt template: %w", err)
 	}
