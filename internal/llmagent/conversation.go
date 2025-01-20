@@ -3,7 +3,9 @@ package llmagent
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/config"
@@ -132,7 +134,7 @@ func (cm *ConversationManager) IsInputNeeded() bool {
 func (cm *ConversationManager) SetInput(input string) error {
 	if cm.IsInputNeeded() {
 		// .logger.Debug("adding new input", "input", input)
-		cm.Variables["Input"] = input
+		cm.ProcessTurn().Variables["Input"] = input
 	}
 	return nil
 }
@@ -149,7 +151,6 @@ func (cm *ConversationManager) StartConversation(templateID string) error {
 // ProcessTurn handles a single conversation turn
 func (cm *ConversationManager) ProcessTurn(
 	ctx context.Context,
-	input *llmcontext.RequestContext,
 ) (*Turn, []*chat.ChatMessage, error) {
 	template, exists := cm.Templates[cm.CurrentState]
 	if !exists {
@@ -159,7 +160,6 @@ func (cm *ConversationManager) ProcessTurn(
 	turn := &Turn{
 		TemplateID: cm.CurrentState,
 		Template:   template,
-		Input:      input,
 		Timestamp:  time.Now(),
 		State:      make(map[string]interface{}),
 	}
