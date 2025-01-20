@@ -21,6 +21,7 @@ type ConversationManager struct {
 // Turn represents a single conversation turn
 type Turn struct {
 	TemplateID string
+	Template   *PromptTemplate
 	Input      *llmcontext.RequestContext
 	Messages   []*chat.ChatMessage
 	Timestamp  time.Time
@@ -88,6 +89,7 @@ func (cm *ConversationManager) ProcessTurn(
 
 	turn := &Turn{
 		TemplateID: cm.CurrentState,
+		Template:   template,
 		Input:      input,
 		Timestamp:  time.Now(),
 		State:      make(map[string]interface{}),

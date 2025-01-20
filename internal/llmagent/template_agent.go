@@ -79,6 +79,7 @@ func NewTemplateAgent(
 		ConversationManager: conversationManager,
 		Command:             command,
 		reqctx:              llmcontext.NewRequestContext(command),
+		StateTransitioner:   NewDefaultStateTransitioner(),
 	}, nil
 }
 
@@ -154,6 +155,17 @@ func (ta *TemplateAgent) Execute(
 
 	// Update turn with messages
 	turn.Messages = ta.GetMessages()
+
+	// Handle state transition
+	if ta.StateTransitioner != nil {
+		nextState, err := ta.StateTransitioner.DetermineNextState(turn, responses)
+		if err != nil {
+			ta.logger.Warn("State transition error", "error", err)
+		} else if nextState != ta.ConversationManager.CurrentState {
+			ta.logger.Info("State transition", "from", ta.ConversationManager.CurrentState, "to", nextState)
+			ta.ConversationManager.CurrentState = nextState
+		}
+	}
 
 	return responses, cost, nil
 }
