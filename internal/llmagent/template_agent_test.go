@@ -158,23 +158,33 @@ func TestTemplateAgentIntegration(t *testing.T) {
 
 	// Test follow-up message
 	followUpResponse := &chat.ChatResponse{
-		Choice: []chat.Choice{
+		Choice: []chat.ChatChoice{
 			{
 				Content: []*chat.MessageContent{
 					chat.NewTextContent("Follow-up response"),
 				},
 			},
 		},
-		Usage: chat.Usage{
+		Usage: &chat.ChatUsage{
 			InputTokens:  15,
 			OutputTokens: 25,
 		},
 	}
 
+	mockStream = streaming.NewMockStreamer[chat.EventStream](ctrl)
+	mockStream.EXPECT().Next().Return(true).Times(1)
+	mockStream.EXPECT().Current().Return(chat.EventStream{
+		Type:    "message_stop",
+		Message: followUpResponse,
+	}).Times(1)
+	mockStream.EXPECT().Next().Return(false).Times(1)
+	mockStream.EXPECT().Err().Return(nil).Times(1)
+	mockStream.EXPECT().Close().Return(nil).Times(1)
+
 	mockChat.EXPECT().Stream(
 		gomock.Any(),
 		gomock.Any(),
-	).Return(chat.NewMockEventStream(followUpResponse), nil)
+	).Return(mockStream, nil)
 
 	// Change state and load follow-up input
 	agent.ConversationManager.CurrentState = "follow_up"
