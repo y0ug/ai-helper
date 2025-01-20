@@ -82,7 +82,7 @@ func (c *Console) UpdatePrompt() (string, bool) {
 	return fmt.Sprintf(
 		"%s (%s,%s) ➜ ",
 		c.agent.ModelInfo.Name,
-		c.agent.Command.Name,
+		c.agent.ConversationManager.Command.Name,
 		c.agent.ConversationManager.CurrentState,
 	), true
 }
@@ -133,7 +133,7 @@ func (c *Console) handleAddFile(args []string) {
 	}
 
 	for _, file := range args {
-		if err := c.agent.ConversationManager.LoadFiles(file); err != nil {
+		if err := c.agent.ConversationManager.LoadFile(file); err != nil {
 			fmt.Printf("Error loading file %s: %v\n", file, err)
 			continue
 		}
@@ -147,7 +147,7 @@ func (c *Console) handleRemoveFile(args []string) {
 		return
 	}
 
-	loadedFiles := c.agent.ConversationManager.GetLoadedFiles()
+	loadedFiles := c.agent.ConversationManager.Files
 	for _, file := range args {
 		found := false
 		for _, loaded := range loadedFiles {
@@ -159,14 +159,14 @@ func (c *Console) handleRemoveFile(args []string) {
 		if !found {
 			fmt.Printf("File not found: %s\n", file)
 		} else {
-			c.agent.ConversationManager.RemoveFiles(file)
+			// c.agent.ConversationManager.RemoveFiles(file)
 			fmt.Printf("Removed file: %s\n", file)
 		}
 	}
 }
 
 func (c *Console) handleListFiles(args []string) {
-	files := c.agent.ConversationManager.GetLoadedFiles()
+	files := c.agent.ConversationManager.Files
 	if len(files) == 0 {
 		fmt.Println("No files currently attached")
 		return
@@ -196,8 +196,9 @@ func (c *Console) executor(input string) {
 		return
 	}
 
+	cm := c.agent.ConversationManager
 	// Add the command to the agent's message queue
-	c.agent.SetInput(input)
+	cm.SetInput(input)
 
 	// // Load any attached files before sending
 	// for _, file := range c.attachedFiles {

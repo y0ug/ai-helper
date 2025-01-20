@@ -59,7 +59,7 @@ func (ta *TemplateAgent) Execute(
 	w io.Writer,
 ) ([]*chat.ChatResponse, float64, error) {
 	// Process the turn and get messages through conversation manager
-	turn, messages, err := ta.ConversationManager.ProcessTurn(ctx, ta.reqctx)
+	turn, messages, err := ta.ConversationManager.ProcessTurn(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
 	}
@@ -77,14 +77,14 @@ func (ta *TemplateAgent) Execute(
 	}
 
 	// Run post-processing handlers with responses
-	for _, handler := range turn.Template.Handlers {
-		if err := handler.PostProcess(ctx, turn, responses); err != nil {
+	for _, handler := range ta.ConversationManager.GetCurrentTemplate().Handlers {
+		if err := handler.PostProcess(ctx, ta.ConversationManager, responses); err != nil {
 			return responses, cost, fmt.Errorf("post-process error: %w", err)
 		}
 	}
 
 	// Execute the chat completion with timeout handling
-	responses, cost, err := ta.Do(ctx, w)
+	responses, cost, err = ta.Do(ctx, w)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, cost, fmt.Errorf("request timed out after deadline: %w", err)
@@ -101,7 +101,7 @@ func (ta *TemplateAgent) Execute(
 
 	// Handle state transition
 	if ta.StateTransitioner != nil {
-		nextState, err := ta.StateTransitioner.DetermineNextState(turn, responses)
+		nextState, err := ta.StateTransitioner.DetermineNextState(ta.ConversationManager, responses)
 		if err != nil {
 			ta.logger.Warn("State transition error", "error", err)
 		} else if nextState != ta.ConversationManager.CurrentState {

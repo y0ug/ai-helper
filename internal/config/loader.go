@@ -49,5 +49,10 @@ func (l *Loader) LoadData(data []byte, dataType string) (*Config, error) {
 	if err := config.ValidateConfig(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+
+	for name, cmd := range config.Commands {
+		cmd.Name = name
+		config.Commands[name] = cmd
+	}
 	return &config, nil
 }

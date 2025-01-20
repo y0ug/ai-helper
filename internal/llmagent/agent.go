@@ -369,17 +369,24 @@ func (a *Agent) process(
 }
 
 func (a *Agent) Reset() {
-	a.chatParams.Messages = make([]*chat.ChatMessage, 0)
+	a.ClearMessages()
 	a.TotalInputTokens = 0
 	a.TotalOutputTokens = 0
 	a.TotalCost = 0
 }
 
 func (a *Agent) AddMessage(msg ...*chat.ChatMessage) {
+	for _, m := range msg {
+		a.logger.Debug("AddMessage", "messages", m.Content[0].String())
+	}
 	a.chatParams.Messages = append(a.chatParams.Messages, msg...)
 }
 
 // GetMessages returns the current message history
 func (a *Agent) GetMessages() []*chat.ChatMessage {
 	return a.chatParams.Messages
+}
+
+func (a *Agent) ClearMessages() {
+	a.chatParams.Messages = make([]*chat.ChatMessage, 0)
 }

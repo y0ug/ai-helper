@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strings"
-	"time"
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/llmcontext"
@@ -18,37 +16,28 @@ type ConversationManager struct {
 	ID           string
 	Command      *config.Command
 	Templates    map[string]*PromptTemplate
-	History      []*Turn
+	History      []*chat.ChatMessage
 	CurrentState string
 	Variables    map[string]interface{}
-}
-
-// Turn represents a single conversation turn
-type Turn struct {
-	TemplateID string
-	Template   *PromptTemplate
-	Context    *llmcontext.RequestContext
-	Messages   []*chat.ChatMessage
-	Timestamp  time.Time
-	Variables  map[string]interface{}
-	Files      map[string]string
+	Files        map[string]string
 }
 
 // NewTurn creates a new turn with initialized maps
-func NewTurn(templateID string, template *PromptTemplate) *Turn {
-	return &Turn{
-		TemplateID: templateID,
-		Template:   template,
-		Timestamp:  time.Now(),
-		Variables:  make(map[string]interface{}),
-		Files:      make(map[string]string),
-	}
-}
+// func NewTurn(templateID string, template *PromptTemplate) *Turn {
+// 	return &Turn{
+// 		TemplateID: templateID,
+// 		Template:   template,
+// 		Timestamp:  time.Now(),
+// 		Variables:  make(map[string]interface{}),
+// 		Files:      make(map[string]string),
+// 	}
+// }
 
 // ValidateRequiredVars checks if all required variables are present
-func (t *Turn) ValidateRequiredVars() error {
-	for _, required := range t.Template.RequiredVars {
-		if _, exists := t.Variables[required]; !exists {
+func (cm *ConversationManager) ValidateRequiredVars() error {
+	requiredVars := cm.GetCurrentTemplate().RequiredVars
+	for _, required := range requiredVars {
+		if _, exists := cm.Variables[required]; !exists {
 			return fmt.Errorf("missing required variable: %s", required)
 		}
 	}
@@ -56,17 +45,17 @@ func (t *Turn) ValidateRequiredVars() error {
 }
 
 // SetVariable sets a variable for the turn
-func (t *Turn) SetVariable(name string, value interface{}) {
-	t.Variables[name] = value
+func (cm *ConversationManager) SetVariable(name string, value interface{}) {
+	cm.Variables[name] = value
 }
 
 // LoadFile loads a file into the turn context
-func (t *Turn) LoadFile(path string) error {
+func (cm *ConversationManager) LoadFile(path string) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("error reading file %s: %w", path, err)
 	}
-	t.Files[path] = string(content)
+	cm.Files[path] = string(content)
 	return nil
 }
 
@@ -82,13 +71,17 @@ type PromptTemplate struct {
 
 // TurnHandler defines the interface for custom turn processing
 type TurnHandler interface {
-	PreProcess(ctx context.Context, turn *Turn) error
-	PostProcess(ctx context.Context, turn *Turn, response []*chat.ChatResponse) error
+	PreProcess(
+		ctx context.Context,
+		cm *ConversationManager,
+		requestCtx *llmcontext.RequestContext,
+	) error
+	PostProcess(ctx context.Context, cm *ConversationManager, response []*chat.ChatResponse) error
 }
 
 // StateTransitioner defines the interface for state transitions
 type StateTransitioner interface {
-	DetermineNextState(currentTurn *Turn, response []*chat.ChatResponse) (string, error)
+	DetermineNextState(cm *ConversationManager, response []*chat.ChatResponse) (string, error)
 }
 
 // NewConversationManager creates a new conversation manager
@@ -96,8 +89,9 @@ func NewConversationManager(id string) *ConversationManager {
 	return &ConversationManager{
 		ID:        id,
 		Templates: make(map[string]*PromptTemplate),
-		History:   make([]*Turn, 0),
+		History:   make([]*chat.ChatMessage, 0),
 		Variables: make(map[string]interface{}),
+		Files:     make(map[string]string),
 	}
 }
 
@@ -171,7 +165,7 @@ func (cm *ConversationManager) IsInputNeeded() bool {
 func (cm *ConversationManager) SetInput(input string) error {
 	if cm.IsInputNeeded() {
 		// .logger.Debug("adding new input", "input", input)
-		cm.ProcessTurn().Variables["Input"] = input
+		cm.Variables["Input"] = input
 	}
 	return nil
 }
@@ -185,49 +179,48 @@ func (cm *ConversationManager) StartConversation(templateID string) error {
 	return nil
 }
 
+type Turn struct {
+	Messages []*chat.ChatMessage
+}
+
 // ProcessTurn handles a single conversation turn
-func (cm *ConversationManager) ProcessTurn(ctx context.Context) (*Turn, []*chat.ChatMessage, error) {
+func (cm *ConversationManager) ProcessTurn(
+	ctx context.Context,
+) (*Turn, []*chat.ChatMessage, error) {
 	template, exists := cm.Templates[cm.CurrentState]
+	turn := &Turn{}
 	if !exists {
 		return nil, nil, fmt.Errorf("no template found for current state: %s", cm.CurrentState)
 	}
+	requestCtx := llmcontext.NewRequestContext(cm.Command)
 
-	turn := NewTurn(cm.CurrentState, template)
-	
 	// Copy current variables and files to the turn
-	for k, v := range cm.Variables {
-		turn.SetVariable(k, v)
-	}
-	
-	// Validate required variables
-	if err := turn.ValidateRequiredVars(); err != nil {
-		return nil, nil, fmt.Errorf("variable validation failed: %w", err)
-	}
-
-	// Create request context for template execution
-	turn.Context = llmcontext.NewRequestContext(cm.Command)
-	turn.Context.Vars = turn.Variables
-	turn.Context.Files = turn.Files
+	requestCtx.Vars = cm.Variables
+	requestCtx.Files = cm.Files
 
 	// Run pre-processing handlers
 	for _, handler := range template.Handlers {
-		if err := handler.PreProcess(ctx, turn); err != nil {
+		if err := handler.PreProcess(ctx, cm, requestCtx); err != nil {
 			return nil, nil, fmt.Errorf("pre-process error: %w", err)
 		}
 	}
 
+	if err := cm.ValidateRequiredVars(); err != nil {
+		return nil, nil, fmt.Errorf("variable validation failed: %w", err)
+	}
+
 	// Generate messages for this turn
-	messages, err := cm.generateMessages(turn)
+	messages, err := cm.generateMessages(turn, requestCtx, template)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate messages: %w", err)
 	}
 
 	turn.Messages = messages
-	cm.History = append(cm.History, turn)
+	cm.History = append(cm.History, messages...)
 
 	// Run post-processing handlers
 	for _, handler := range template.Handlers {
-		if err := handler.PostProcess(ctx, turn, nil); err != nil {
+		if err := handler.PostProcess(ctx, cm, nil); err != nil {
 			return nil, nil, fmt.Errorf("post-process error: %w", err)
 		}
 	}
@@ -236,12 +229,16 @@ func (cm *ConversationManager) ProcessTurn(ctx context.Context) (*Turn, []*chat.
 }
 
 // generateMessages creates the message sequence for a turn
-func (cm *ConversationManager) generateMessages(turn *Turn) ([]*chat.ChatMessage, error) {
+func (cm *ConversationManager) generateMessages(
+	turn *Turn,
+	requestCtx *llmcontext.RequestContext,
+	template *PromptTemplate,
+) ([]*chat.ChatMessage, error) {
 	var messages []*chat.ChatMessage
 
 	// Generate system message if provided
-	if turn.Template.SystemPrompt != "" {
-		systemContent, err := turn.Context.Execute(turn.Template.SystemPrompt)
+	if template.SystemPrompt != "" {
+		systemContent, err := requestCtx.Execute(template.SystemPrompt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute system template: %w", err)
 		}
@@ -249,12 +246,12 @@ func (cm *ConversationManager) generateMessages(turn *Turn) ([]*chat.ChatMessage
 	}
 
 	// Add relevant conversation history from previous turns
-	for _, prevTurn := range cm.History {
-		messages = append(messages, prevTurn.Messages...)
+	for _, msg := range cm.History {
+		messages = append(messages, msg)
 	}
 
 	// Generate user message from prompt template
-	promptContent, err := turn.Context.Execute(turn.Template.UserPrompt)
+	promptContent, err := requestCtx.Execute(template.UserPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute prompt template: %w", err)
 	}
@@ -269,36 +266,6 @@ func (cm *ConversationManager) GetCurrentTemplate() *PromptTemplate {
 }
 
 // GetHistory returns the conversation history
-func (cm *ConversationManager) GetHistory() []*Turn {
+func (cm *ConversationManager) GetHistory() []*chat.ChatMessage {
 	return cm.History
-}
-
-// LoadFiles loads files into the conversation context
-func (cm *ConversationManager) LoadFiles(paths ...string) error {
-	for _, path := range paths {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("error reading file %s: %w", path, err)
-		}
-		cm.Variables[path] = string(content)
-	}
-	return nil
-}
-
-// RemoveFiles removes files from the conversation context
-func (cm *ConversationManager) RemoveFiles(paths ...string) {
-	for _, path := range paths {
-		delete(cm.Variables, path)
-	}
-}
-
-// GetLoadedFiles returns a list of currently loaded files
-func (cm *ConversationManager) GetLoadedFiles() []string {
-	files := make([]string, 0)
-	for k := range cm.Variables {
-		if strings.HasPrefix(k, "/") || strings.HasPrefix(k, "./") {
-			files = append(files, k)
-		}
-	}
-	return files
 }

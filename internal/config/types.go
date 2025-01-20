@@ -24,6 +24,15 @@ func (v *Variable) GetTypes() []string {
 	return strings.Split(v.Type, "|")
 }
 
+func (c *Template) NeedInput() bool {
+	for _, v := range c.Variables {
+		if v.Name == "Input" {
+			return true
+		}
+	}
+	return false
+}
+
 // Template represents a single conversation state template
 type Template struct {
 	Description string     `yaml:"description,omitempty" json:"description,omitempty"`
@@ -36,6 +45,7 @@ type Template struct {
 
 // Command represents a single AI command configuration
 type Command struct {
+	Name         string              `yaml:"-"                       json:"-"`
 	Description  string              `yaml:"description,omitempty"   json:"description,omitempty"`
 	Templates    map[string]Template `yaml:"templates"               json:"templates"`
 	InputCommand string              `yaml:"input_command,omitempty" json:"input_command,omitempty"`
