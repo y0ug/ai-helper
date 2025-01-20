@@ -149,10 +149,17 @@ func (ta *TemplateAgent) Execute(
 		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
 	}
 
-	// Execute the chat completion
+	// Execute the chat completion with timeout handling
 	responses, cost, err := ta.Do(ctx, w)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, cost, fmt.Errorf("request timed out after deadline: %w", err)
+		}
 		return nil, cost, fmt.Errorf("chat completion failed: %w", err)
+	}
+
+	if len(responses) == 0 {
+		return nil, cost, fmt.Errorf("no response received from model")
 	}
 
 	// Update turn with messages

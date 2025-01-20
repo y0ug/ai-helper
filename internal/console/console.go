@@ -211,9 +211,24 @@ func (c *Console) executor(input string) {
 	// }
 
 	// Send the request to the AI agent
-	_, _, err := c.agent.Execute(context.Background(), c.h)
+	responses, cost, err := c.agent.Execute(context.Background(), c.h)
 	if err != nil {
-		fmt.Printf("Error generating response: %v\n", err)
+		if strings.Contains(err.Error(), "context deadline exceeded") {
+			fmt.Println("❌ Request timed out. The model took too long to respond.")
+		} else if strings.Contains(err.Error(), "rate limit") {
+			fmt.Println("❌ Rate limit exceeded. Please wait a moment before trying again.")
+		} else {
+			fmt.Printf("❌ Error: %v\n", err)
+		}
 		return
+	}
+
+	if len(responses) == 0 {
+		fmt.Println("⚠️ Warning: No response received from the model")
+		return
+	}
+
+	if cost > 0 {
+		fmt.Printf("💰 Cost: $%.4f\n", cost)
 	}
 }

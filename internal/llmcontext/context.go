@@ -151,7 +151,7 @@ func (rc *RequestContext) GetTemplateFuncs() template.FuncMap {
 			ext := filepath.Ext(path)
 			return fmt.Sprintf("```%s\n%s\n```", ext[1:], content)
 		},
-		"filesDump": rc.FormatFiles,
+		"Files": rc.FormatFiles,
 	}
 }
 
