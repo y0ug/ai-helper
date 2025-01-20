@@ -1,6 +1,5 @@
 commands:
   ask:
-    input: true
     variables:
       - name: Input
         type: stdin|arg
@@ -27,17 +26,16 @@ commands:
 
       Don't explain basic concepts unless asked. Don't provide alternatives unless requested. Focus on the most direct solution.
 
-      {{ .Input }}
+      {{ .Vars.Input }}
 
   summarize:
-    input: true
     description: Summarize a text
     variables:
       - name: Input
         type: stdin|arg
     prompt: |
       Please summarize the following text:
-      {{ .Input }}
+      {{ .Vars.Input }}
 
   whoami:
     description: Demo whoami
@@ -48,10 +46,9 @@ commands:
     prompt: |
       **Return ONLY** with my name on json format.
 
-      I'm {{ .WhoAmi }}. Can you say who I'm?
+      I'm {{ .Vars.WhoAmi }}. Can you say who I'm?
 
   git-commit:
-    input: true
     variables:
       - name: RecentCommits
         type: exec
@@ -92,12 +89,12 @@ commands:
       If no secrets are detected, proceed with generating the commit message.
 
       Recent commits from this repo (for style reference):
-      {{ .RecentCommits }}
+      {{ .Vars.RecentCommits }}
 
       Here's the diff:
 
       ```
-      {{ .Input }}
+      {{ .Vars.Input }}
       ```
 
   analyze:
