@@ -1,9 +1,11 @@
 package console
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -18,6 +20,47 @@ type Console struct {
 	commands      map[string]Command
 	pt            *prompt.Prompt
 	attachedFiles []string
+	historyFile   string
+}
+
+func getHistoryFilePath() string {
+	usr, err := user.Current()
+	if err != nil {
+		return ".ai-helper-history"
+	}
+	return filepath.Join(usr.HomeDir, ".ai-helper-history")
+}
+
+func (c *Console) loadHistory() []string {
+	var history []string
+	file, err := os.OpenFile(c.historyFile, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return history
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line != "" {
+			history = append(history, line)
+		}
+	}
+	return history
+}
+
+func (c *Console) appendHistory(input string) {
+	if input == "" {
+		return
+	}
+	
+	file, err := os.OpenFile(c.historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	
+	file.WriteString(input + "\n")
 }
 
 // Command represents a chat command
@@ -29,8 +72,9 @@ type Command struct {
 
 func New(agent *llmagent.TemplateAgent) *Console {
 	c := &Console{
-		agent: agent,
-		h:     highlighter.NewHighlighter(os.Stdout),
+		agent:       agent,
+		h:          highlighter.NewHighlighter(os.Stdout),
+		historyFile: getHistoryFilePath(),
 	}
 	c.commands = map[string]Command{
 		"/help": {
@@ -69,7 +113,7 @@ func New(agent *llmagent.TemplateAgent) *Console {
 		prompt.OptionInputTextColor(prompt.Yellow),
 		prompt.OptionPrefixTextColor(prompt.Blue),
 		prompt.OptionMaxSuggestion(5),
-		prompt.OptionHistory([]string{}),
+		prompt.OptionHistory(c.loadHistory()),
 		prompt.OptionAddKeyBind(prompt.KeyBind{
 			Key: prompt.ControlC,
 			Fn:  func(*prompt.Buffer) { c.handleQuit(nil) },
@@ -220,6 +264,9 @@ func (c *Console) executor(input string) {
 	if input == "" {
 		return
 	}
+
+	// Save to history
+	c.appendHistory(input)
 
 	// Handle commands
 	if strings.HasPrefix(input, "/") {
