@@ -145,7 +145,7 @@ func TestTemplateAgentIntegration(t *testing.T) {
 		}),
 		mockStream.EXPECT().Next().Return(false),
 		mockStream.EXPECT().Err().Return(nil),
-		mockStream.EXPECT().Close().Return(nil),
+		mockStream.EXPECT().Close().Return(nil).Times(1),
 	)
 
 	mockChat.EXPECT().Stream(
@@ -200,7 +200,7 @@ func TestTemplateAgentIntegration(t *testing.T) {
 		}),
 		mockStream.EXPECT().Next().Return(false),
 		mockStream.EXPECT().Err().Return(nil),
-		mockStream.EXPECT().Close().Return(nil),
+		mockStream.EXPECT().Close().Return(nil).Times(1),
 	)
 
 	mockChat.EXPECT().Stream(
