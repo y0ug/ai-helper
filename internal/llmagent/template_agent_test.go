@@ -223,6 +223,169 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	assert.NotEmpty(t, agent.GetMessages())
 }
 
+func TestTemplateAgentStateTransitions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// Create a command with state transition testing
+	cmd := &config.Command{
+		Templates: map[string]config.Template{
+			"initial": {
+				System:     "Initial system prompt",
+				Prompt:     "Initial prompt {{ .Vars.Input }}",
+				NextStates: []string{"follow_up", "clarification"},
+				Variables: []config.Variable{
+					{Name: "Input", Type: "arg"},
+				},
+			},
+			"follow_up": {
+				System:     "Follow-up system prompt",
+				Prompt:     "Follow-up prompt {{ .Vars.Input }}",
+				NextStates: []string{"conclusion", "clarification"},
+				Variables: []config.Variable{
+					{Name: "Input", Type: "arg"},
+				},
+			},
+			"clarification": {
+				System:     "Clarification system prompt",
+				Prompt:     "Please clarify: {{ .Vars.Input }}",
+				NextStates: []string{"follow_up"},
+				Variables: []config.Variable{
+					{Name: "Input", Type: "arg"},
+				},
+			},
+			"conclusion": {
+				System:     "Conclusion system prompt",
+				Prompt:     "Concluding: {{ .Vars.Input }}",
+				NextStates: []string{"initial"},
+				Variables: []config.Variable{
+					{Name: "Input", Type: "arg"},
+				},
+			},
+		},
+		InitialState: "initial",
+	}
+
+	chatParams := chat.NewChatParams()
+	mockProvider := modelinfo.NewMockProvider(ctrl)
+	mockProvider.EXPECT().Get(gomock.Any()).Return(&modelinfo.Metadata{
+		MaxTokens:          2048,
+		InputCostPerToken:  0.001,
+		OutputCostPerToken: 0.002,
+	}, nil).AnyTimes()
+
+	agent, err := NewTemplateAgent(
+		"test-id",
+		logger,
+		cmd,
+		chatParams,
+		mockProvider,
+		nil,
+	)
+	assert.NoError(t, err)
+
+	// Test explicit state transition
+	mockChat := chat.NewMockProvider(ctrl)
+	agent.Client = mockChat
+
+	// Setup mock response with state transition command
+	transitionResponse := &chat.ChatResponse{
+		Choice: []chat.ChatChoice{
+			{
+				Content: []*chat.MessageContent{
+					chat.NewTextContent("!state follow_up"),
+				},
+				Role: "assistant",
+			},
+		},
+		Usage: &chat.ChatUsage{
+			InputTokens:  10,
+			OutputTokens: 20,
+		},
+	}
+
+	mockStream := streaming.NewMockStreamer[chat.EventStream](ctrl)
+	gomock.InOrder(
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:  "text_delta",
+			Delta: "!state follow_up",
+		}),
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:    "message_stop",
+			Message: transitionResponse,
+		}),
+		mockStream.EXPECT().Next().Return(false),
+		mockStream.EXPECT().Err().Return(nil),
+	)
+
+	mockChat.EXPECT().Stream(
+		gomock.Any(),
+		gomock.Any(),
+	).Return(mockStream, nil)
+
+	// Execute with initial input
+	err = agent.LoadArgs(map[string]string{"Input": "Test input"})
+	assert.NoError(t, err)
+
+	resp, _, err := agent.Execute(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+
+	// Verify state transition
+	assert.Equal(t, "follow_up", agent.ConversationManager.CurrentState)
+
+	// Test invalid state transition
+	invalidTransitionResponse := &chat.ChatResponse{
+		Choice: []chat.ChatChoice{
+			{
+				Content: []*chat.MessageContent{
+					chat.NewTextContent("!state invalid_state"),
+				},
+				Role: "assistant",
+			},
+		},
+		Usage: &chat.ChatUsage{
+			InputTokens:  10,
+			OutputTokens: 20,
+		},
+	}
+
+	mockStream = streaming.NewMockStreamer[chat.EventStream](ctrl)
+	gomock.InOrder(
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:  "text_delta",
+			Delta: "!state invalid_state",
+		}),
+		mockStream.EXPECT().Next().Return(true),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:    "message_stop",
+			Message: invalidTransitionResponse,
+		}),
+		mockStream.EXPECT().Next().Return(false),
+		mockStream.EXPECT().Err().Return(nil),
+	)
+
+	mockChat.EXPECT().Stream(
+		gomock.Any(),
+		gomock.Any(),
+	).Return(mockStream, nil)
+
+	// Execute with follow-up input
+	err = agent.LoadArgs(map[string]string{"Input": "Another test"})
+	assert.NoError(t, err)
+
+	resp, _, err = agent.Execute(context.Background(), nil)
+	assert.NoError(t, err)
+	
+	// State should remain unchanged due to invalid transition
+	assert.Equal(t, "follow_up", agent.ConversationManager.CurrentState)
+}
+
 func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
