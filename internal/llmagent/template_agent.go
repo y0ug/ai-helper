@@ -70,6 +70,19 @@ func (ta *TemplateAgent) Execute(
 		ta.AddMessage(msg)
 	}
 
+	// Execute chat completion
+	responses, cost, err := ta.Do(ctx, w)
+	if err != nil {
+		return nil, cost, fmt.Errorf("chat completion failed: %w", err)
+	}
+
+	// Run post-processing handlers with responses
+	for _, handler := range turn.Template.Handlers {
+		if err := handler.PostProcess(ctx, turn, responses); err != nil {
+			return responses, cost, fmt.Errorf("post-process error: %w", err)
+		}
+	}
+
 	// Execute the chat completion with timeout handling
 	responses, cost, err := ta.Do(ctx, w)
 	if err != nil {

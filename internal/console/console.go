@@ -133,11 +133,10 @@ func (c *Console) handleAddFile(args []string) {
 	}
 
 	for _, file := range args {
-		if err := c.agent.LoadFiles(file); err != nil {
+		if err := c.agent.ConversationManager.LoadFiles(file); err != nil {
 			fmt.Printf("Error loading file %s: %v\n", file, err)
 			continue
 		}
-		c.attachedFiles = append(c.attachedFiles, file)
 		fmt.Printf("Added file: %s\n", file)
 	}
 }
@@ -148,29 +147,32 @@ func (c *Console) handleRemoveFile(args []string) {
 		return
 	}
 
+	loadedFiles := c.agent.ConversationManager.GetLoadedFiles()
 	for _, file := range args {
-		newFiles := make([]string, 0)
-		for _, f := range c.attachedFiles {
-			if f != file {
-				newFiles = append(newFiles, f)
+		found := false
+		for _, loaded := range loadedFiles {
+			if loaded == file {
+				found = true
+				break
 			}
 		}
-		if len(newFiles) == len(c.attachedFiles) {
+		if !found {
 			fmt.Printf("File not found: %s\n", file)
 		} else {
+			c.agent.ConversationManager.RemoveFiles(file)
 			fmt.Printf("Removed file: %s\n", file)
-			c.attachedFiles = newFiles
 		}
 	}
 }
 
 func (c *Console) handleListFiles(args []string) {
-	if len(c.attachedFiles) == 0 {
+	files := c.agent.ConversationManager.GetLoadedFiles()
+	if len(files) == 0 {
 		fmt.Println("No files currently attached")
 		return
 	}
 	fmt.Println("Currently attached files:")
-	for _, file := range c.attachedFiles {
+	for _, file := range files {
 		fmt.Printf("- %s\n", file)
 	}
 }

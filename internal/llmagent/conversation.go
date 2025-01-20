@@ -179,6 +179,14 @@ func (cm *ConversationManager) ProcessTurn(
 
 	turn.Messages = messages
 	cm.History = append(cm.History, turn)
+
+	// Run post-processing handlers
+	for _, handler := range template.Handlers {
+		if err := handler.PostProcess(ctx, turn, nil); err != nil {
+			return nil, nil, fmt.Errorf("post-process error: %w", err)
+		}
+	}
+
 	return turn, messages, nil
 }
 
@@ -221,4 +229,34 @@ func (cm *ConversationManager) GetCurrentTemplate() *PromptTemplate {
 // GetHistory returns the conversation history
 func (cm *ConversationManager) GetHistory() []*Turn {
 	return cm.History
+}
+
+// LoadFiles loads files into the conversation context
+func (cm *ConversationManager) LoadFiles(paths ...string) error {
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("error reading file %s: %w", path, err)
+		}
+		cm.Variables[path] = string(content)
+	}
+	return nil
+}
+
+// RemoveFiles removes files from the conversation context
+func (cm *ConversationManager) RemoveFiles(paths ...string) {
+	for _, path := range paths {
+		delete(cm.Variables, path)
+	}
+}
+
+// GetLoadedFiles returns a list of currently loaded files
+func (cm *ConversationManager) GetLoadedFiles() []string {
+	files := make([]string, 0)
+	for k := range cm.Variables {
+		if strings.HasPrefix(k, "/") || strings.HasPrefix(k, "./") {
+			files = append(files, k)
+		}
+	}
+	return files
 }
