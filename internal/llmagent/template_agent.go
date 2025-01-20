@@ -9,6 +9,8 @@ import (
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/llmcontext"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
+	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
 
 // TemplateAgent represents an AI agent that works with templates and commands
@@ -28,7 +30,13 @@ func NewTemplateAgent(
 	mcpServersConfig *config.MCPServers,
 	requestOpts ...options.RequestOption,
 ) (*TemplateAgent, error) {
-	baseAgent, err := New(id, logger, chatParams, modelInfoProvider, mcpServersConfig, requestOpts...)
+	baseAgent, err := New(
+		id,
+		logger,
+		chatParams,
+		modelInfoProvider,
+		mcpServersConfig,
+		requestOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create base agent: %w", err)
 	}
@@ -62,7 +70,10 @@ func (ta *TemplateAgent) LoadCommand(input string) error {
 }
 
 // Execute runs the command with the prepared context
-func (ta *TemplateAgent) Execute(ctx context.Context, w io.Writer) ([]*chat.ChatResponse, float64, error) {
+func (ta *TemplateAgent) Execute(
+	ctx context.Context,
+	w io.Writer,
+) ([]*chat.ChatResponse, float64, error) {
 	// Generate system message from template if provided
 	if ta.command.System != "" {
 		systemContent, err := llmcontext.Execute(ta.command.System, ta.ctx)
