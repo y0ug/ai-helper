@@ -35,12 +35,14 @@ func (c *Template) NeedInput() bool {
 
 // Template represents a single conversation state template
 type Template struct {
-	Description string     `yaml:"description,omitempty" json:"description,omitempty"`
-	System      string     `yaml:"system,omitempty"      json:"system,omitempty"`
-	Prompt      string     `yaml:"prompt"                json:"prompt"`
-	Variables   []Variable `yaml:"variables,omitempty"   json:"variables,omitempty"`
-	NextStates  []string   `yaml:"next_states,omitempty" json:"next_states,omitempty"`
-	Handlers    []string   `yaml:"handlers,omitempty"    json:"handlers,omitempty"`
+	Description  string     `yaml:"description,omitempty"    json:"description,omitempty"`
+	System       string     `yaml:"system,omitempty"         json:"system,omitempty"`
+	Prompt       string     `yaml:"prompt"                   json:"prompt"`
+	Variables    []Variable `yaml:"variables,omitempty"      json:"variables,omitempty"`
+	NextStates   []string   `yaml:"next_states,omitempty"   json:"next_states,omitempty"`
+	Handlers     []string   `yaml:"handlers,omitempty"      json:"handlers,omitempty"`
+	PreTurnCmds  []string   `yaml:"pre_turn_cmds,omitempty" json:"pre_turn_cmds,omitempty"`
+	PostTurnCmds []string   `yaml:"post_turn_cmds,omitempty" json:"post_turn_cmds,omitempty"`
 }
 
 // Command represents a single AI command configuration
