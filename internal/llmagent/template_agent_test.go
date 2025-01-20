@@ -41,7 +41,7 @@ func TestNewTemplateAgent(t *testing.T) {
 		logger,
 		cmd,
 		chatParams,
-		modelInfoProvider,
+		mockProvider,
 		nil,
 	)
 
@@ -59,6 +59,9 @@ func TestNewTemplateAgent(t *testing.T) {
 }
 
 func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	cmd := &config.Command{
@@ -90,7 +93,7 @@ func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
 		logger,
 		cmd,
 		chatParams,
-		modelInfoProvider,
+		mockProvider,
 		nil,
 	)
 
