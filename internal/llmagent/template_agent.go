@@ -104,13 +104,22 @@ func (ta *TemplateAgent) LoadFiles(filePath ...string) error {
 	}
 
 	// Get current template and update its prompt with file contents
-	currentTemplate := ta.ConversationManager.GetCurrentTemplate()
-	if currentTemplate != nil {
-		// Append file contents to the current prompt
-		currentTemplate.UserPrompt = fmt.Sprintf(
-			"%s\n\nFiles that have been added to the chat:\n{{.Files}}",
-			currentTemplate.UserPrompt,
-		)
+	// currentTemplate := ta.ConversationManager.GetCurrentTemplate()
+	// if currentTemplate != nil {
+	// 	// Append file contents to the current prompt
+	// 	currentTemplate.UserPrompt = fmt.Sprintf(
+	// 		"%s\n\nFiles that have been added to the chat:\n{{.Files}}",
+	// 		currentTemplate.UserPrompt,
+	// 	)
+	// }
+	return nil
+}
+
+func (ta *TemplateAgent) SetInput(input string) error {
+	if ta.ConversationManager.IsInputNeeded() {
+		ta.logger.Debug("adding new input", "input", input)
+		ta.ConversationManager.Variables["Input"] = input
+		ta.reqctx.Vars["Input"] = input
 	}
 	return nil
 }
@@ -176,5 +185,9 @@ func (ta *TemplateAgent) Execute(
 		}
 	}
 
+	// Reset input
+	if _, ok := ta.ConversationManager.Variables["Input"]; ok {
+		delete(ta.ConversationManager.Variables, "Input")
+	}
 	return responses, cost, nil
 }
