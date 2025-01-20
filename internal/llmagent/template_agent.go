@@ -129,6 +129,20 @@ func (ta *TemplateAgent) Execute(
 	ta.AddMessage(chat.NewMessage("user", chat.NewTextContent(promptContent)))
 
 	fmt.Printf("promptContent: %s\n", promptContent)
+	// Process the turn through conversation manager
+	turn, err := ta.ConversationManager.ProcessTurn(ctx, ta.reqctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
+	}
+
 	// Execute the chat completion
-	return ta.Do(ctx, w)
+	responses, cost, err := ta.Do(ctx, w)
+	if err != nil {
+		return nil, cost, fmt.Errorf("chat completion failed: %w", err)
+	}
+
+	// Update turn with messages
+	turn.Messages = ta.GetMessages()
+
+	return responses, cost, nil
 }
