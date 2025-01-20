@@ -1,20 +1,20 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/config"
+	"github.com/y0ug/ai-helper/internal/console"
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/llmagent"
-	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
@@ -90,6 +90,12 @@ func main() {
 	if model := os.Getenv("AI_MODEL"); model != "" {
 		chatParams.Model = model
 	}
+	chatParams.MaxTokens = 4096
+	if max_token := os.Getenv("AI_MAX_TOKEN"); max_token != "" {
+		if val, err := strconv.Atoi(max_token); err == nil {
+			chatParams.MaxTokens = val
+		}
+	}
 
 	// Create template agent
 	agent, err := llmagent.NewTemplateAgent(
@@ -126,15 +132,17 @@ func main() {
 		}
 	}
 
-	// Execute the command
-	h := highlighter.NewHighlighter(os.Stdout)
-	_, cost, err := agent.Execute(context.Background(), h)
-	if err != nil {
-		logger.Error("Error executing command", "error", err)
-		os.Exit(1)
-	}
-
-	if *verbose {
-		logger.Debug("Command completed", "cost", cost)
-	}
+	console := console.New(agent)
+	console.Run()
+	// // Execute the command
+	// h := highlighter.NewHighlighter(os.Stdout)
+	// _, cost, err := agent.Execute(context.Background(), h)
+	// if err != nil {
+	// 	logger.Error("Error executing command", "error", err)
+	// 	os.Exit(1)
+	// }
+	//
+	// if *verbose {
+	// 	logger.Debug("Command completed", "cost", cost)
+	// }
 }

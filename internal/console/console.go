@@ -13,7 +13,7 @@ import (
 )
 
 type Console struct {
-	agent    *llmagent.Agent
+	agent    *llmagent.TemplateAgent
 	h        *highlighter.Highlighter
 	commands map[string]Command
 	pt       *prompt.Prompt
@@ -26,7 +26,7 @@ type Command struct {
 	handler     func(args []string)
 }
 
-func New(agent *llmagent.Agent) *Console {
+func New(agent *llmagent.TemplateAgent) *Console {
 	c := &Console{
 		agent: agent,
 		h:     highlighter.NewHighlighter(os.Stdout),
