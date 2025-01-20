@@ -11,6 +11,17 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
 
+// mockModelInfoProvider implements a simple mock for testing
+type mockModelInfoProvider struct{}
+
+func (m *mockModelInfoProvider) GetModelInfo(model string) (*modelinfo.ModelMetadata, error) {
+	return &modelinfo.ModelMetadata{
+		MaxTokens: 2048,
+		InputCostPerToken: 0.001,
+		OutputCostPerToken: 0.002,
+	}, nil
+}
+
 func TestNewTemplateAgent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	
@@ -25,7 +36,7 @@ func TestNewTemplateAgent(t *testing.T) {
 	}
 
 	chatParams := chat.NewChatParams()
-	modelInfoProvider := modelinfo.NewMockProvider()
+	modelInfoProvider := &mockModelInfoProvider{}
 
 	agent, err := NewTemplateAgent(
 		"test-id",

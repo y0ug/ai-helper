@@ -106,9 +106,15 @@ func (ta *TemplateAgent) Execute(
 	ctx context.Context,
 	w io.Writer,
 ) ([]*chat.ChatResponse, float64, error) {
+	// Get current template
+	currentTemplate := ta.ConversationManager.GetCurrentTemplate()
+	if currentTemplate == nil {
+		return nil, 0, fmt.Errorf("no template available for current state")
+	}
+
 	// Generate system message from template if provided
-	if ta.command.System != "" {
-		systemContent, err := ta.reqctx.Execute(ta.command.System)
+	if currentTemplate.SystemPrompt != "" {
+		systemContent, err := ta.reqctx.Execute(currentTemplate.SystemPrompt)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to execute system template: %w", err)
 		}
@@ -116,7 +122,7 @@ func (ta *TemplateAgent) Execute(
 	}
 
 	// Generate user message from prompt template
-	promptContent, err := ta.reqctx.Execute(ta.command.Prompt)
+	promptContent, err := ta.reqctx.Execute(currentTemplate.UserPrompt)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to execute prompt template: %w", err)
 	}
