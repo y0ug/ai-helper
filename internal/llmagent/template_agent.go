@@ -129,17 +129,6 @@ func (ta *TemplateAgent) Execute(
 	ctx context.Context,
 	w io.Writer,
 ) ([]*chat.ChatResponse, float64, error) {
-	// Get current template and create a new turn
-	currentTemplate := ta.ConversationManager.GetCurrentTemplate()
-	if currentTemplate == nil {
-		return nil, 0, fmt.Errorf("no template available for current state")
-	}
-
-	// Share variables between conversation manager and request context
-	for k, v := range ta.ConversationManager.Variables {
-		ta.reqctx.Vars[k] = v
-	}
-
 	// Process the turn and get messages through conversation manager
 	turn, messages, err := ta.ConversationManager.ProcessTurn(ctx, ta.reqctx)
 	if err != nil {
@@ -177,11 +166,6 @@ func (ta *TemplateAgent) Execute(
 			ta.logger.Info("State transition", "from", ta.ConversationManager.CurrentState, "to", nextState)
 			ta.ConversationManager.CurrentState = nextState
 		}
-	}
-
-	// Sync variables back to conversation manager
-	for k, v := range ta.reqctx.Vars {
-		ta.ConversationManager.Variables[k] = v
 	}
 
 	return responses, cost, nil
