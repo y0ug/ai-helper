@@ -12,18 +12,10 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// mockModelInfoProvider implements a simple mock for testing
-type mockModelInfoProvider struct{}
-
-func (m *mockModelInfoProvider) GetModelInfo(model string) (*modelinfo.Metadata, error) {
-	return &modelinfo.Metadata{
-		MaxTokens:          2048,
-		InputCostPerToken:  0.001,
-		OutputCostPerToken: 0.002,
-	}, nil
-}
-
 func TestNewTemplateAgent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	cmd := &config.Command{
@@ -37,7 +29,12 @@ func TestNewTemplateAgent(t *testing.T) {
 	}
 
 	chatParams := chat.NewChatParams()
-	modelInfoProvider := &mockModelInfoProvider{}
+	mockProvider := modelinfo.NewMockProvider(ctrl)
+	mockProvider.EXPECT().Get(gomock.Any()).Return(&modelinfo.Metadata{
+		MaxTokens:          2048,
+		InputCostPerToken:  0.001,
+		OutputCostPerToken: 0.002,
+	}, nil).AnyTimes()
 
 	agent, err := NewTemplateAgent(
 		"test-id",
