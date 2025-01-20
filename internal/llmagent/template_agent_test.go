@@ -14,17 +14,17 @@ import (
 // mockModelInfoProvider implements a simple mock for testing
 type mockModelInfoProvider struct{}
 
-func (m *mockModelInfoProvider) GetModelInfo(model string) (*modelinfo.ModelMetadata, error) {
-	return &modelinfo.ModelMetadata{
-		MaxTokens: 2048,
-		InputCostPerToken: 0.001,
+func (m *mockModelInfoProvider) GetModelInfo(model string) (*modelinfo.Metadata, error) {
+	return &modelinfo.Metadata{
+		MaxTokens:          2048,
+		InputCostPerToken:  0.001,
 		OutputCostPerToken: 0.002,
 	}, nil
 }
 
 func TestNewTemplateAgent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	
+
 	cmd := &config.Command{
 		Templates: map[string]config.Template{
 			"initial": {
@@ -51,7 +51,7 @@ func TestNewTemplateAgent(t *testing.T) {
 	assert.NotNil(t, agent)
 	assert.NotNil(t, agent.ConversationManager)
 	assert.Equal(t, "initial", agent.ConversationManager.CurrentState)
-	
+
 	// Verify template conversion
 	template := agent.ConversationManager.GetCurrentTemplate()
 	assert.NotNil(t, template)
@@ -62,17 +62,17 @@ func TestNewTemplateAgent(t *testing.T) {
 
 func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	
+
 	cmd := &config.Command{
 		Templates: map[string]config.Template{
 			"initial": {
-				System: "initial system",
-				Prompt: "initial prompt",
+				System:     "initial system",
+				Prompt:     "initial prompt",
 				NextStates: []string{"follow_up"},
 			},
 			"follow_up": {
-				System: "follow up system",
-				Prompt: "follow up prompt",
+				System:     "follow up system",
+				Prompt:     "follow up prompt",
 				NextStates: []string{"initial"},
 			},
 		},
@@ -93,16 +93,16 @@ func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
-	
+
 	// Verify all templates were added
 	assert.Len(t, agent.ConversationManager.Templates, 2)
 	assert.Contains(t, agent.ConversationManager.Templates, "initial")
 	assert.Contains(t, agent.ConversationManager.Templates, "follow_up")
-	
+
 	// Verify template states
 	initialTemplate := agent.ConversationManager.Templates["initial"]
 	assert.Contains(t, initialTemplate.NextStates, "follow_up")
-	
+
 	followUpTemplate := agent.ConversationManager.Templates["follow_up"]
 	assert.Contains(t, followUpTemplate.NextStates, "initial")
 }

@@ -2,6 +2,7 @@ package llmagent
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/llmcontext"
@@ -76,7 +77,10 @@ func (cm *ConversationManager) StartConversation(templateID string) error {
 }
 
 // ProcessTurn handles a single conversation turn
-func (cm *ConversationManager) ProcessTurn(ctx context.Context, input *llmcontext.RequestContext) (*Turn, error) {
+func (cm *ConversationManager) ProcessTurn(
+	ctx context.Context,
+	input *llmcontext.RequestContext,
+) (*Turn, error) {
 	template, exists := cm.Templates[cm.CurrentState]
 	if !exists {
 		return nil, fmt.Errorf("no template found for current state: %s", cm.CurrentState)

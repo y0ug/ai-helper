@@ -7,6 +7,8 @@ import (
 )
 
 // ChatProvider
+//
+//go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=chat .  Provider
 type Provider interface {
 	// For a single-turn request
 	Send(ctx context.Context, params ChatParams) (*ChatResponse, error)

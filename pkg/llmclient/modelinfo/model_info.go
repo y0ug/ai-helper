@@ -45,6 +45,7 @@ type Metadata struct {
 	SupportsAssistantPrefill        bool `json:"supports_assistant_prefill,omitempty"`
 }
 
+//go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=modelinfo .  Provider
 type Provider interface {
 	Load() error
 	Clear() error
