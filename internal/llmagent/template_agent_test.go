@@ -161,11 +161,13 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	resp, cost, err := agent.Execute(context.Background(), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
 	assert.Greater(t, cost, float64(0))
 
-	// Verify conversation state
+	// Verify conversation state and history
 	assert.Equal(t, "initial", agent.ConversationManager.CurrentState)
 	assert.Len(t, agent.ConversationManager.History, 1)
+	assert.NotEmpty(t, agent.GetMessages())
 
 	// Test follow-up message
 	followUpResponse := &chat.ChatResponse{
@@ -215,11 +217,13 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	resp, cost, err = agent.Execute(context.Background(), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
 	assert.Greater(t, cost, float64(0))
 
 	// Verify conversation history
 	assert.Len(t, agent.ConversationManager.History, 2)
 	assert.Equal(t, "follow_up", agent.ConversationManager.History[1].TemplateID)
+	assert.NotEmpty(t, agent.GetMessages())
 }
 
 func TestTemplateAgentWithMultipleTemplates(t *testing.T) {

@@ -295,7 +295,7 @@ func (a *Agent) process(
 
 		if msg == nil {
 			logger.Error("no message return")
-			return resp, nil
+			return nil, fmt.Errorf("no message returned from LLM")
 		}
 		resp = append(resp, msg)
 
