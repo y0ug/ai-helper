@@ -31,6 +31,7 @@ func TestNewTemplateAgent(t *testing.T) {
 	}
 
 	chatParams := chat.NewChatParams()
+	chatParams.Model = "gpt-3.5-turbo"
 	mockProvider := modelinfo.NewMockProvider(ctrl)
 	mockProvider.EXPECT().Get(gomock.Any()).Return(&modelinfo.Metadata{
 		MaxTokens:          2048,
@@ -90,6 +91,7 @@ func TestTemplateAgentIntegration(t *testing.T) {
 	}
 
 	chatParams := chat.NewChatParams()
+	chatParams.Model = "gpt-3.5-turbo"
 	mockProvider := modelinfo.NewMockProvider(ctrl)
 	mockProvider.EXPECT().Get(gomock.Any()).Return(&modelinfo.Metadata{
 		MaxTokens:          2048,
@@ -239,6 +241,7 @@ func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
 	}
 
 	chatParams := chat.NewChatParams()
+	chatParams.Model = "gpt-3.5-turbo"
 	mockProvider := modelinfo.NewMockProvider(ctrl)
 	mockProvider.EXPECT().Get(gomock.Any()).Return(&modelinfo.Metadata{
 		MaxTokens:          2048,
@@ -254,7 +257,9 @@ func TestTemplateAgentWithMultipleTemplates(t *testing.T) {
 		mockProvider,
 		nil,
 	)
-
+	if err != nil {
+		t.Errorf("Error creating agent: %v", err)
+	}
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 
