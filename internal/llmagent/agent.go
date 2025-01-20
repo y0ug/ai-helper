@@ -104,9 +104,6 @@ func (a *Agent) SetModel(model string) error {
 		return fmt.Errorf("failed to create provider %s / %s", modelInfo.Provider, model)
 	}
 
-	if modelInfo == nil {
-		return fmt.Errorf("modelInfo is nil")
-	}
 	a.Client = provider
 	a.ModelInfo = modelInfo
 	a.chatParams.Model = a.ModelInfo.Name
@@ -147,10 +144,17 @@ func (a *Agent) StartMCP(ctx context.Context) error {
 }
 
 func (a *Agent) SaveSession() *AgentSessionState {
+	model := ""
+	messages := make([]*chat.ChatMessage, 0)
+	if a.chatParams != nil {
+		model = a.chatParams.Model
+		messages = a.chatParams.Messages
+	}
+
 	return &AgentSessionState{
 		ID:                a.ID,
-		ModelName:         a.ModelInfo.Name,
-		Messages:          a.chatParams.Messages,
+		ModelName:         model,
+		Messages:          messages,
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
 		TotalInputTokens:  a.TotalInputTokens,
@@ -213,6 +217,10 @@ func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 		a.TotalInputTokens += m.Usage.InputTokens
 		a.TotalOutputTokens += m.Usage.OutputTokens
 
+		if a.ModelInfo == nil {
+			a.logger.Warn("ModelInfo is nil, can't calculate cost")
+			continue
+		}
 		if a.ModelInfo.Metadata == nil {
 			a.logger.Warn("Model metadata is nil, can't calculate cost",
 				"name", a.ModelInfo.Name)
@@ -227,6 +235,10 @@ func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 }
 
 func (a *Agent) Do(ctx context.Context, w io.Writer) ([]*chat.ChatResponse, float64, error) {
+	if a.Client == nil {
+		return nil, 0, fmt.Errorf("no client available")
+	}
+
 	a.chatParams.Tools = a.Tools
 	resp, err := a.process(ctx, w)
 	cost := a.UpdateCosts(resp...)
@@ -267,7 +279,7 @@ func (a *Agent) process(
 	var msg *chat.ChatResponse
 	for {
 
-		logger := a.logger.With("test", "") // slog.With("model", a.Model.Name)
+		logger := a.logger.With("model", a.chatParams.Model)
 
 		stream, err := a.Client.Stream(ctx, *a.chatParams)
 		if err != nil {

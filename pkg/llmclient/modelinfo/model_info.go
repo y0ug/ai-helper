@@ -235,19 +235,26 @@ func Parse(modelStr string, infoProviders Provider) (*Model, error) {
 	parts := strings.Split(modelStr, "/")
 
 	if len(parts) < 2 {
+		// If model not found in info or no providers, try to infer provider from model name
+		provider := inferProvider(modelStr)
+
 		// For models without explicit provider prefix, try to get info if providers available
 		if infoProviders != nil {
 			info, err := infoProviders.Get(modelStr)
 			if err == nil {
+				if info.LiteLLMProvider != "" {
+					provider = info.LiteLLMProvider
+				}
+				if provider == "" {
+					return nil, fmt.Errorf("could not determine provider for model: %s", modelStr)
+				}
 				return &Model{
-					Provider: info.LiteLLMProvider,
+					Provider: provider,
 					Name:     modelStr,
 					Metadata: info,
 				}, nil
 			}
 		}
-		// If model not found in info or no providers, try to infer provider from model name
-		provider := inferProvider(modelStr)
 		if provider != "" {
 			return &Model{
 				Provider: provider,

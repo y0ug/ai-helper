@@ -1,6 +1,8 @@
 package streaming
 
 // A Streamer is same as decoder
+//
+//go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=streaming .  Streamer,Decoder
 type Streamer[E any] Decoder[E]
 
 type Decoder[E any] interface {

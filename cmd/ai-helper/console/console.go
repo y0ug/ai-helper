@@ -48,7 +48,7 @@ func New(agent *llmagent.Agent) *Console {
 		c.executor,
 		c.completer,
 		prompt.OptionTitle("Chat"),
-		prompt.OptionPrefix(fmt.Sprintf("%s ➜ ", agent.Model.Name)),
+		prompt.OptionPrefix(fmt.Sprintf("%s ➜ ", agent.ModelInfo.Name)),
 		prompt.OptionInputTextColor(prompt.Yellow),
 		prompt.OptionPrefixTextColor(prompt.Blue),
 		prompt.OptionMaxSuggestion(5),
