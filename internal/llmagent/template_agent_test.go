@@ -1,6 +1,7 @@
 package llmagent
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 	"go.uber.org/mock/gomock"
 )
@@ -112,23 +114,24 @@ func TestTemplateAgentIntegration(t *testing.T) {
 
 	// Test initial message
 	initialResponse := &chat.ChatResponse{
-		Choice: []chat.Choice{
+		Choice: []chat.ChatChoice{
 			{
 				Content: []*chat.MessageContent{
 					chat.NewTextContent("Initial response"),
 				},
 			},
 		},
-		Usage: chat.Usage{
+		Usage: &chat.ChatUsage{
 			InputTokens:  10,
 			OutputTokens: 20,
 		},
 	}
 
+	mockStream := streaming.NewMockStreamer[chat.EventStream](ctrl)
 	mockChat.EXPECT().Stream(
 		gomock.Any(),
 		gomock.Any(),
-	).Return(chat.NewMockEventStream(initialResponse), nil)
+	).Return(mockStream, nil)
 
 	// Load initial input
 	err = agent.LoadArgs(map[string]string{"Input": "Hello"})
