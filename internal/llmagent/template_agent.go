@@ -102,13 +102,15 @@ func (ta *TemplateAgent) LoadFiles(filePath ...string) error {
 	if err := ta.reqctx.LoadFiles(filePath...); err != nil {
 		return err
 	}
-	
+
 	// Get current template and update its prompt with file contents
 	currentTemplate := ta.ConversationManager.GetCurrentTemplate()
 	if currentTemplate != nil {
 		// Append file contents to the current prompt
-		currentTemplate.UserPrompt = fmt.Sprintf("%s\n\nFiles that have been added to the chat:\n{{.Files}}", 
-			currentTemplate.UserPrompt)
+		currentTemplate.UserPrompt = fmt.Sprintf(
+			"%s\n\nFiles that have been added to the chat:\n{{.Files}}",
+			currentTemplate.UserPrompt,
+		)
 	}
 	return nil
 }

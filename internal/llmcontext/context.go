@@ -151,7 +151,16 @@ func (rc *RequestContext) GetTemplateFuncs() template.FuncMap {
 			ext := filepath.Ext(path)
 			return fmt.Sprintf("```%s\n%s\n```", ext[1:], content)
 		},
+		"filesDump": rc.FormatFiles,
 	}
+}
+
+func (rc *RequestContext) FormatFiles() string {
+	var sb strings.Builder
+	for path, content := range rc.Files {
+		sb.WriteString(fmt.Sprintf("\n%s\n```\n%s\n```\n", path, content))
+	}
+	return sb.String()
 }
 
 // Execute processes a template with the provided template data

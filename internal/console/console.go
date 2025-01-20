@@ -9,14 +9,13 @@ import (
 	"github.com/c-bata/go-prompt"
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 type Console struct {
 	agent         *llmagent.TemplateAgent
-	h            *highlighter.Highlighter
-	commands     map[string]Command
-	pt           *prompt.Prompt
+	h             *highlighter.Highlighter
+	commands      map[string]Command
+	pt            *prompt.Prompt
 	attachedFiles []string
 }
 
@@ -49,7 +48,7 @@ func New(agent *llmagent.TemplateAgent) *Console {
 			handler:     c.handleAddFile,
 		},
 		"/remove": {
-			name:        "remove", 
+			name:        "remove",
 			description: "Remove file(s) from the conversation",
 			handler:     c.handleRemoveFile,
 		},
@@ -63,6 +62,7 @@ func New(agent *llmagent.TemplateAgent) *Console {
 	c.pt = prompt.New(
 		c.executor,
 		c.completer,
+		prompt.OptionLivePrefix(c.UpdatePrompt),
 		prompt.OptionTitle("Chat"),
 		prompt.OptionPrefix(fmt.Sprintf("%s ➜ ", agent.ModelInfo.Name)),
 		prompt.OptionInputTextColor(prompt.Yellow),
@@ -78,7 +78,19 @@ func New(agent *llmagent.TemplateAgent) *Console {
 	return c
 }
 
+func (c *Console) UpdatePrompt() (string, bool) {
+	return fmt.Sprintf(
+		"%s (%s,%s) ➜ ",
+		c.agent.ModelInfo.Name,
+		c.agent.Command.Name,
+		c.agent.ConversationManager.CurrentState,
+	), true
+}
+
 func (c *Console) Run() {
+	if !c.agent.ConversationManager.IsInputNeeded() {
+		c.agent.Execute(context.Background(), c.h)
+	}
 	c.pt.Run()
 }
 
@@ -182,18 +194,24 @@ func (c *Console) executor(input string) {
 		return
 	}
 	// Add the command to the agent's message queue
-	c.agent.AddMessage(chat.NewUserMessage(input))
-
-	// Load any attached files before sending
-	for _, file := range c.attachedFiles {
-		if err := c.agent.LoadFiles(file); err != nil {
-			fmt.Printf("Error loading file %s: %v\n", file, err)
-			return
+	if c.agent.ConversationManager.CurrentState != "instruction" {
+		argsMap := make(map[string]string)
+		argsMap["Input"] = input
+		if err := c.agent.LoadArgs(argsMap); err != nil {
+			fmt.Printf("Error loading args: %v\n", err)
 		}
 	}
 
+	// // Load any attached files before sending
+	// for _, file := range c.attachedFiles {
+	// 	if err := c.agent.LoadFiles(file); err != nil {
+	// 		fmt.Printf("Error loading file %s: %v\n", file, err)
+	// 		return
+	// 	}
+	// }
+
 	// Send the request to the AI agent
-	_, _, err := c.agent.Do(context.Background(), c.h)
+	_, _, err := c.agent.Execute(context.Background(), c.h)
 	if err != nil {
 		fmt.Printf("Error generating response: %v\n", err)
 		return
