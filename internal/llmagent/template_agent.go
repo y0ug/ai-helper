@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os/exec"
+	"strings"
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/llmcontext"
@@ -62,8 +64,50 @@ func (ta *TemplateAgent) LoadCommand(input string) error {
 
 	// Process variables if any
 	for _, v := range ta.command.Variables {
-		// TODO: Implement variable processing based on type and exec
-		ta.ctx.Vars[v.Name] = v.Value
+		types := v.GetTypes()
+		if len(types) == 0 {
+			continue
+		}
+
+		var value string
+		var err error
+		
+		for _, t := range types {
+			switch t {
+			case config.VarTypeExec:
+				if v.Exec != "" {
+					// Execute the command and capture output
+					cmd := exec.Command("sh", "-c", v.Exec)
+					output, err := cmd.Output()
+					if err == nil {
+						value = strings.TrimSpace(string(output))
+						break
+					}
+				}
+			case config.VarTypeArg:
+				// Check if value was provided as argument
+				if val, ok := ta.ctx.Args[v.Name]; ok {
+					value = val
+					break
+				}
+			case config.VarTypeStdin:
+				// Try to read from stdin if input is available
+				if ta.ctx.Input != "" {
+					value = ta.ctx.Input
+					break
+				}
+			}
+			
+			if value != "" {
+				break
+			}
+		}
+
+		if value == "" {
+			return fmt.Errorf("no value found for variable %s after trying types: %v", v.Name, types)
+		}
+
+		ta.ctx.Vars[v.Name] = value
 	}
 
 	return nil

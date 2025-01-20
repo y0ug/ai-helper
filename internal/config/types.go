@@ -1,10 +1,27 @@
 package config
 
+import "strings"
+
+// Variable types
+const (
+	VarTypeExec  = "exec"
+	VarTypeArg   = "arg"
+	VarTypeStdin = "stdin"
+)
+
 // Variable represents a variable definition in command configuration
 type Variable struct {
 	Name string `yaml:"name,omitempty" json:"name,omitempty"`
-	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+	Type string `yaml:"type,omitempty" json:"type,omitempty"` // Can be combination like "stdin|arg|exec"
 	Exec string `yaml:"exec,omitempty" json:"exec,omitempty"`
+}
+
+// GetTypes returns the variable types as a slice
+func (v *Variable) GetTypes() []string {
+	if v.Type == "" {
+		return nil
+	}
+	return strings.Split(v.Type, "|")
 }
 
 // Command represents a single AI command configuration
