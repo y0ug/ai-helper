@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/config"
-	"github.com/y0ug/ai-helper/internal/llmcontext"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
@@ -19,7 +18,6 @@ type TemplateAgent struct {
 	ConversationManager *ConversationManager
 	StateTransitioner   StateTransitioner
 	Command             *config.Command
-	reqctx              *llmcontext.RequestContext
 }
 
 // NewTemplateAgent creates a new template-based agent
@@ -51,41 +49,8 @@ func NewTemplateAgent(
 	return &TemplateAgent{
 		Agent:               baseAgent,
 		ConversationManager: conversationManager,
-		Command:             command,
-		reqctx:              llmcontext.NewRequestContext(command),
 		StateTransitioner:   NewDefaultStateTransitioner(),
 	}, nil
-}
-
-
-func (ta *TemplateAgent) LoadArgs(args map[string]string) error {
-	return ta.reqctx.Process(args)
-}
-
-func (ta *TemplateAgent) LoadFiles(filePath ...string) error {
-	if err := ta.reqctx.LoadFiles(filePath...); err != nil {
-		return err
-	}
-
-	// Get current template and update its prompt with file contents
-	// currentTemplate := ta.ConversationManager.GetCurrentTemplate()
-	// if currentTemplate != nil {
-	// 	// Append file contents to the current prompt
-	// 	currentTemplate.UserPrompt = fmt.Sprintf(
-	// 		"%s\n\nFiles that have been added to the chat:\n{{.Files}}",
-	// 		currentTemplate.UserPrompt,
-	// 	)
-	// }
-	return nil
-}
-
-func (ta *TemplateAgent) SetInput(input string) error {
-	if ta.ConversationManager.IsInputNeeded() {
-		ta.logger.Debug("adding new input", "input", input)
-		ta.ConversationManager.Variables["Input"] = input
-		ta.reqctx.Vars["Input"] = input
-	}
-	return nil
 }
 
 // Execute runs the command with the prepared context

@@ -193,14 +193,9 @@ func (c *Console) executor(input string) {
 		fmt.Printf("Unknown command: %s\n", parts[0])
 		return
 	}
+
 	// Add the command to the agent's message queue
-	if c.agent.ConversationManager.CurrentState != "instruction" {
-		argsMap := make(map[string]string)
-		argsMap["Input"] = input
-		if err := c.agent.LoadArgs(argsMap); err != nil {
-			fmt.Printf("Error loading args: %v\n", err)
-		}
-	}
+	c.agent.SetInput(input)
 
 	// // Load any attached files before sending
 	// for _, file := range c.attachedFiles {
@@ -212,6 +207,7 @@ func (c *Console) executor(input string) {
 
 	// Send the request to the AI agent
 	responses, cost, err := c.agent.Execute(context.Background(), c.h)
+	// responses, cost, err := c.agent.ConversationManager.Execute(context.Background(), c.h)
 	if err != nil {
 		if strings.Contains(err.Error(), "context deadline exceeded") {
 			fmt.Println("❌ Request timed out. The model took too long to respond.")

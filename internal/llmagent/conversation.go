@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/llmcontext"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
@@ -13,6 +14,7 @@ import (
 // ConversationManager handles multi-turn conversations
 type ConversationManager struct {
 	ID           string
+	Command      *config.Command
 	Templates    map[string]*PromptTemplate
 	History      []*Turn
 	CurrentState string
@@ -62,6 +64,7 @@ func NewConversationManager(id string) *ConversationManager {
 
 // LoadCommand loads a command configuration into the conversation manager
 func (cm *ConversationManager) LoadCommand(command *config.Command) error {
+	cm.Command = command
 	// Convert command templates to PromptTemplates
 	for id, tmpl := range command.Templates {
 		template := &PromptTemplate{
@@ -124,6 +127,14 @@ func (cm *ConversationManager) IsInputNeeded() bool {
 		return true
 	}
 	return false
+}
+
+func (cm *ConversationManager) SetInput(input string) error {
+	if cm.IsInputNeeded() {
+		// .logger.Debug("adding new input", "input", input)
+		cm.Variables["Input"] = input
+	}
+	return nil
 }
 
 // StartConversation initializes a conversation with a specific template
