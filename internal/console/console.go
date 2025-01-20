@@ -13,10 +13,11 @@ import (
 )
 
 type Console struct {
-	agent    *llmagent.TemplateAgent
-	h        *highlighter.Highlighter
-	commands map[string]Command
-	pt       *prompt.Prompt
+	agent         *llmagent.TemplateAgent
+	h            *highlighter.Highlighter
+	commands     map[string]Command
+	pt           *prompt.Prompt
+	attachedFiles []string
 }
 
 // Command represents a chat command
@@ -41,6 +42,21 @@ func New(agent *llmagent.TemplateAgent) *Console {
 			name:        "quit",
 			description: "Exit the chat",
 			handler:     c.handleQuit,
+		},
+		"/add": {
+			name:        "add",
+			description: "Add file(s) to the conversation",
+			handler:     c.handleAddFile,
+		},
+		"/remove": {
+			name:        "remove", 
+			description: "Remove file(s) from the conversation",
+			handler:     c.handleRemoveFile,
+		},
+		"/files": {
+			name:        "files",
+			description: "List currently attached files",
+			handler:     c.handleListFiles,
 		},
 	}
 
@@ -98,6 +114,55 @@ func (c *Console) completer(d prompt.Document) []prompt.Suggest {
 	return prompt.FilterHasPrefix(suggestions, word, true)
 }
 
+func (c *Console) handleAddFile(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Please specify file(s) to add")
+		return
+	}
+
+	for _, file := range args {
+		if err := c.agent.LoadFiles(file); err != nil {
+			fmt.Printf("Error loading file %s: %v\n", file, err)
+			continue
+		}
+		c.attachedFiles = append(c.attachedFiles, file)
+		fmt.Printf("Added file: %s\n", file)
+	}
+}
+
+func (c *Console) handleRemoveFile(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Please specify file(s) to remove")
+		return
+	}
+
+	for _, file := range args {
+		newFiles := make([]string, 0)
+		for _, f := range c.attachedFiles {
+			if f != file {
+				newFiles = append(newFiles, f)
+			}
+		}
+		if len(newFiles) == len(c.attachedFiles) {
+			fmt.Printf("File not found: %s\n", file)
+		} else {
+			fmt.Printf("Removed file: %s\n", file)
+			c.attachedFiles = newFiles
+		}
+	}
+}
+
+func (c *Console) handleListFiles(args []string) {
+	if len(c.attachedFiles) == 0 {
+		fmt.Println("No files currently attached")
+		return
+	}
+	fmt.Println("Currently attached files:")
+	for _, file := range c.attachedFiles {
+		fmt.Printf("- %s\n", file)
+	}
+}
+
 func (c *Console) executor(input string) {
 	input = strings.TrimSpace(input)
 
@@ -118,6 +183,14 @@ func (c *Console) executor(input string) {
 	}
 	// Add the command to the agent's message queue
 	c.agent.AddMessage(chat.NewUserMessage(input))
+
+	// Load any attached files before sending
+	for _, file := range c.attachedFiles {
+		if err := c.agent.LoadFiles(file); err != nil {
+			fmt.Printf("Error loading file %s: %v\n", file, err)
+			return
+		}
+	}
 
 	// Send the request to the AI agent
 	_, _, err := c.agent.Do(context.Background(), c.h)
