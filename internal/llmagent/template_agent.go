@@ -53,6 +53,13 @@ func NewTemplateAgent(
 	}, nil
 }
 
+func (ta *TemplateAgent) GetModelName() string {
+	if ta.chatParams != nil {
+		return ta.chatParams.Model
+	}
+	return ""
+}
+
 // Execute runs the command with the prepared context
 func (ta *TemplateAgent) Execute(
 	ctx context.Context,
@@ -71,25 +78,20 @@ func (ta *TemplateAgent) Execute(
 	}
 
 	// Execute chat completion
+
 	responses, cost, err := ta.Do(ctx, w)
-	if err != nil {
-		return nil, cost, fmt.Errorf("chat completion failed: %w", err)
-	}
-
-	// Run post-processing handlers with responses
-	for _, handler := range ta.ConversationManager.GetCurrentTemplate().Handlers {
-		if err := handler.PostProcess(ctx, ta.ConversationManager, responses); err != nil {
-			return responses, cost, fmt.Errorf("post-process error: %w", err)
-		}
-	}
-
-	// Execute the chat completion with timeout handling
-	responses, cost, err = ta.Do(ctx, w)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, cost, fmt.Errorf("request timed out after deadline: %w", err)
 		}
 		return nil, cost, fmt.Errorf("chat completion failed: %w", err)
+	}
+
+	// Run post-processing handlers with responses
+	for _, handler := range ta.ConversationManager.GetCurrentTemplate().Handlers {
+		if err := handler.PostProcess(ctx, ta.ConversationManager, responses, w); err != nil {
+			return responses, cost, fmt.Errorf("post-process error: %w", err)
+		}
 	}
 
 	if len(responses) == 0 {

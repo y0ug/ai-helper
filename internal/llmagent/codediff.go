@@ -1,11 +1,14 @@
-package handlers
+package llmagent
 
 import (
 	"context"
 	"fmt"
+	"io"
+	"path/filepath"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/llmagent"
+	"github.com/y0ug/ai-helper/internal/coder/diff"
+	"github.com/y0ug/ai-helper/internal/coder/parser"
 	"github.com/y0ug/ai-helper/internal/llmcontext"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
@@ -21,14 +24,14 @@ func NewCodeDiffHandler() *CodeDiffHandler {
 // PreProcess handles pre-processing of code diffs
 func (h *CodeDiffHandler) PreProcess(
 	ctx context.Context,
-	cm *llmagent.ConversationManager,
+	cm *ConversationManager,
 	requestCtx *llmcontext.RequestContext,
 ) error {
 	// Extract code blocks from previous messages
 	var searchReplace []string
 	for _, msg := range cm.GetHistory() {
 		if msg.Role == "assistant" {
-			blocks := extractSearchReplaceBlocks(msg.Content.String())
+			blocks := extractSearchReplaceBlocks(msg.Content[0].String())
 			searchReplace = append(searchReplace, blocks...)
 		}
 	}
@@ -42,9 +45,33 @@ func (h *CodeDiffHandler) PreProcess(
 // PostProcess handles post-processing of code diffs
 func (h *CodeDiffHandler) PostProcess(
 	ctx context.Context,
-	cm *llmagent.ConversationManager,
+	cm *ConversationManager,
 	response []*chat.ChatResponse,
+	w io.Writer,
 ) error {
+	fmt.Println("CodeDiffHandler PostProcess")
+	diff := diff.NewGenerator()
+	parser := parser.New()
+	if len(response) > 0 && len(response[0].Choice) > 0 && len(response[0].Choice[0].Content) > 0 {
+		sections := parser.ParseResponse(response[0].Choice[0].Content[0].String())
+		modifiedFiles, err := diff.ApplyChanges(cm.Files, sections)
+		if err != nil {
+			fmt.Println("Error applying changes:", err)
+			return nil
+		}
+		for filename, file := range modifiedFiles {
+			// fmt.Println("filename:", filename)
+			// fmt.Println("file:", file)
+			if orginalContent, exists := cm.Files[filename]; exists && orginalContent != file {
+				// patches[filename] = diff.GeneratePatch(orginalContent, file)
+				ext := filepath.Ext(filename)[1:]
+				fmt.Fprintf(w, "```%s\n%s\n```\n", ext, file)
+			}
+		}
+	} else {
+		fmt.Println("response is empty")
+	}
+
 	return nil
 }
 

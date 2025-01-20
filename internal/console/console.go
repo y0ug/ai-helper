@@ -64,7 +64,7 @@ func New(agent *llmagent.TemplateAgent) *Console {
 		c.completer,
 		prompt.OptionLivePrefix(c.UpdatePrompt),
 		prompt.OptionTitle("Chat"),
-		prompt.OptionPrefix(fmt.Sprintf("%s ➜ ", agent.ModelInfo.Name)),
+		prompt.OptionPrefix(fmt.Sprintf("%s ➜ ", agent.GetModelName())),
 		prompt.OptionInputTextColor(prompt.Yellow),
 		prompt.OptionPrefixTextColor(prompt.Blue),
 		prompt.OptionMaxSuggestion(5),
@@ -81,7 +81,7 @@ func New(agent *llmagent.TemplateAgent) *Console {
 func (c *Console) UpdatePrompt() (string, bool) {
 	return fmt.Sprintf(
 		"%s (%s,%s) ➜ ",
-		c.agent.ModelInfo.Name,
+		c.agent.GetModelName(),
 		c.agent.ConversationManager.Command.Name,
 		c.agent.ConversationManager.CurrentState,
 	), true

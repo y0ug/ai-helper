@@ -3,7 +3,9 @@ package llmagent
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"slices"
 
 	"github.com/y0ug/ai-helper/internal/config"
@@ -61,14 +63,14 @@ func (cm *ConversationManager) LoadFile(path string) error {
 
 // PromptTemplate defines a template for a conversation state
 type PromptTemplate struct {
-	ID              string
-	SystemPrompt    string
-	UserPrompt      string
-	RequiredVars    []string
-	NextStates      []string
-	Handlers        map[string]TurnHandler
-	PreTurnCmds     []string
-	PostTurnCmds    []string
+	ID           string
+	SystemPrompt string
+	UserPrompt   string
+	RequiredVars []string
+	NextStates   []string
+	Handlers     map[string]TurnHandler
+	PreTurnCmds  []string
+	PostTurnCmds []string
 }
 
 // TurnHandler defines the interface for custom turn processing
@@ -78,7 +80,12 @@ type TurnHandler interface {
 		cm *ConversationManager,
 		requestCtx *llmcontext.RequestContext,
 	) error
-	PostProcess(ctx context.Context, cm *ConversationManager, response []*chat.ChatResponse) error
+	PostProcess(
+		ctx context.Context,
+		cm *ConversationManager,
+		response []*chat.ChatResponse,
+		w io.Writer,
+	) error
 }
 
 // StateTransitioner defines the interface for state transitions
@@ -117,7 +124,7 @@ func (cm *ConversationManager) LoadCommand(command *config.Command) error {
 		for _, handlerName := range tmpl.Handlers {
 			switch handlerName {
 			case "codediff":
-				template.Handlers[handlerName] = handlers.NewCodeDiffHandler()
+				template.Handlers[handlerName] = NewCodeDiffHandler()
 			}
 		}
 
@@ -249,21 +256,21 @@ func (cm *ConversationManager) ProcessTurn(
 	turn.Messages = messages
 	cm.History = append(cm.History, messages...)
 
-	// Run post-processing handlers
-	for _, handler := range template.Handlers {
-		if err := handler.PostProcess(ctx, cm, nil); err != nil {
-			return nil, nil, fmt.Errorf("post-process error: %w", err)
-		}
-	}
+	// // Run post-processing handlers
+	// for _, handler := range template.Handlers {
+	// 	if err := handler.PostProcess(ctx, cm, nil); err != nil {
+	// 		return nil, nil, fmt.Errorf("post-process error: %w", err)
+	// 	}
+	// }
 
-	// Execute post-turn commands
-	for _, cmdStr := range template.PostTurnCmds {
-		output, err := cm.executeCommand(cmdStr)
-		if err != nil {
-			return nil, nil, fmt.Errorf("post-turn command failed: %w", err)
-		}
-		requestCtx.Vars["PostTurnOutput_"+cmdStr] = output
-	}
+	// // Execute post-turn commands
+	// for _, cmdStr := range template.PostTurnCmds {
+	// 	output, err := cm.executeCommand(cmdStr)
+	// 	if err != nil {
+	// 		return nil, nil, fmt.Errorf("post-turn command failed: %w", err)
+	// 	}
+	// 	requestCtx.Vars["PostTurnOutput_"+cmdStr] = output
+	// }
 
 	return turn, messages, nil
 }

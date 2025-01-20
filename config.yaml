@@ -224,6 +224,8 @@ commands:
         variables:
           - name: Input
             type: stdin|arg
+        handlers:
+          - codediff
         prompt: |
           {{ .Vars.Input }}
 
