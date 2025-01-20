@@ -44,34 +44,8 @@ func NewTemplateAgent(
 	}
 
 	conversationManager := NewConversationManager(id)
-
-	// Convert command templates to PromptTemplates
-	for id, tmpl := range command.Templates {
-		template := &PromptTemplate{
-			ID:           id,
-			SystemPrompt: tmpl.System,
-			UserPrompt:   tmpl.Prompt,
-			RequiredVars: extractRequiredVars(tmpl.Variables),
-			NextStates:   tmpl.NextStates,
-			Handlers:     make(map[string]TurnHandler),
-		}
-
-		if err := conversationManager.AddTemplate(template); err != nil {
-			return nil, fmt.Errorf("failed to add template %s: %w", id, err)
-		}
-	}
-
-	initialState := command.InitialState
-	if initialState == "" {
-		// If no initial state specified, use the first template
-		for id := range command.Templates {
-			initialState = id
-			break
-		}
-	}
-
-	if err := conversationManager.StartConversation(initialState); err != nil {
-		return nil, fmt.Errorf("failed to start conversation: %w", err)
+	if err := conversationManager.LoadCommand(command); err != nil {
+		return nil, fmt.Errorf("failed to load command: %w", err)
 	}
 
 	return &TemplateAgent{
@@ -83,16 +57,6 @@ func NewTemplateAgent(
 	}, nil
 }
 
-// extractRequiredVars extracts required variable names from Variable slice
-func extractRequiredVars(vars []config.Variable) []string {
-	required := make([]string, 0)
-	for _, v := range vars {
-		if v.Type != "" {
-			required = append(required, v.Name)
-		}
-	}
-	return required
-}
 
 func (ta *TemplateAgent) LoadArgs(args map[string]string) error {
 	return ta.reqctx.Process(args)
