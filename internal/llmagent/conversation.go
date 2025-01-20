@@ -3,6 +3,7 @@ package llmagent
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/llmcontext"
@@ -66,6 +67,17 @@ func (cm *ConversationManager) AddTemplate(template *PromptTemplate) error {
 	}
 	cm.Templates[template.ID] = template
 	return nil
+}
+
+func (cm *ConversationManager) IsInputNeeded() bool {
+	k := "Input"
+	if slices.Contains(cm.GetCurrentTemplate().RequiredVars, k) {
+		if _, ok := cm.Variables[k]; ok {
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 // StartConversation initializes a conversation with a specific template

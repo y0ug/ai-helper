@@ -147,7 +147,7 @@ func (ta *TemplateAgent) Execute(
 	}
 
 	// Clear previous messages
-	ta.ClearMessages()
+	// ta.ClearMessages()
 
 	// Generate system message from template if provided
 	if currentTemplate.SystemPrompt != "" {
