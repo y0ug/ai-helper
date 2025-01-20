@@ -61,12 +61,14 @@ func (cm *ConversationManager) LoadFile(path string) error {
 
 // PromptTemplate defines a template for a conversation state
 type PromptTemplate struct {
-	ID           string
-	SystemPrompt string
-	UserPrompt   string
-	RequiredVars []string
-	NextStates   []string
-	Handlers     map[string]TurnHandler
+	ID              string
+	SystemPrompt    string
+	UserPrompt      string
+	RequiredVars    []string
+	NextStates      []string
+	Handlers        map[string]TurnHandler
+	PreTurnCmds     []string
+	PostTurnCmds    []string
 }
 
 // TurnHandler defines the interface for custom turn processing
@@ -107,6 +109,8 @@ func (cm *ConversationManager) LoadCommand(command *config.Command) error {
 			RequiredVars: extractRequiredVars(tmpl.Variables),
 			NextStates:   tmpl.NextStates,
 			Handlers:     make(map[string]TurnHandler),
+			PreTurnCmds:  tmpl.PreTurnCmds,
+			PostTurnCmds: tmpl.PostTurnCmds,
 		}
 
 		if err := cm.AddTemplate(template); err != nil {
@@ -183,6 +187,16 @@ type Turn struct {
 	Messages []*chat.ChatMessage
 }
 
+// executeCommand runs a shell command and returns its output
+func (cm *ConversationManager) executeCommand(cmdStr string) (string, error) {
+	cmd := exec.Command("sh", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("command failed: %s: %w", cmdStr, err)
+	}
+	return string(output), nil
+}
+
 // ProcessTurn handles a single conversation turn
 func (cm *ConversationManager) ProcessTurn(
 	ctx context.Context,
@@ -197,6 +211,15 @@ func (cm *ConversationManager) ProcessTurn(
 	// Copy current variables and files to the turn
 	requestCtx.Vars = cm.Variables
 	requestCtx.Files = cm.Files
+
+	// Execute pre-turn commands
+	for _, cmdStr := range template.PreTurnCmds {
+		output, err := cm.executeCommand(cmdStr)
+		if err != nil {
+			return nil, nil, fmt.Errorf("pre-turn command failed: %w", err)
+		}
+		requestCtx.Vars["PreTurnOutput_"+cmdStr] = output
+	}
 
 	// Run pre-processing handlers
 	for _, handler := range template.Handlers {
@@ -223,6 +246,15 @@ func (cm *ConversationManager) ProcessTurn(
 		if err := handler.PostProcess(ctx, cm, nil); err != nil {
 			return nil, nil, fmt.Errorf("post-process error: %w", err)
 		}
+	}
+
+	// Execute post-turn commands
+	for _, cmdStr := range template.PostTurnCmds {
+		output, err := cm.executeCommand(cmdStr)
+		if err != nil {
+			return nil, nil, fmt.Errorf("post-turn command failed: %w", err)
+		}
+		requestCtx.Vars["PostTurnOutput_"+cmdStr] = output
 	}
 
 	return turn, messages, nil
