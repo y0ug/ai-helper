@@ -121,12 +121,14 @@ func TestTemplateAgentIntegration(t *testing.T) {
 				Content: []*chat.MessageContent{
 					chat.NewTextContent("Initial response"),
 				},
+				Role: "assistant",
 			},
 		},
 		Usage: &chat.ChatUsage{
 			InputTokens:  10,
 			OutputTokens: 20,
 		},
+		Model: "test-model",
 	}
 
 	mockStream := streaming.NewMockStreamer[chat.EventStream](ctrl)
@@ -172,12 +174,14 @@ func TestTemplateAgentIntegration(t *testing.T) {
 				Content: []*chat.MessageContent{
 					chat.NewTextContent("Follow-up response"),
 				},
+				Role: "assistant",
 			},
 		},
 		Usage: &chat.ChatUsage{
 			InputTokens:  15,
 			OutputTokens: 25,
 		},
+		Model: "test-model",
 	}
 
 	mockStream = streaming.NewMockStreamer[chat.EventStream](ctrl)
