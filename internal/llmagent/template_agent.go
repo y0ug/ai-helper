@@ -129,11 +129,25 @@ func (ta *TemplateAgent) Execute(
 	ctx context.Context,
 	w io.Writer,
 ) ([]*chat.ChatResponse, float64, error) {
-	// Get current template
+	// Get current template and create a new turn
 	currentTemplate := ta.ConversationManager.GetCurrentTemplate()
 	if currentTemplate == nil {
 		return nil, 0, fmt.Errorf("no template available for current state")
 	}
+
+	// Share variables between conversation manager and request context
+	for k, v := range ta.ConversationManager.Variables {
+		ta.reqctx.Vars[k] = v
+	}
+
+	// Process the turn through conversation manager
+	turn, err := ta.ConversationManager.ProcessTurn(ctx, ta.reqctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
+	}
+
+	// Clear previous messages
+	ta.ClearMessages()
 
 	// Generate system message from template if provided
 	if currentTemplate.SystemPrompt != "" {
@@ -144,19 +158,22 @@ func (ta *TemplateAgent) Execute(
 		ta.AddMessage(chat.NewMessage("system", chat.NewTextContent(systemContent)))
 	}
 
+	// Add conversation history
+	for _, prevTurn := range ta.ConversationManager.GetHistory() {
+		if prevTurn.TemplateID == turn.TemplateID {
+			continue // Skip current turn
+		}
+		for _, msg := range prevTurn.Messages {
+			ta.AddMessage(msg)
+		}
+	}
+
 	// Generate user message from prompt template
 	promptContent, err := ta.reqctx.Execute(currentTemplate.UserPrompt)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to execute prompt template: %w", err)
 	}
 	ta.AddMessage(chat.NewMessage("user", chat.NewTextContent(promptContent)))
-
-	fmt.Printf("promptContent: %s\n", promptContent)
-	// Process the turn through conversation manager
-	turn, err := ta.ConversationManager.ProcessTurn(ctx, ta.reqctx)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
-	}
 
 	// Execute the chat completion with timeout handling
 	responses, cost, err := ta.Do(ctx, w)
@@ -185,9 +202,10 @@ func (ta *TemplateAgent) Execute(
 		}
 	}
 
-	// Reset input
-	if _, ok := ta.ConversationManager.Variables["Input"]; ok {
-		delete(ta.ConversationManager.Variables, "Input")
+	// Sync variables back to conversation manager
+	for k, v := range ta.reqctx.Vars {
+		ta.ConversationManager.Variables[k] = v
 	}
+
 	return responses, cost, nil
 }
