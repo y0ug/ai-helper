@@ -20,24 +20,42 @@ func GetConfig(configPath string) (*Config, error) {
 	return loader.Load(configPath)
 }
 
-// GetCommandPrompt returns the prompt and system prompt for a given command name
+// GetCommandPrompt returns the prompt and system prompt for a given command name and template
 func (c *Config) GetCommandPrompt(name string) (string, string, error) {
 	cmd, exists := c.Commands[name]
 	if !exists {
 		return "", "", fmt.Errorf("command '%s' not found in configuration", name)
 	}
-	return cmd.Prompt, cmd.System, nil
+
+	// Get initial template or first available template
+	var tmpl Template
+	if cmd.InitialState != "" {
+		if t, ok := cmd.Templates[cmd.InitialState]; ok {
+			tmpl = t
+		}
+	} else {
+		// Get first template
+		for _, t := range cmd.Templates {
+			tmpl = t
+			break
+		}
+	}
+
+	return tmpl.Prompt, tmpl.System, nil
 }
 
 // ValidateConfig checks if the configuration is valid
 func (c *Config) ValidateConfig() error {
-	// if len(c.Commands) == 0 {
-	// 	return fmt.Errorf("no commands defined in configuration")
-	// }
-
 	for name, cmd := range c.Commands {
-		if cmd.Prompt == "" {
-			return fmt.Errorf("empty prompt for command '%s'", name)
+		if len(cmd.Templates) == 0 {
+			return fmt.Errorf("no templates defined for command '%s'", name)
+		}
+
+		// Validate templates
+		for tname, tmpl := range cmd.Templates {
+			if tmpl.Prompt == "" {
+				return fmt.Errorf("empty prompt for template '%s' in command '%s'", tname, name)
+			}
 		}
 
 		// Validate that referenced MCP servers exist
@@ -66,8 +84,22 @@ func (c *Config) ValidateConfig() error {
 func LoadPromptContent(cmd Command) (string, string, map[string]interface{}, error) {
 	vars := make(map[string]interface{})
 
-	// Process any variables defined in the command
-	for _, v := range cmd.Variables {
+	// Get initial or first template
+	var tmpl Template
+	if cmd.InitialState != "" {
+		if t, ok := cmd.Templates[cmd.InitialState]; ok {
+			tmpl = t
+		}
+	} else {
+		// Get first template
+		for _, t := range cmd.Templates {
+			tmpl = t
+			break
+		}
+	}
+
+	// Process any variables defined in the template
+	for _, v := range tmpl.Variables {
 		if v.Name == "Input" {
 			continue
 		}
@@ -84,5 +116,5 @@ func LoadPromptContent(cmd Command) (string, string, map[string]interface{}, err
 		}
 	}
 
-	return cmd.Prompt, cmd.System, vars, nil
+	return tmpl.Prompt, tmpl.System, vars, nil
 }
