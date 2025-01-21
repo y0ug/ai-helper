@@ -25,10 +25,10 @@
 
 ## Phase 4: Context Management
 
-- [ ] Improve context handling
-  - [ ] Merge llmcontext into conversation package
-  - [ ] Simplify variable resolution
-  - [ ] Update template execution
+- [x] Improve context handling
+  - [x] Merge llmcontext into conversation package
+  - [x] Simplify variable resolution
+  - [x] Update template execution
 
 ## Phase 5: Testing & Validation
 

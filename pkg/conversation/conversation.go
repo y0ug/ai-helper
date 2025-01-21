@@ -9,7 +9,6 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/filemanager"
-	"github.com/y0ug/ai-helper/internal/llmcontext"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
@@ -202,7 +201,7 @@ func (cm *ConversationManager) ProcessTurn(
 	if !exists {
 		return nil, nil, fmt.Errorf("no template found for current state: %s", cm.CurrentState)
 	}
-	requestCtx := llmcontext.NewRequestContext(cm.Command)
+	requestCtx := NewRequestContext(cm.Command)
 
 	// Copy current variables and files to the turn
 	requestCtx.Vars = cm.Variables
@@ -296,7 +295,7 @@ func (cm *ConversationManager) ProcessTurn(
 // generateMessages creates the message sequence for a turn
 func (cm *ConversationManager) generateMessages(
 	turn *Turn,
-	requestCtx *llmcontext.RequestContext,
+	requestCtx *RequestContext,
 	template *PromptTemplate,
 ) ([]*chat.ChatMessage, error) {
 	var messages []*chat.ChatMessage
