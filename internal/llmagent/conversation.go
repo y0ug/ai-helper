@@ -230,20 +230,34 @@ func (cm *ConversationManager) ProcessTurn(
 	filesInCtx := cm.FileManager.GetFiles()
 	files := make(map[string]string)
 	for path := range filesInCtx {
+		// Get both status and changed state
 		status, err := cm.FileManager.GetFileStatus(path)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error checking file status for %s: %w", path, err)
+		}
+		
 		changed, err := cm.FileManager.HasFileChanged(path)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error checking file status: %w", err)
+			return nil, nil, fmt.Errorf("error checking file changes for %s: %w", path, err)
 		}
 
-		if changed {
-			if content, isEditable, err := cm.FileManager.GetFileContent(path); err == nil {
-				files[path] = content
-				requestCtx.Vars[path+"_readonly"] = !isEditable
-				// Mark the file as sent after adding it to the context
-				if err := cm.FileManager.MarkFileAsSent(path); err != nil {
-					return nil, nil, fmt.Errorf("error marking file as sent: %w", err)
-				}
+		// Add file to context if:
+		// 1. It has changed since last send OR
+		// 2. It is out of sync with disk OR
+		// 3. It has been modified
+		if changed || status == filemanager.StatusOutOfSync || status == filemanager.StatusModified {
+			content, isEditable, err := cm.FileManager.GetFileContent(path)
+			if err != nil {
+				return nil, nil, fmt.Errorf("error getting content for %s: %w", path, err)
+			}
+			
+			files[path] = content
+			requestCtx.Vars[path+"_readonly"] = !isEditable
+			requestCtx.Vars[path+"_status"] = status.String()
+			
+			// Mark as sent only if we successfully added it to context
+			if err := cm.FileManager.MarkFileAsSent(path); err != nil {
+				return nil, nil, fmt.Errorf("error marking %s as sent: %w", path, err)
 			}
 		}
 	}
