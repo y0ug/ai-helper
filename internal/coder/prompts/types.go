@@ -22,6 +22,10 @@ type BasePrompts struct {
 	NoShellCmdReminder               string    `yaml:"no_shell_cmd_reminder"`
 }
 
+type BasePromptsConfig struct {
+	BasePrompts *BasePrompts `yaml:"base_prompts"`
+}
+
 // Message represents a chat message
 type Message struct {
 	Role    string `yaml:"role"`

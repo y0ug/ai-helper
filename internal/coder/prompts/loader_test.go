@@ -106,7 +106,7 @@ func TestLoadPrompts(t *testing.T) {
 
 	t.Run("embedded file system access", func(t *testing.T) {
 		// Test reading directory
-		entries, err := promptFS.ReadDir("prompts")
+		entries, err := promptFS.ReadDir("templates")
 		require.NoError(t, err)
 		assert.NotEmpty(t, entries)
 
