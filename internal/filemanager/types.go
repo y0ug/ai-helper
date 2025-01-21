@@ -23,7 +23,7 @@ type FileInfo struct {
 	ReadOnly   bool
 	LastUpdate time.Time
 	GitStatus  FileStatus
-	// Can add more git-related fields like:
+	LastSent   string    // Stores the hash of the content when it was last sent
 	Branch     string
 	LastCommit string
 }
@@ -37,4 +37,6 @@ type FileManager interface {
 	GetFileLastUpdate(path string) (time.Time, error)
 	GetFileStatus(path string) (FileStatus, error)
 	GetFiles() map[string]*FileInfo
+	MarkFileAsSent(path string) error
+	HasFileChanged(path string) (bool, error)
 }

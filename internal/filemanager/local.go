@@ -170,3 +170,28 @@ func (fm *LocalFileManager) GetFiles() map[string]*FileInfo {
 	}
 	return files
 }
+
+func (fm *LocalFileManager) MarkFileAsSent(path string) error {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+
+	fileInfo, exists := fm.files[path]
+	if !exists {
+		return fmt.Errorf("file %s not found", path)
+	}
+
+	fileInfo.LastSent = fileInfo.Hash
+	return nil
+}
+
+func (fm *LocalFileManager) HasFileChanged(path string) (bool, error) {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+
+	fileInfo, exists := fm.files[path]
+	if !exists {
+		return false, fmt.Errorf("file %s not found", path)
+	}
+
+	return fileInfo.LastSent != fileInfo.Hash, nil
+}

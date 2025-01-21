@@ -229,12 +229,21 @@ func (cm *ConversationManager) ProcessTurn(
 	// Create a map of file contents for the request context
 	filesInCtx := cm.FileManager.GetFiles()
 	files := make(map[string]string)
-	for path := range filesInCtx {
-		// Check if the variable value is a file path
-		if content, isEditable, err := cm.FileManager.GetFileContent(path); err == nil {
-			files[path] = content
-			// Optionally store the isEditable flag in variables
-			requestCtx.Vars[path+"_readonly"] = !isEditable
+	for path, fileInfo := range filesInCtx {
+		changed, err := cm.FileManager.HasFileChanged(path)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error checking file status: %w", err)
+		}
+		
+		if changed {
+			if content, isEditable, err := cm.FileManager.GetFileContent(path); err == nil {
+				files[path] = content
+				requestCtx.Vars[path+"_readonly"] = !isEditable
+				// Mark the file as sent after adding it to the context
+				if err := cm.FileManager.MarkFileAsSent(path); err != nil {
+					return nil, nil, fmt.Errorf("error marking file as sent: %w", err)
+				}
+			}
 		}
 	}
 	requestCtx.Files = files
