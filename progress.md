@@ -2,12 +2,12 @@
 
 ## Phase 1: Package Structure Creation
 
-- [ ] Create new conversation package structure
-  - [ ] Create pkg/conversation directory
+- [x] Create new conversation package structure
+  - [x] Create pkg/conversation directory
   - [ ] Move conversation.go to manager.go
   - [ ] Move state_transitioner.go to state.go
   - [ ] Move llmcontext functionality to context.go
-  - [ ] Create types.go for shared interfaces
+  - [x] Create types.go for shared interfaces
 
 ## Phase 2: Code Migration
 
