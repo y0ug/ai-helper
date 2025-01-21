@@ -303,18 +303,14 @@ func main() {
 
 	inputArgs := args[1:]
 	h := highlighter.NewHighlighter(os.Stdout)
-	err = agent.ConversationManager.SetInput(strings.Join(inputArgs, " "))
-	if err != nil {
-		logger.Error("failed to load args", "Error", err)
-		return
-	}
+	agent.GetConversation().GetCtx().SetVariable("Input", strings.Join(inputArgs, " "))
 
 	if *attachFiles != "" {
 		additionalFiles := strings.Split(*attachFiles, ",")
 		for _, filepath := range additionalFiles {
 			filepath = strings.TrimSpace(filepath)
 			logger.Debug("Loading file", "path", filepath)
-			if err := agent.ConversationManager.AddFile(filepath, false); err != nil {
+			if err := agent.GetConversation().GetCtx().GetFM().AddFile(filepath, false); err != nil {
 				logger.Error("failed to load files", "Error", err)
 				return
 			}
