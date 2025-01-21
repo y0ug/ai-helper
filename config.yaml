@@ -56,16 +56,18 @@ commands:
             - Include a command example if relevant
 
           Question: {{ .Vars.Input }}
+
+          {{ FilesDump }}
         next_states: [follow_up]
 
       follow_up:
         variables:
           - name: Input
             type: stdin|arg
-        system: |
-          Continue the computer expert conversation, maintaining context from previous responses.
         prompt: |
-          Follow-up question: {{ .Vars.Input }}
+          {{ .Vars.Input }}
+
+          {{ FilesDump }}
         next_states: [follow_up, initial]
 
   summarize:

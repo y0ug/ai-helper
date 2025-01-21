@@ -101,6 +101,7 @@ func main() {
 	ctx := context.Background()
 	toolProcessor := llmagent.NewToolProcessor(logger)
 	toolProcessor.Start(ctx, &cfg.MCPServers)
+	defer toolProcessor.Stop()
 
 	// Create template agent
 	agent, err := llmagent.NewTemplateAgent(

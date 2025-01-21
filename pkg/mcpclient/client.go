@@ -41,6 +41,7 @@ type MCPClient struct {
 	cancelFn context.CancelFunc
 	ctx      context.Context
 	logger   *slog.Logger
+	doneChan chan error
 
 	// Track initialization state
 	initialized bool
@@ -128,46 +129,11 @@ func NewMCPClient(
 		return nil, fmt.Errorf("failed to start MCP server: %w", err)
 	}
 
-	// errChan := make(chan error, 1)
-	//
-	// // Create a goroutine to monitor stderr
-	// go func() {
-	// 	errBuf := make([]byte, 4096)
-	// 	for {
-	// 		n, err := stderr.Read(errBuf)
-	// 		if n > 0 {
-	// 			logger.Error("server error", "error", string(errBuf[:n]))
-	// 			errChan <- fmt.Errorf("fatal error detected: %s", string(errBuf[:n]))
-	// 		}
-	// 		if err != nil {
-	// 			break
-	// 		}
-	// 	}
-	// }()
-
-	// // Wait for a short time to check if the process failed immediately
-	// done := make(chan error, 1)
-	// go func() {
-	// 	done <- cmd.Wait()
-	// }()
-	//
-	// // Wait for potential immediate errors
-	// select {
-	// case err := <-errChan:
-	// 	return nil, err
-	// case <-time.After(500 * time.Millisecond):
-	// 	// Check if process is still running
-	// 	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-	// 		return nil, fmt.Errorf("process exited prematurely")
-	// 	}
-	// }
-	//
-	// select {
-	// case err := <-done:
-	// 	return nil, fmt.Errorf("server process failed to start: %w", err)
-	// case <-time.After(1000 * time.Millisecond):
-	// 	// Process survived initial startup
-	// }
+	// Channel to check if the process is running
+	doneChan := make(chan error, 1)
+	go func() {
+		doneChan <- cmd.Wait()
+	}()
 
 	ctx, cancel := context.WithCancel(ctxParent)
 
@@ -176,6 +142,7 @@ func NewMCPClient(
 		logger:   logger,
 		ctx:      ctx,
 		cancelFn: cancel,
+		doneChan: doneChan,
 	}
 	// Start error monitoring in a goroutine
 	go client.monitorErrors(stderr)
@@ -213,40 +180,41 @@ func NewMCPClient(
 }
 
 func (c *MCPClient) monitorErrors(stderr io.ReadCloser) {
-	scanner := bufio.NewScanner(stderr)
+	// Process and print stderr errors
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			errText := scanner.Text()
+			if errText == "" {
+				continue
+			}
 
+			c.logger.Debug("reading", "stderr", errText)
+
+			// // Check for fatal errors
+			if strings.Contains(strings.ToLower(errText), "error:") ||
+				strings.Contains(strings.ToLower(errText), "fatal:") {
+				c.logger.Error("error", "error", errText)
+				// return
+			}
+		}
+
+		// Check for scanner errors
+		if err := scanner.Err(); err != nil {
+			c.logger.Error("error reading stderr", "error", err)
+		}
+	}()
+
+	// Monitor process exit
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
-		default:
-			if scanner.Scan() {
-				errText := scanner.Text()
-				if errText != "" {
-					c.logger.Error("server error", "error", errText)
-
-					// Only close on actual error messages
-					if strings.Contains(strings.ToLower(errText), "error:") ||
-						strings.Contains(
-							errText,
-							"BRAVE_API_KEY environment variable is required",
-						) ||
-						strings.Contains(strings.ToLower(errText), "fatal:") {
-						c.logger.Error("fatal error detected, closing client", "error", errText)
-						c.conn = nil
-						c.Close()
-						return
-					}
-
-					return
-				}
-			} else {
-				// Check for scanner errors
-				if err := scanner.Err(); err != nil {
-					c.logger.Error("error reading stderr", "error", err)
-				}
-				return
-			}
+		case err := <-c.doneChan:
+			// if c.cmd.ProcessState != nil {
+			c.logger.Error("process exited", "error", err)
+			// }
+			c.Close()
 		}
 	}
 }
@@ -401,8 +369,21 @@ func (c *MCPClient) Close() error {
 		c.cancelFn()
 		// Kill the process
 		if c.cmd != nil && c.cmd.Process != nil {
-			if err := c.cmd.Process.Kill(); err != nil {
-				c.logger.Error("failed to kill process", "error", err)
+			if c.cmd.ProcessState == nil {
+				if err := c.cmd.Process.Kill(); err != nil {
+					c.logger.Error("failed to kill process", "error", err)
+				}
+				if err := c.cmd.Wait(); err != nil {
+					c.logger.Debug(
+						"Process exited",
+						"error",
+						err,
+						"code",
+						c.cmd.ProcessState.ExitCode(),
+					)
+				}
+			} else {
+				c.logger.Debug("Process already exited", "code", c.cmd.ProcessState.ExitCode())
 			}
 		}
 		// Cancel the context and wait for the process to finish

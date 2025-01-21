@@ -16,7 +16,7 @@ import (
 type ToolProcessor interface {
 	GetTools() []chat.Tool
 	Start(ctx context.Context, config *config.MCPServers) error
-	StopMCP()
+	Stop()
 	HandleChoice(ctx context.Context, choice *chat.ChatChoice) ([]*chat.ChatMessage, error)
 }
 
@@ -53,7 +53,7 @@ func (tp *MCPToolService) processToolCall(
 	ctx context.Context,
 	content *chat.MessageContent,
 ) (*chat.ChatMessage, error) {
-	if content.GetType() == string(chat.ContentTypeToolUse) {
+	if content.GetType() != string(chat.ContentTypeToolUse) {
 		return nil, fmt.Errorf("invalid tool call: no tool call data")
 	}
 
@@ -163,11 +163,11 @@ func (a *MCPToolService) setTools() error {
 	return nil
 }
 
-func (a *MCPToolService) StopMCP() {
+func (a *MCPToolService) Stop() {
 	// TODO: Verify ctx implementation on both side mcpclient and Agent
-	if a.cancel != nil {
-		a.cancel()
-	}
+	// if a.cancel != nil {
+	// 	a.cancel()
+	// }
 	for _, client := range a.clients {
 		client.Close()
 	}

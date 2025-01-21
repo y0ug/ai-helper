@@ -182,7 +182,7 @@ func (cm *ConversationManager) IsInputNeeded() bool {
 }
 
 func (cm *ConversationManager) SetInput(input string) error {
-	if cm.IsInputNeeded() {
+	if cm.IsInputNeeded() && input != "" {
 		// .logger.Debug("adding new input", "input", input)
 		cm.Variables["Input"] = input
 	}
