@@ -9,7 +9,7 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/coder/diff"
 	"github.com/y0ug/ai-helper/internal/coder/parser"
-	"github.com/y0ug/ai-helper/internal/llmcontext"
+	"github.com/y0ug/ai-helper/pkg/conversation"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
@@ -24,8 +24,8 @@ func NewCodeDiffHandler() *CodeDiffHandler {
 // PreProcess handles pre-processing of code diffs
 func (h *CodeDiffHandler) PreProcess(
 	ctx context.Context,
-	cm *ConversationManager,
-	requestCtx *llmcontext.RequestContext,
+	cm conversation.Manager,
+	requestCtx conversation.Context,
 ) error {
 	// Extract code blocks from previous messages
 	var searchReplace []string
@@ -45,7 +45,7 @@ func (h *CodeDiffHandler) PreProcess(
 // PostProcess handles post-processing of code diffs
 func (h *CodeDiffHandler) PostProcess(
 	ctx context.Context,
-	cm *ConversationManager,
+	cm conversation.Manager,
 	response []*chat.ChatResponse,
 	w io.Writer,
 ) error {

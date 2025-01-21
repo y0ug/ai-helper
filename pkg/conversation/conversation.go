@@ -17,7 +17,7 @@ type ConversationManager struct {
 	ID           string
 	logger       *slog.Logger
 	Command      *config.Command
-	Templates    map[string]*PromptTemplate
+	Templates    map[string]*Template
 	History      []*chat.ChatMessage
 	CurrentState string
 	Variables    map[string]interface{}
@@ -60,8 +60,8 @@ func (cm *ConversationManager) RemoveFile(path string) error {
 	return cm.FileManager.RemoveFile(path)
 }
 
-// PromptTemplate defines a template for a conversation state
-type PromptTemplate struct {
+// Template defines a template for a conversation state
+type Template struct {
 	ID           string
 	SystemPrompt string
 	UserPrompt   string
