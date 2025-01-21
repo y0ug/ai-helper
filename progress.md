@@ -11,10 +11,10 @@
 
 ## Phase 2: Code Migration
 
-- [ ] Move existing code to new package
-  - [ ] Update import paths
+- [x] Move existing code to new package
+  - [x] Update import paths
   - [ ] Ensure tests pass
-  - [ ] Refactor interfaces and types
+  - [x] Refactor interfaces and types
 
 ## Phase 3: TemplateAgent Simplification
 

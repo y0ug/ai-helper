@@ -16,8 +16,8 @@ import (
 // TemplateAgent represents an AI agent that works with templates and commands
 type TemplateAgent struct {
 	*Agent
-	ConversationManager *ConversationManager
-	StateTransitioner   StateTransitioner
+	conversation *conversation.Manager
+	toolProcessor ToolProcessor
 	Command             *config.Command
 }
 
@@ -42,15 +42,15 @@ func NewTemplateAgent(
 		return nil, fmt.Errorf("failed to create base agent: %w", err)
 	}
 
-	conversationManager := NewConversationManager(id, logger)
-	if err := conversationManager.LoadCommand(command); err != nil {
+	conv := conversation.NewManager(id, logger)
+	if err := conv.LoadCommand(command); err != nil {
 		return nil, fmt.Errorf("failed to load command: %w", err)
 	}
 
 	return &TemplateAgent{
-		Agent:               baseAgent,
-		ConversationManager: conversationManager,
-		StateTransitioner:   NewDefaultStateTransitioner(),
+		Agent:         baseAgent,
+		conversation:  conv,
+		toolProcessor: toolProcessor,
 	}, nil
 }
 
@@ -66,8 +66,8 @@ func (ta *TemplateAgent) Execute(
 	ctx context.Context,
 	w io.Writer,
 ) ([]*chat.ChatResponse, float64, error) {
-	// Process the turn and get messages through conversation manager
-	turn, messages, err := ta.ConversationManager.ProcessTurn(ctx)
+	// Process the turn and get messages through conversation package
+	turn, messages, err := ta.conversation.ProcessTurn(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
 	}
@@ -89,8 +89,9 @@ func (ta *TemplateAgent) Execute(
 	}
 
 	// Run post-processing handlers with responses
-	for _, handler := range ta.ConversationManager.GetCurrentTemplate().Handlers {
-		if err := handler.PostProcess(ctx, ta.ConversationManager, responses, w); err != nil {
+	template := ta.conversation.GetCurrentTemplate()
+	for _, handler := range template.Handlers {
+		if err := handler.PostProcess(ctx, ta.conversation, responses, w); err != nil {
 			return responses, cost, fmt.Errorf("post-process error: %w", err)
 		}
 	}
@@ -103,13 +104,16 @@ func (ta *TemplateAgent) Execute(
 	turn.Messages = ta.GetMessages()
 
 	// Handle state transition
-	if ta.StateTransitioner != nil {
-		nextState, err := ta.StateTransitioner.DetermineNextState(ta.ConversationManager, responses)
-		if err != nil {
-			ta.logger.Warn("State transition error", "error", err)
-		} else if nextState != ta.ConversationManager.CurrentState {
-			ta.logger.Info("State transition", "from", ta.ConversationManager.CurrentState, "to", nextState)
-			ta.ConversationManager.CurrentState = nextState
+	nextState, err := conversation.NewDefaultStateTransitioner().DetermineNextState(ta.conversation, responses)
+	if err != nil {
+		ta.logger.Warn("State transition error", "error", err)
+	} else {
+		currentState := ta.conversation.GetCurrentState()
+		if nextState != currentState {
+			ta.logger.Info("State transition", "from", currentState, "to", nextState)
+			if err := ta.conversation.UpdateState(nextState); err != nil {
+				ta.logger.Error("Failed to update state", "error", err)
+			}
 		}
 	}
 
