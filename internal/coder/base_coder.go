@@ -1,6 +1,7 @@
 package coder
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,9 +76,14 @@ func (c *BaseCoder) getPrompts() *prompts.BasePrompts {
 
 func (c *BaseCoder) InitBeforeMessage() {
 	// Reset state before processing a new message
-	// if c.repo != nil {
-	// 	c.lastCommitHash = c.repo.GetHeadCommitSHA()
-	// }
+	if c.repo != nil {
+		lastCommitHash, err := c.repo.GetHeadCommitSHA(false)
+		if err != nil {
+			fmt.Println("Error getting head commit SHA:", err)
+		} else {
+			c.lastCommitHash = lastCommitHash
+		}
+	}
 }
 
 func (c *BaseCoder) Run(message string) error {
