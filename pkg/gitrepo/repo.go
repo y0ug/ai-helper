@@ -1,11 +1,5 @@
 package gitrepo
 
-import (
-	"time"
-
-	"github.com/go-git/go-git/v5"
-)
-
 //go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=gitrepo . GitRepoInterface,IOInterface
 
 // GitRepoInterface defines the contract for git repository operations
@@ -14,36 +8,17 @@ type GitRepoInterface interface {
 	GetDiffs(fnames []string) (string, error)
 	DiffCommits(pretty bool, fromCommit, toCommit string) (string, error)
 	GetTrackedFiles() ([]string, error)
-	IsIgnoredFile(fname string) bool
+	// IsIgnoredFile(fname string) bool
 	PathInRepo(path string) bool
 	GetDirtyFiles() ([]string, error)
-	IsDirty(path string) bool
+	IsDirty() bool
+	IsFileDirty(path string) bool
 	GetHeadCommit() (string, error)
 	GetHeadCommitSHA(short bool) (string, error)
 	GetHeadCommitMessage(defaultMsg string) (string, error)
 }
 
-// GitRepo implements GitRepoInterface
-type GitRepo struct {
-	io              IOInterface
-	repo            *git.Repository
-	root            string
-	normalizedPath  map[string]string
-	treeFiles       map[string]map[string]struct{}
-	ignoreFileCache map[string]bool
-
-	aiderIgnoreFile string
-	aiderIgnoreSpec *string //[]gitignore.Pattern
-	aiderIgnoreTS   time.Time
-	lastIgnoreCheck time.Time
-
-	subtreeOnly                     bool
-	attributeAuthor                 bool
-	attributeCommitter              bool
-	attributeCommitMessageAuthor    bool
-	attributeCommitMessageCommitter bool
-	commitPrompt                    string
-}
+var _ GitRepoInterface = (*GitRepo)(nil)
 
 // IOInterface defines methods for IO operations
 type IOInterface interface {

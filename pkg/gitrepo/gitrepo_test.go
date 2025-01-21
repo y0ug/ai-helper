@@ -1,362 +1,940 @@
 package gitrepo
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-// Helper function to create a test repository
-func setupTestRepo(t *testing.T) (string, func()) {
-	tmpDir, err := os.MkdirTemp("", "git-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Initialize git repo
-	repo, err := git.PlainInit(tmpDir, false)
-	if err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-
-	// Create basic git config
-	cfg, err := repo.Config()
-	if err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-	cfg.User.Name = "test"
-	cfg.User.Email = "test@test.com"
-	repo.SetConfig(cfg)
-
-	cleanup := func() {
-		os.RemoveAll(tmpDir)
-	}
-
-	return tmpDir, cleanup
+// Helper functions for testing
+func setupTestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
 }
 
-func createTestFile(t *testing.T, path string, content string) {
+func setupTestRepo(t *testing.T) (string, *GitRepo) {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.name", "Test User"},
+		{"git", "config", "user.email", "test@example.com"},
+	}
+
+	for _, cmd := range cmds {
+		c := exec.Command(cmd[0], cmd[1:]...)
+		c.Dir = dir
+		require.NoError(t, c.Run())
+	}
+
+	logger := setupTestLogger()
+	repo, err := NewGitRepo(logger, nil, dir)
+	require.NoError(t, err)
+
+	return dir, repo
+}
+
+func createFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
 	err := os.WriteFile(path, []byte(content), 0644)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-func TestCommit(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func addAndCommit(t *testing.T, dir string, files []string, message string) {
+	t.Helper()
 
-	repoPath, cleanup := setupTestRepo(t)
-	defer cleanup()
+	if len(files) > 0 {
+		cmd := exec.Command("git", append([]string{"add"}, files...)...)
+		cmd.Dir = dir
+		require.NoError(t, cmd.Run())
+	}
 
-	mockIO := NewMockIOInterface(ctrl)
+	cmd := exec.Command("git", "commit", "-m", message)
+	cmd.Dir = dir
+	require.NoError(t, cmd.Run())
+}
 
-	// Create a test file
-	testFile := filepath.Join(repoPath, "test.txt")
-	createTestFile(t, testFile, "test content")
-
+func TestNewGitRepo(t *testing.T) {
 	tests := []struct {
-		name       string
-		fnames     []string
-		context    string
-		message    string
-		aiderEdits bool
-		setupMocks func(*MockIOInterface)
-		wantErr    bool
+		name    string
+		setup   func(t *testing.T) (string, []string)
+		wantErr string
 	}{
 		{
-			name:       "successful commit",
-			fnames:     []string{"test.txt"},
-			context:    "test context",
-			message:    "test commit",
-			aiderEdits: true,
-			setupMocks: func(m *MockIOInterface) {
-				m.EXPECT().ToolError(gomock.Any()).AnyTimes() // Allow any error messages
-				m.EXPECT().ToolOutput(gomock.Any(), true).Times(1)
+			name: "valid repository",
+			setup: func(t *testing.T) (string, []string) {
+				dir := t.TempDir()
+				cmd := exec.Command("git", "init")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+				return dir, nil
 			},
-			wantErr: false,
+		},
+		{
+			name: "non-git directory",
+			setup: func(t *testing.T) (string, []string) {
+				return t.TempDir(), nil
+			},
+			wantErr: "no git repository found",
+		},
+		{
+			name: "with specific files",
+			setup: func(t *testing.T) (string, []string) {
+				dir := t.TempDir()
+				cmd := exec.Command("git", "init")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+				createFile(t, dir, "test.txt", "content")
+				return dir, []string{"test.txt"}
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupMocks != nil {
-				tt.setupMocks(mockIO)
+			dir, files := tt.setup(t)
+			logger := setupTestLogger()
+
+			repo, err := NewGitRepo(logger, files, dir)
+
+			if tt.wantErr != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
 			}
 
-			config := Config{
-				IO:              mockIO,
-				GitDname:        repoPath,
-				AttributeAuthor: true,
+			assert.NoError(t, err)
+			assert.NotNil(t, repo)
+			assert.Equal(t, dir, repo.GetRoot())
+		})
+	}
+}
+
+func TestGitRepo_GetDiffs(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, dir string)
+		files    []string
+		wantDiff string
+		wantErr  bool
+	}{
+		{
+			name: "modified file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "initial\n") // Add newline
+				addAndCommit(t, dir, []string{"test.txt"}, "initial commit")
+				createFile(t, dir, "test.txt", "modified\n") // Add newline
+			},
+			files:    []string{"test.txt"},
+			wantDiff: "diff --git", // Just check for diff header
+		},
+		{
+			name: "new file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "new.txt", "content")
+			},
+			files:    []string{"new.txt"},
+			wantDiff: "Added new.txt",
+		},
+		{
+			name: "multiple files",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "file1.txt", "content1")
+				createFile(t, dir, "file2.txt", "content2")
+			},
+			files:    []string{"file1.txt", "file2.txt"},
+			wantDiff: "Added file1.txt", // Just check for one file
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+
+			if tt.setup != nil {
+				tt.setup(t, dir)
 			}
 
-			gr, err := New(config)
-			assert.NoError(t, err)
+			diff, err := repo.GetDiffs(tt.files)
 
-			// Stage the files before commit
-			w, err := gr.repo.Worktree()
-			assert.NoError(t, err)
-			_, err = w.Add("test.txt")
-			assert.NoError(t, err)
-
-			hash, msg, err := gr.Commit(tt.fnames, tt.context, tt.message, tt.aiderEdits)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.NotEmpty(t, hash)
-			assert.Equal(t, tt.message, msg)
+			require.NoError(t, err)
+			assert.Contains(t, diff, tt.wantDiff)
 		})
 	}
 }
 
-func TestGetDiffs(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	repoPath, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	mockIO := NewMockIOInterface(ctrl)
-
-	config := Config{
-		IO:       mockIO,
-		GitDname: repoPath,
-	}
-
-	gr, err := New(config)
-	assert.NoError(t, err)
-
-	// Create a test file
-	testFile := filepath.Join(repoPath, "test.txt")
-	createTestFile(t, testFile, "test content")
-
-	// Add the file to git
-	w, err := gr.repo.Worktree()
-	assert.NoError(t, err)
-	_, err = w.Add("test.txt")
-	assert.NoError(t, err)
-
-	diffs, err := gr.GetDiffs([]string{"test.txt"})
-	assert.NoError(t, err)
-	assert.Contains(t, diffs, "test.txt")
-	assert.Contains(t, diffs, "test content") // Should contain the added content
-}
-
-func TestGetTrackedFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	repoPath, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	mockIO := NewMockIOInterface(ctrl)
-
-	config := Config{
-		IO:       mockIO,
-		GitDname: repoPath,
-	}
-
-	gr, err := New(config)
-	assert.NoError(t, err)
-
-	// Create and add a test file
-	testFile := filepath.Join(repoPath, "test.txt")
-	createTestFile(t, testFile, "test content")
-
-	w, err := gr.repo.Worktree()
-	assert.NoError(t, err)
-	_, err = w.Add("test.txt")
-	assert.NoError(t, err)
-
-	_, err = w.Commit("initial commit", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "test",
-			Email: "test@test.com",
+func TestGitRepo_Commit(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, dir string)
+		files      []string
+		message    string
+		aiderEdits bool
+		wantErr    bool
+		verify     func(t *testing.T, dir string)
+	}{
+		{
+			name: "single file commit",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+			},
+			files:   []string{"test.txt"},
+			message: "test commit",
+			verify: func(t *testing.T, dir string) {
+				cmd := exec.Command("git", "show", "--name-only", "--format=", "HEAD")
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				require.NoError(t, err)
+				assert.Contains(t, string(out), "test.txt")
+			},
 		},
-	})
-	assert.NoError(t, err)
-
-	files, err := gr.GetTrackedFiles()
-	assert.NoError(t, err)
-	assert.Contains(t, files, "test.txt")
-}
-
-func TestIsIgnoredFile(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	repoPath, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	mockIO := NewMockIOInterface(ctrl)
-
-	// Create .gitignore
-	gitignoreFile := filepath.Join(repoPath, ".gitignore")
-	createTestFile(t, gitignoreFile, "*.log\nnode_modules/")
-
-	config := Config{
-		IO:       mockIO,
-		GitDname: repoPath,
-	}
-
-	gr, err := New(config)
-	assert.NoError(t, err)
-
-	assert.True(t, gr.IsIgnoredFile("test.log"))
-	assert.True(t, gr.IsIgnoredFile("node_modules/test.js"))
-	assert.False(t, gr.IsIgnoredFile("test.txt"))
-}
-
-func TestGetHeadCommit(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	repoPath, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	mockIO := NewMockIOInterface(ctrl)
-
-	config := Config{
-		IO:       mockIO,
-		GitDname: repoPath,
-	}
-
-	gr, err := New(config)
-	assert.NoError(t, err)
-
-	// Create and commit a test file
-	testFile := filepath.Join(repoPath, "test.txt")
-	createTestFile(t, testFile, "test content")
-
-	w, err := gr.repo.Worktree()
-	assert.NoError(t, err)
-	_, err = w.Add("test.txt")
-	assert.NoError(t, err)
-
-	expectedHash, err := w.Commit("test commit", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "test",
-			Email: "test@test.com",
+		{
+			name: "multiple files commit",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "file1.txt", "content1")
+				createFile(t, dir, "file2.txt", "content2")
+			},
+			files:   []string{"file1.txt", "file2.txt"},
+			message: "multiple files",
+			verify: func(t *testing.T, dir string) {
+				cmd := exec.Command("git", "show", "--name-only", "--format=", "HEAD")
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				require.NoError(t, err)
+				files := strings.Split(strings.TrimSpace(string(out)), "\n")
+				assert.ElementsMatch(t, []string{"file1.txt", "file2.txt"}, files)
+			},
 		},
-	})
-	assert.NoError(t, err)
-
-	hash, err := gr.GetHeadCommit()
-	assert.NoError(t, err)
-	assert.Equal(t, expectedHash.String(), hash)
-}
-
-// Real IO implementation for testing
-type TestIO struct {
-	errors   []string
-	outputs  []string
-	warnings []string
-}
-
-func (io *TestIO) ToolError(msg string) {
-	io.errors = append(io.errors, msg)
-}
-
-func (io *TestIO) ToolOutput(msg string, bold bool) {
-	io.outputs = append(io.outputs, msg)
-}
-
-func (io *TestIO) ToolWarning(msg string) {
-	io.warnings = append(io.warnings, msg)
-}
-
-func TestBasicGitOperations(t *testing.T) {
-	repoPath, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	testIO := &TestIO{}
-	config := Config{
-		IO:                              testIO,
-		GitDname:                        repoPath,
-		AttributeAuthor:                 true,
-		AttributeCommitter:              true,
-		AttributeCommitMessageAuthor:    true,
-		AttributeCommitMessageCommitter: true,
+		{
+			name: "commit with aider attribution",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+			},
+			files:      []string{"test.txt"},
+			message:    "test commit",
+			aiderEdits: true,
+			verify: func(t *testing.T, dir string) {
+				cmd := exec.Command("git", "log", "-1", "--format=%an")
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				require.NoError(t, err)
+				assert.Contains(t, string(out), "(aider)")
+			},
+		},
+		{
+			name: "no changes",
+			setup: func(t *testing.T, dir string) {
+				// Empty repo, no changes
+			},
+			message: "empty commit",
+			wantErr: true,
+			verify: func(t *testing.T, dir string) {
+				// Check that no commit was created
+				cmd := exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				err := cmd.Run()
+				assert.Error(t, err) // Should fail as there should be no commits
+			},
+		},
 	}
 
-	gr, err := New(config)
-	assert.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
 
-	t.Run("commit new file", func(t *testing.T) {
-		// Create and add a test file
-		testFile := filepath.Join(repoPath, "test.txt")
-		err := os.WriteFile(testFile, []byte("test content"), 0644)
-		assert.NoError(t, err)
-
-		// Add file to git
-		w, err := gr.repo.Worktree()
-		assert.NoError(t, err)
-		hash2, err := w.Add("test.txt")
-		assert.NoError(t, err)
-		fmt.Println(hash2)
-		// Commit the file
-		hash, msg, err := gr.Commit([]string{"test.txt"}, "initial commit", "Add test file", true)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, hash)
-		assert.Equal(t, "Add test file", msg)
-
-		// Check if the commit was recorded in output
-		found := false
-		for _, output := range testIO.outputs {
-			if strings.Contains(output, "Add test file") {
-				found = true
-				break
+			if tt.setup != nil {
+				tt.setup(t, dir)
 			}
-		}
-		assert.True(t, found)
-	})
 
-	// Add more test cases...
+			hash, msg, err := repo.Commit(tt.files, "", tt.message, tt.aiderEdits)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotEmpty(t, hash)
+			assert.Contains(t, msg, tt.message)
+
+			if tt.verify != nil {
+				tt.verify(t, dir)
+			}
+		})
+	}
 }
 
-func TestEdgeCases(t *testing.T) {
-	repoPath, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	testIO := &TestIO{}
-	config := Config{
-		IO:       testIO,
-		GitDname: repoPath,
+func TestGitRepo_GetUncommittedChanges(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, dir string)
+		wantFiles []string
+		wantErr   bool
+	}{
+		{
+			name: "modified files",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "initial")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial commit")
+				createFile(t, dir, "test.txt", "modified")
+			},
+			wantFiles: []string{"test.txt"},
+		},
+		{
+			name: "new files",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "new.txt", "content")
+			},
+			wantFiles: []string{"new.txt"},
+		},
+		{
+			name: "no changes",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial commit")
+			},
+			wantFiles: nil,
+		},
 	}
 
-	gr, err := New(config)
-	assert.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
 
-	t.Run("non-existent file", func(t *testing.T) {
-		assert.False(t, gr.PathInRepo("non-existent.txt"))
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
 
-		hash, msg, err := gr.Commit(
-			[]string{"non-existent.txt"},
-			"",
-			"Try commit non-existent",
-			false,
-		)
-		assert.Empty(t, hash)
-		assert.Empty(t, msg)
-		assert.NoError(t, err)
-	})
+			files, err := repo.GetUncommittedChanges()
 
-	t.Run("empty commit", func(t *testing.T) {
-		hash, msg, err := gr.Commit(nil, "", "", false)
-		assert.Empty(t, hash)
-		assert.Empty(t, msg)
-		assert.NoError(t, err)
-	})
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.wantFiles, files)
+		})
+	}
 }
 
-// Add more test functions for other operations...
+func TestGitRepo_DiffCommits(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, dir string) (fromCommit, toCommit string)
+		pretty   bool
+		wantDiff string
+		wantErr  bool
+	}{
+		{
+			name: "basic diff between commits",
+			setup: func(t *testing.T, dir string) (string, string) {
+				// Create first commit
+				createFile(t, dir, "test.txt", "initial content\n")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial commit")
+
+				// Get first commit hash
+				cmd := exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				require.NoError(t, err)
+				fromCommit := strings.TrimSpace(string(out))
+
+				// Create second commit
+				createFile(t, dir, "test.txt", "modified content\n")
+				addAndCommit(t, dir, []string{"test.txt"}, "second commit")
+
+				// Get second commit hash
+				cmd = exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				out, err = cmd.Output()
+				require.NoError(t, err)
+				toCommit := strings.TrimSpace(string(out))
+
+				return fromCommit, toCommit
+			},
+			pretty:   false,
+			wantDiff: "modified content",
+		},
+		{
+			name: "diff with non-existent commit",
+			setup: func(t *testing.T, dir string) (string, string) {
+				createFile(t, dir, "test.txt", "content\n")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial commit")
+
+				cmd := exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				require.NoError(t, err)
+				commit := strings.TrimSpace(string(out))
+
+				return commit, "nonexistentcommit"
+			},
+			pretty:  false,
+			wantErr: true,
+		},
+		{
+			name: "diff with multiple files",
+			setup: func(t *testing.T, dir string) (string, string) {
+				// First commit with initial files
+				createFile(t, dir, "file1.txt", "initial1\n")
+				createFile(t, dir, "file2.txt", "initial2\n")
+				addAndCommit(t, dir, []string{"file1.txt", "file2.txt"}, "initial commit")
+
+				cmd := exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				require.NoError(t, err)
+				fromCommit := strings.TrimSpace(string(out))
+
+				// Second commit with modifications
+				createFile(t, dir, "file1.txt", "modified1\n")
+				createFile(t, dir, "file2.txt", "modified2\n")
+				addAndCommit(t, dir, []string{"file1.txt", "file2.txt"}, "second commit")
+
+				cmd = exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				out, err = cmd.Output()
+				require.NoError(t, err)
+				toCommit := strings.TrimSpace(string(out))
+
+				return fromCommit, toCommit
+			},
+			pretty:   false,
+			wantDiff: "diff --git",
+		},
+		{
+			name: "pretty diff",
+			setup: func(t *testing.T, dir string) (string, string) {
+				createFile(t, dir, "test.txt", "initial\n")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial commit")
+
+				cmd := exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				out, err := cmd.Output()
+				require.NoError(t, err)
+				fromCommit := strings.TrimSpace(string(out))
+
+				createFile(t, dir, "test.txt", "modified\n")
+				addAndCommit(t, dir, []string{"test.txt"}, "second commit")
+
+				cmd = exec.Command("git", "rev-parse", "HEAD")
+				cmd.Dir = dir
+				out, err = cmd.Output()
+				require.NoError(t, err)
+				toCommit := strings.TrimSpace(string(out))
+
+				return fromCommit, toCommit
+			},
+			pretty:   true,
+			wantDiff: "\x1b[", // ANSI color code
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+
+			fromCommit, toCommit := tt.setup(t, dir)
+
+			diff, err := repo.DiffCommits(tt.pretty, fromCommit, toCommit)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Contains(t, diff, tt.wantDiff)
+		})
+	}
+}
+
+func TestGitRepo_GetDirtyFiles(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, dir string)
+		wantFiles []string
+		wantErr   bool
+	}{
+		{
+			name: "modified file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "initial")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial")
+				createFile(t, dir, "test.txt", "modified")
+			},
+			wantFiles: []string{"test.txt"},
+		},
+		{
+			name: "new file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "new.txt", "content")
+			},
+			wantFiles: []string{"new.txt"},
+		},
+		{
+			name: "staged and unstaged changes",
+			setup: func(t *testing.T, dir string) {
+				// Create and stage first file
+				createFile(t, dir, "staged.txt", "content")
+				cmd := exec.Command("git", "add", "staged.txt")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+
+				// Create second file (unstaged)
+				createFile(t, dir, "unstaged.txt", "content")
+			},
+			wantFiles: []string{"staged.txt", "unstaged.txt"},
+		},
+		{
+			name: "renamed file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "old.txt", "content")
+				addAndCommit(t, dir, []string{"old.txt"}, "initial")
+
+				cmd := exec.Command("git", "mv", "old.txt", "new.txt")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+			},
+			wantFiles: []string{"new.txt"},
+		},
+		{
+			name: "no changes",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial")
+			},
+			wantFiles: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+
+			files, err := repo.GetDirtyFiles()
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			if len(files) == 0 && len(tt.wantFiles) == 0 {
+				return
+			}
+			assert.ElementsMatch(t, tt.wantFiles, files)
+		})
+	}
+}
+
+func TestGitRepo_GetHeadCommitSHA(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T, dir string)
+		short   bool
+		wantLen int
+		wantErr bool
+	}{
+		{
+			name: "full SHA",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "test commit")
+			},
+			short:   false,
+			wantLen: 40,
+		},
+		{
+			name: "short SHA",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "test commit")
+			},
+			short:   true,
+			wantLen: 7,
+		},
+		{
+			name:    "no commits",
+			setup:   nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+
+			sha, err := repo.GetHeadCommitSHA(tt.short)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Len(t, sha, tt.wantLen)
+		})
+	}
+}
+
+func TestGitRepo_GetHeadCommitMessage(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, dir string)
+		defaultMsg string
+		wantMsg    string
+		wantErr    bool
+	}{
+		{
+			name: "existing commit",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "test commit message")
+			},
+			defaultMsg: "default",
+			wantMsg:    "test commit message",
+		},
+		{
+			name:       "no commits with default",
+			setup:      nil,
+			defaultMsg: "default message",
+			wantMsg:    "default message",
+		},
+		{
+			name:    "no commits without default",
+			setup:   nil,
+			wantErr: true,
+		},
+		{
+			name: "multi-line commit message",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				cmd := exec.Command("git", "add", "test.txt")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+				cmd = exec.Command("git", "commit", "-m", "title\n\nbody")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+			},
+			wantMsg: "title\n\nbody",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+
+			msg, err := repo.GetHeadCommitMessage(tt.defaultMsg)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMsg, msg)
+		})
+	}
+}
+
+func TestGitRepo_GetHeadCommit(t *testing.T) {
+	tests := []struct {
+		name         string
+		setup        func(t *testing.T, dir string)
+		wantContains []string
+		wantErr      bool
+	}{
+		{
+			name: "existing commit",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "test commit")
+			},
+			wantContains: []string{
+				" - ",         // Format separator
+				"Test User",   // Author name
+				"test commit", // Commit message
+			},
+		},
+		{
+			name:    "no commits",
+			setup:   nil,
+			wantErr: true,
+		},
+		{
+			name: "commit with special characters",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "test: special message!")
+			},
+			wantContains: []string{
+				"test: special message!",
+				"Test User",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+
+			commit, err := repo.GetHeadCommit()
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotEmpty(t, commit)
+
+			// Validate commit format and content
+			for _, want := range tt.wantContains {
+				assert.Contains(t, commit, want)
+			}
+
+			// Validate SHA format
+			assert.Regexp(t, `^[0-9a-f]{40}`, commit)
+		})
+	}
+}
+
+func TestGitRepo_GetTrackedFiles(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, dir string)
+		wantFiles []string
+		wantErr   bool
+	}{
+		{
+			name: "single tracked file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial")
+			},
+			wantFiles: []string{"test.txt"},
+		},
+		{
+			name: "multiple tracked files",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test1.txt", "content")
+				createFile(t, dir, "test2.txt", "content")
+				addAndCommit(t, dir, []string{"test1.txt", "test2.txt"}, "initial")
+			},
+			wantFiles: []string{"test1.txt", "test2.txt"},
+		},
+		{
+			name: "tracked and untracked files",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "tracked.txt", "content")
+				addAndCommit(t, dir, []string{"tracked.txt"}, "initial")
+				createFile(t, dir, "untracked.txt", "content")
+			},
+			wantFiles: []string{"tracked.txt"},
+		},
+		{
+			name:      "empty repo",
+			setup:     func(t *testing.T, dir string) {},
+			wantFiles: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+			files, err := repo.GetTrackedFiles()
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if len(files) == 0 && len(tt.wantFiles) == 0 {
+				return
+			}
+			assert.ElementsMatch(t, tt.wantFiles, files)
+		})
+	}
+}
+
+func TestGitRepo_IsFileDirty(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, dir string)
+		filepath string
+		want     bool
+	}{
+		{
+			name: "modified file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "initial")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial")
+				createFile(t, dir, "test.txt", "modified")
+			},
+			filepath: "test.txt",
+			want:     true,
+		},
+		{
+			name: "unmodified file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				addAndCommit(t, dir, []string{"test.txt"}, "initial")
+			},
+			filepath: "test.txt",
+			want:     false,
+		},
+		{
+			name: "staged file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "test.txt", "content")
+				cmd := exec.Command("git", "add", "test.txt")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+			},
+			filepath: "test.txt",
+			want:     true,
+		},
+		{
+			name: "renamed file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "old.txt", "content")
+				addAndCommit(t, dir, []string{"old.txt"}, "initial")
+				cmd := exec.Command("git", "mv", "old.txt", "new.txt")
+				cmd.Dir = dir
+				require.NoError(t, cmd.Run())
+			},
+			filepath: "new.txt",
+			want:     true,
+		},
+		{
+			name: "untracked file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, "untracked.txt", "content")
+			},
+			filepath: "untracked.txt",
+			want:     true,
+		},
+		{
+			name:     "non-existent file",
+			setup:    func(t *testing.T, dir string) {},
+			filepath: "nonexistent.txt",
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+			got := repo.IsFileDirty(tt.filepath)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGitRepo_IsIgnoredFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, dir string)
+		filename string
+		want     bool
+	}{
+		{
+			name: "ignored file",
+			setup: func(t *testing.T, dir string) {
+				// Create .gitignore with *.log pattern
+				createFile(t, dir, ".gitignore", "*.log")
+				createFile(t, dir, "test.log", "content")
+			},
+			filename: "test.log",
+			want:     true,
+		},
+		{
+			name: "non-ignored file",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, ".gitignore", "*.log")
+				createFile(t, dir, "test.txt", "content")
+			},
+			filename: "test.txt",
+			want:     false,
+		},
+		{
+			name: "ignored directory",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, ".gitignore", "node_modules/")
+				err := os.Mkdir(filepath.Join(dir, "node_modules"), 0755)
+				require.NoError(t, err)
+				createFile(t, dir, "node_modules/file.txt", "content")
+			},
+			filename: "node_modules/file.txt",
+			want:     true,
+		},
+		{
+			name: "non-existent file in ignored pattern",
+			setup: func(t *testing.T, dir string) {
+				createFile(t, dir, ".gitignore", "*.log")
+			},
+			filename: "nonexistent.log",
+			want:     true,
+		},
+		{
+			name: "file in nested gitignore",
+			setup: func(t *testing.T, dir string) {
+				err := os.Mkdir(filepath.Join(dir, "subdir"), 0755)
+				require.NoError(t, err)
+				createFile(t, dir, "subdir/.gitignore", "*.txt")
+				createFile(t, dir, "subdir/test.txt", "content")
+			},
+			filename: "subdir/test.txt",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir, repo := setupTestRepo(t)
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+			got := repo.IsIgnoredFile(tt.filename)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

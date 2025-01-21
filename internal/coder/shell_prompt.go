@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	promptsA "github.com/y0ug/ai-helper/internal/prompts"
+	promptsA "github.com/y0ug/ai-helper/internal/coder/prompts"
 )
 
 func (c *BaseCoder) getShellCmdPrompt() string {
