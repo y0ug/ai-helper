@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -97,6 +98,10 @@ func main() {
 		}
 	}
 
+	ctx := context.Background()
+	toolProcessor := llmagent.NewToolProcessor(logger)
+	toolProcessor.Start(ctx, &cfg.MCPServers)
+
 	// Create template agent
 	agent, err := llmagent.NewTemplateAgent(
 		generateSessionID(),
@@ -104,7 +109,7 @@ func main() {
 		&cmd,
 		chatParams,
 		infoProviders,
-		&cfg.MCPServers,
+		toolProcessor,
 	)
 	if err != nil {
 		logger.Error("Error creating agent", "error", err)

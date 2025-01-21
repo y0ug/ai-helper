@@ -2,18 +2,15 @@ package llmagent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"time"
 
-	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
-	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
 // NOP go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=llmagent .  Agenter
@@ -40,16 +37,12 @@ type Agent struct {
 	requestOpts []options.RequestOption
 	chatParams  *chat.ChatParams
 
-	mcpClient         map[string]mcpclient.MCPClientInterface
-	mcpServerConfig   *config.MCPServers // List of current available MCP server configuration
-	mcpCancel         context.CancelFunc
-	ToolsHandler      map[string]ToolHandler // Map of tools function name to the real function
-	Tools             []chat.Tool            // List of tools
-	CreatedAt         time.Time              // When the agent was created
-	UpdatedAt         time.Time              // Last time the agent was updated
-	TotalInputTokens  int                    // Total tokens used in inputs
-	TotalOutputTokens int                    // Total tokens used in outputs
-	TotalCost         float64                // Total cost accumulated
+	toolProcessor     ToolProcessor
+	CreatedAt         time.Time // When the agent was created
+	UpdatedAt         time.Time // Last time the agent was updated
+	TotalInputTokens  int       // Total tokens used in inputs
+	TotalOutputTokens int       // Total tokens used in outputs
+	TotalCost         float64   // Total cost accumulated
 }
 
 func New(
@@ -57,19 +50,18 @@ func New(
 	logger *slog.Logger,
 	chatParams *chat.ChatParams,
 	modelInfoProvider modelinfo.Provider,
-	mcpServersConfig *config.MCPServers,
+	toolProcessor ToolProcessor,
 	requestOpts ...options.RequestOption,
 ) (*Agent, error) {
 	now := time.Now()
 	a := &Agent{
 		ID:                id,
 		logger:            logger,
-		mcpServerConfig:   mcpServersConfig,
-		mcpClient:         make(map[string]mcpclient.MCPClientInterface),
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		requestOpts:       requestOpts,
 		modelInfoProvider: modelInfoProvider,
+		toolProcessor:     toolProcessor,
 	}
 
 	if chatParams == nil {
@@ -108,39 +100,6 @@ func (a *Agent) SetModel(model string) error {
 	a.ModelInfo = modelInfo
 	a.chatParams.Model = a.ModelInfo.Name
 	return nil
-}
-
-// InitializeMCPClient
-func (a *Agent) StartMCP(ctx context.Context) error {
-	if a.mcpServerConfig == nil {
-		return fmt.Errorf("no MCP servers configured")
-	}
-
-	ctx, a.mcpCancel = context.WithCancel(ctx)
-
-	for serverName, config := range *a.mcpServerConfig {
-		a.logger.Debug("starting", "name", serverName)
-		if _, ok := a.mcpClient[serverName]; ok {
-			a.logger.Warn("already started", "name", serverName)
-			continue
-		}
-
-		// Create new MCP client
-		client, err := mcpclient.NewMCPClient(ctx, a.logger, config.Command, config.Args...)
-		if err != nil {
-			return fmt.Errorf("failed to create MCP client: %w", err)
-		}
-
-		if _, err := client.Initialize(ctx); err != nil {
-			client.Close()
-			return fmt.Errorf("failed to initialize MCP client: %w", err)
-		}
-
-		// Store the client
-		a.mcpClient[serverName] = client
-
-	}
-	return a.setTools()
 }
 
 func (a *Agent) SaveSession() *AgentSessionState {
@@ -182,34 +141,6 @@ func (a *Agent) LoadSession(state *AgentSessionState) error {
 	return nil
 }
 
-func (a *Agent) StopMCP() {
-	// TODO: Verify ctx implementation on both side mcpclient and Agent
-	if a.mcpCancel != nil {
-		a.mcpCancel()
-	}
-	for _, client := range a.mcpClient {
-		client.Close()
-	}
-}
-
-func (a *Agent) setTools() error {
-	a.ToolsHandler = make(map[string]ToolHandler)
-	a.Tools = make([]chat.Tool, 0)
-
-	for k, v := range a.mcpClient {
-		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
-		if err != nil {
-			a.logger.Warn("fetchTools", "name", k)
-			continue
-		}
-		a.Tools = append(a.Tools, MCPClientToolToTool(tools...)...)
-		for _, tool := range tools {
-			a.ToolsHandler[tool.Name] = GetToolHandler(v, tool.Name)
-		}
-	}
-	return nil
-}
-
 // UpdateCosts updates the agent's token and cost tracking with a new response
 func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 	var cost float64
@@ -239,7 +170,7 @@ func (a *Agent) Do(ctx context.Context, w io.Writer) ([]*chat.ChatResponse, floa
 		return nil, 0, fmt.Errorf("no client available")
 	}
 
-	a.chatParams.Tools = a.Tools
+	a.chatParams.Tools = a.toolProcessor.GetTools()
 	resp, err := a.process(ctx, w)
 	cost := a.UpdateCosts(resp...)
 	return resp, cost, err
@@ -312,55 +243,25 @@ func (a *Agent) process(
 		resp = append(resp, msg)
 
 		a.AddMessage(msg.ToMessageParams())
-		toolResults := make([]*chat.MessageContent, 0)
+		curMsgLen := len(a.GetMessages())
 		// for _, choice := range msg.Choice {
 		choice := msg.Choice[0]
-		for _, content := range choice.Content {
-			if content.Type == "tool_use" {
-				handler, ok := a.ToolsHandler[content.Name]
-				if !ok {
-					logger.Debug("Tool not found", "name", content.Name)
-					continue
-				}
-
-				var input map[string]interface{}
-				err := json.Unmarshal([]byte(content.Input), &input)
-				// fmt.Println(content.InputJson)
-				if err != nil {
-					logger.Debug("Error unmarshalling input",
-						"name", content.Name,
-						"input", string(content.Input))
-				}
-				logger.Debug("Tool call",
-					"name", content.Name,
-					"id", content.ID,
-					"input", input)
-				response, err := handler(ctx, input)
-				if err != nil {
-					logger.Error("Error executing tool",
-						"error", err,
-						"name", content.Name)
-					continue
-				}
-				b, err := json.Marshal(response)
-				if err != nil {
-					logger.Error("Failed to Marshall response",
-						"error", err,
-						"name", content.Name)
-				}
-				toolResults = append(
-					toolResults,
-					chat.NewToolResultContent(content.ID, string(b)),
-				)
-				logger.Debug("Tool result",
-					"name", content.Name,
-					"result", response)
+		if a.toolProcessor != nil {
+			toolResults, err := a.toolProcessor.HandleChoice(ctx, &choice)
+			if err != nil {
+				logger.Error("Error handling tool choice", "error", err)
+			} else if len(toolResults) > 0 {
+				a.AddMessage(toolResults...)
 			}
 		}
-		if len(toolResults) == 0 {
+
+		// for _, content := range choice.Content {
+		// }
+
+		// No new messages, break out of loop
+		if curMsgLen == len(a.GetMessages()) {
 			break
 		}
-		a.AddMessage(chat.NewMessage("tool", toolResults...))
 	}
 	if w != nil {
 		fmt.Fprintf(w, "\n")

@@ -1,7 +1,34 @@
+mcpServers:
+  sequentialthinking:
+    command: "docker"
+    args:
+      - run
+      - --rm
+      - -i
+      - mcp/sequentialthinking
+  brave-search:
+    command: "docker"
+    args:
+      - run
+      - --rm
+      - -i
+      - -e
+      - BRAVE_API_KEY
+      - mcp/brave-search
+  fetch:
+    command: "docker"
+    args:
+      - run
+      - --rm
+      - -i
+      - mcp/fetch
 commands:
   ask:
     description: Ask a computer expert
     initial_state: initial
+    mcpServers:
+      - sequentialthinking
+      - brave-search
     templates:
       initial:
         variables:

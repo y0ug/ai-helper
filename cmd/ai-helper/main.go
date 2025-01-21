@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/lmittmann/tint"
-	"github.com/y0ug/ai-helper/cmd/ai-helper/console"
 	"github.com/y0ug/ai-helper/internal/config"
+	"github.com/y0ug/ai-helper/internal/console"
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/internal/stats"
@@ -137,6 +137,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	ctx := context.Background()
 
 	loader := config.NewLoader()
 	cfg, err := loader.Load(cfgPath)
@@ -144,6 +145,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 		os.Exit(1)
 	}
+
+	toolProcessor := llmagent.NewToolProcessor(logger)
+	toolProcessor.Start(ctx, &cfg.MCPServers)
 
 	// Handle list command
 	if *showList {
@@ -233,7 +237,7 @@ func main() {
 			logger,
 			chatParams,
 			infoProviders,
-			&cfg.MCPServers,
+			toolProcessor,
 		)
 		if err != nil {
 			logger.Error("failed to create agent", "error", err)
@@ -293,7 +297,6 @@ func main() {
 			agent.AddMessage(chat.NewUserMessage(initialPrompt))
 		}
 
-		agent.StartMCP(context.Background())
 		console := console.New(agent)
 		console.Run()
 		return
@@ -305,7 +308,7 @@ func main() {
 		&cmd,
 		chatParams,
 		infoProviders,
-		&cfg.MCPServers,
+		toolProcessor,
 	)
 	if err != nil {
 		logger.Error("failed to create agent", "error", err)

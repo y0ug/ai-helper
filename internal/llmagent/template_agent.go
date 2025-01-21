@@ -27,7 +27,7 @@ func NewTemplateAgent(
 	command *config.Command,
 	chatParams *chat.ChatParams,
 	modelInfoProvider modelinfo.Provider,
-	mcpServersConfig *config.MCPServers,
+	toolProcessor ToolProcessor,
 	requestOpts ...options.RequestOption,
 ) (*TemplateAgent, error) {
 	baseAgent, err := New(
@@ -35,7 +35,7 @@ func NewTemplateAgent(
 		logger,
 		chatParams,
 		modelInfoProvider,
-		mcpServersConfig,
+		toolProcessor,
 		requestOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create base agent: %w", err)
