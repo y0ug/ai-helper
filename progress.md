@@ -5,7 +5,7 @@
 - [x] Create new conversation package structure
   - [x] Create pkg/conversation directory
   - [ ] Move conversation.go to manager.go
-  - [ ] Move state_transitioner.go to state.go
+  - [x] Move state_transitioner.go to state.go
   - [ ] Move llmcontext functionality to context.go
   - [x] Create types.go for shared interfaces
 
