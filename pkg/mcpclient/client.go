@@ -1,10 +1,13 @@
 package mcpclient
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os/exec"
+	"strings"
 
 	"golang.org/x/exp/jsonrpc2"
 )
@@ -36,14 +39,23 @@ type MCPClientInterface interface {
 type MCPClient struct {
 	conn     *jsonrpc2.Connection
 	cancelFn context.CancelFunc
-
-	logger *slog.Logger
+	ctx      context.Context
+	logger   *slog.Logger
 
 	// Track initialization state
 	initialized bool
 
 	// Server capabilities received during initialization
 	ServerInfo *ServerInfo
+
+	cmd    *exec.Cmd
+	Stream *Stream
+}
+
+type Stream struct {
+	Stdin  io.WriteCloser
+	Stdout io.ReadCloser
+	Stderr io.ReadCloser
 }
 
 func FetchAll[T any](
@@ -81,6 +93,14 @@ func logHandler(logger *slog.Logger) jsonrpc2.HandlerFunc {
 	}
 }
 
+type FatalServerError struct {
+	Msg string
+}
+
+func (e *FatalServerError) Error() string {
+	return e.Msg
+}
+
 // NewMCPClient creates a new MCP client and starts the language server
 func NewMCPClient(
 	ctxParent context.Context,
@@ -100,15 +120,70 @@ func NewMCPClient(
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start MCP server: %w", err)
 	}
+
+	// errChan := make(chan error, 1)
+	//
+	// // Create a goroutine to monitor stderr
+	// go func() {
+	// 	errBuf := make([]byte, 4096)
+	// 	for {
+	// 		n, err := stderr.Read(errBuf)
+	// 		if n > 0 {
+	// 			logger.Error("server error", "error", string(errBuf[:n]))
+	// 			errChan <- fmt.Errorf("fatal error detected: %s", string(errBuf[:n]))
+	// 		}
+	// 		if err != nil {
+	// 			break
+	// 		}
+	// 	}
+	// }()
+
+	// // Wait for a short time to check if the process failed immediately
+	// done := make(chan error, 1)
+	// go func() {
+	// 	done <- cmd.Wait()
+	// }()
+	//
+	// // Wait for potential immediate errors
+	// select {
+	// case err := <-errChan:
+	// 	return nil, err
+	// case <-time.After(500 * time.Millisecond):
+	// 	// Check if process is still running
+	// 	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+	// 		return nil, fmt.Errorf("process exited prematurely")
+	// 	}
+	// }
+	//
+	// select {
+	// case err := <-done:
+	// 	return nil, fmt.Errorf("server process failed to start: %w", err)
+	// case <-time.After(1000 * time.Millisecond):
+	// 	// Process survived initial startup
+	// }
+
+	ctx, cancel := context.WithCancel(ctxParent)
+
+	client := &MCPClient{
+		cmd:      cmd,
+		logger:   logger,
+		ctx:      ctx,
+		cancelFn: cancel,
+	}
+	// Start error monitoring in a goroutine
+	go client.monitorErrors(stderr)
+
 	dialer := &StdioStream{
 		reader: stdout,
 		writer: stdin,
 	}
-
-	ctx, cancel := context.WithCancel(ctxParent)
 
 	// HeaderFramer is the jsonrpc2.Framer options
 	// That's what MCP servers are expecting
@@ -119,6 +194,7 @@ func NewMCPClient(
 			Base: framer,
 		}
 	}
+
 	conn, err := jsonrpc2.Dial(
 		ctx,
 		dialer,
@@ -129,14 +205,50 @@ func NewMCPClient(
 	)
 	if err != nil {
 		cancel()
+		cmd.Process.Kill()
 		return nil, fmt.Errorf("dial error: %w", err)
 	}
+	client.conn = conn
+	return client, nil
+}
 
-	return &MCPClient{
-		conn:     conn,
-		cancelFn: cancel,
-		logger:   logger,
-	}, nil
+func (c *MCPClient) monitorErrors(stderr io.ReadCloser) {
+	scanner := bufio.NewScanner(stderr)
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		default:
+			if scanner.Scan() {
+				errText := scanner.Text()
+				if errText != "" {
+					c.logger.Error("server error", "error", errText)
+
+					// Only close on actual error messages
+					if strings.Contains(strings.ToLower(errText), "error:") ||
+						strings.Contains(
+							errText,
+							"BRAVE_API_KEY environment variable is required",
+						) ||
+						strings.Contains(strings.ToLower(errText), "fatal:") {
+						c.logger.Error("fatal error detected, closing client", "error", errText)
+						c.conn = nil
+						c.Close()
+						return
+					}
+
+					return
+				}
+			} else {
+				// Check for scanner errors
+				if err := scanner.Err(); err != nil {
+					c.logger.Error("error reading stderr", "error", err)
+				}
+				return
+			}
+		}
+	}
 }
 
 type ServerInfo InitializeResult
@@ -156,7 +268,8 @@ func (c *MCPClient) Initialize(ctx context.Context) (*ServerInfo, error) {
 	}
 
 	var result InitializeResult
-	if err := c.conn.Call(ctx, method, params).Await(ctx, &result); err != nil {
+	c.logger.Debug("Sending initialize request")
+	if err := c.conn.Call(ctx, method, params).Await(c.ctx, &result); err != nil {
 		return nil, fmt.Errorf("initialize failed: %w", err)
 	}
 
@@ -183,6 +296,9 @@ func (c *MCPClient) Initialize(ctx context.Context) (*ServerInfo, error) {
 
 // Ping sends a ping request to check if the server is alive
 func (c *MCPClient) Ping(ctx context.Context) error {
+	if !c.initialized {
+		return fmt.Errorf("client not initialized")
+	}
 	if err := c.conn.Call(ctx, "ping", nil).Await(ctx, nil); err != nil {
 		return fmt.Errorf("ping failed: %w", err)
 	}
@@ -192,6 +308,9 @@ func (c *MCPClient) Ping(ctx context.Context) error {
 
 // ListTools requests the list of available tools from the server
 func (c *MCPClient) ListTools(ctx context.Context, cursor *string) ([]Tool, *string, error) {
+	if !c.initialized {
+		return nil, nil, fmt.Errorf("client not initialized")
+	}
 	params := &ListToolsRequestParams{Cursor: cursor}
 
 	var result ListToolsResult
@@ -207,6 +326,9 @@ func (c *MCPClient) ListResources(
 	ctx context.Context,
 	cursor *string,
 ) ([]Resource, *string, error) {
+	if !c.initialized {
+		return nil, nil, fmt.Errorf("client not initialized")
+	}
 	params := &ListResourcesRequestParams{Cursor: cursor}
 
 	var result ListResourcesResult
@@ -222,6 +344,9 @@ func (c *MCPClient) ReadResource(
 	ctx context.Context,
 	uri string,
 ) (*[]interface{}, error) {
+	if !c.initialized {
+		return nil, fmt.Errorf("client not initialized")
+	}
 	var result ReadResourceResult
 	params := ReadResourceRequestParams{Uri: uri}
 	if err := c.conn.Call(ctx, "resources/read", params).Await(ctx, &result); err != nil {
@@ -237,6 +362,9 @@ func (c *MCPClient) CallTool(
 	name string,
 	args map[string]interface{},
 ) (*CallToolResult, error) {
+	if !c.initialized {
+		return nil, fmt.Errorf("client not initialized")
+	}
 	params := CallToolRequestParams{
 		Name:      name,
 		Arguments: args,
@@ -251,20 +379,35 @@ func (c *MCPClient) CallTool(
 
 // Close shuts down the MCP client and server
 func (c *MCPClient) Close() error {
-	ctx := context.Background()
-
-	// Send exit notification
-	if err := c.conn.Notify(ctx, "exit", nil); err != nil {
-		c.logger.Error("exit notification failed", "error", err)
+	// _ := context.Background()
+	if c.initialized {
+		c.initialized = false
 	}
 
-	// Close the connection
-	if err := c.conn.Close(); err != nil {
-		// log.Printf("connection close failed: %v", err)
+	// If we have an active connection, clean it up
+	if c.conn != nil {
+		ctx := context.Background()
+		// Try to send exit notification
+		_ = c.conn.Notify(ctx, "exit", nil)
+		// Close the connection
+		_ = c.conn.Close()
+		c.conn = nil
 	}
 
-	// Cancel the context and wait for the process to finish
-	c.cancelFn()
+	select {
+	case <-c.ctx.Done():
+	default:
+		c.logger.Debug("Closing MCP client")
+		c.cancelFn()
+		// Kill the process
+		if c.cmd != nil && c.cmd.Process != nil {
+			if err := c.cmd.Process.Kill(); err != nil {
+				c.logger.Error("failed to kill process", "error", err)
+			}
+		}
+		// Cancel the context and wait for the process to finish
 
+		c.logger.Debug("MCP client closed")
+	}
 	return nil
 }
