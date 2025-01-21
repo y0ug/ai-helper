@@ -1,0 +1,172 @@
+package filemanager
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"sync"
+	"time"
+)
+
+type LocalFileManager struct {
+	files map[string]*FileInfo
+	mu    sync.RWMutex
+}
+
+func NewLocalFileManager() *LocalFileManager {
+	return &LocalFileManager{
+		files: make(map[string]*FileInfo),
+	}
+}
+
+func (fm *LocalFileManager) AddFile(path string, readOnly bool) error {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("error reading file %s: %w", path, err)
+	}
+
+	hasher := sha256.New()
+	hasher.Write(content)
+	newHash := hex.EncodeToString(hasher.Sum(nil))
+
+	if fileInfo, exists := fm.files[path]; exists {
+		if fileInfo.Hash == newHash {
+			return nil
+		}
+	}
+
+	fm.files[path] = &FileInfo{
+		Content:    string(content),
+		Hash:       newHash,
+		ReadOnly:   readOnly,
+		LastUpdate: time.Now(),
+		GitStatus:  StatusUnknown,
+	}
+
+	return nil
+}
+
+func (fm *LocalFileManager) RemoveFile(path string) error {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+
+	// fileInfo, exists := fm.files[path]
+	delete(fm.files, path)
+	return nil
+}
+
+func (fm *LocalFileManager) ListFiles() map[string]*FileInfo {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+
+	files := make(map[string]*FileInfo)
+	for k, v := range fm.files {
+		files[k] = v
+	}
+	return files
+}
+
+func (fm *LocalFileManager) GetFileContent(path string) (string, bool, error) {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+
+	fileInfo, exists := fm.files[path]
+	if !exists {
+		return "", false, fmt.Errorf("file %s not found", path)
+	}
+
+	// Return content, isEditable, nil
+	return fileInfo.Content, !fileInfo.ReadOnly, nil
+}
+
+func (fm *LocalFileManager) IsFileReadOnly(path string) (bool, error) {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+
+	fileInfo, exists := fm.files[path]
+	if !exists {
+		return false, fmt.Errorf("file %s not found", path)
+	}
+	return fileInfo.ReadOnly, nil
+}
+
+// GetFileLastUpdate gets the last update time of a file
+func (fm *LocalFileManager) GetFileLastUpdate(path string) (time.Time, error) {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+	fileInfo, exists := fm.files[path]
+	if !exists {
+		return time.Time{}, fmt.Errorf("file %s not found", path)
+	}
+	return fileInfo.LastUpdate, nil
+}
+
+// UpdateFileContent updates file content if it's not read-only
+func (fm *LocalFileManager) UpdateFileContent(path string, newContent string) error {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+	fileInfo, exists := fm.files[path]
+	if !exists {
+		return fmt.Errorf("file %s not found", path)
+	}
+
+	if fileInfo.ReadOnly {
+		return fmt.Errorf("cannot modify read-only file %s", path)
+	}
+
+	// Calculate new hash
+	hasher := sha256.New()
+	hasher.Write([]byte(newContent))
+	newHash := hex.EncodeToString(hasher.Sum(nil))
+
+	// Update file info
+	fileInfo.Content = newContent
+	fileInfo.Hash = newHash
+	fileInfo.LastUpdate = time.Now()
+
+	return nil
+}
+
+func (fm *LocalFileManager) GetFileStatus(path string) (FileStatus, error) {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+
+	fileInfo, exists := fm.files[path]
+	if !exists {
+		return StatusUnknown, fmt.Errorf("file %s not found", path)
+	}
+
+	// For local manager, check if file exists and if content matches stored hash
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return StatusDeleted, nil
+		}
+		return StatusUnknown, fmt.Errorf("error reading file: %w", err)
+	}
+
+	hasher := sha256.New()
+	hasher.Write(content)
+	currentHash := hex.EncodeToString(hasher.Sum(nil))
+
+	if currentHash != fileInfo.Hash {
+		return StatusModified, nil
+	}
+
+	return StatusUnmodified, nil
+}
+
+func (fm *LocalFileManager) GetFiles() map[string]*FileInfo {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+
+	files := make(map[string]*FileInfo)
+	for k, v := range fm.files {
+		files[k] = v
+	}
+	return files
+}

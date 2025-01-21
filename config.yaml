@@ -34,28 +34,8 @@ commands:
         variables:
           - name: Input
             type: stdin|arg
-        system: |
-          You are a computer expert specializing in Linux/Windows shell commands, scripting, 
-          and system administration tasks. Be concise and direct in your responses.
         prompt: |
-          For each question:
-
-          1. If it's a command request:
-            - Provide the exact command without explanation
-            - Add only critical flags/options
-            - Include a single-line comment explaining the command (if needed)
-            - Format as a code block
-
-          2. If it's a scripting question:
-            - Give the shortest working solution
-            - Include only essential error handling
-            - Format as a code block
-
-          3. If it's a conceptual question:
-            - Provide a max 2-sentence answer
-            - Include a command example if relevant
-
-          Question: {{ .Vars.Input }}
+          {{ .Vars.Input }}
 
           {{ FilesDump }}
         next_states: [follow_up]

@@ -54,7 +54,12 @@ func (h *CodeDiffHandler) PostProcess(
 	parser := parser.New()
 	if len(response) > 0 && len(response[0].Choice) > 0 && len(response[0].Choice[0].Content) > 0 {
 		sections := parser.ParseResponse(response[0].Choice[0].Content[0].String())
-		modifiedFiles, err := diff.ApplyChanges(cm.Files, sections)
+		filesInCtx := cm.FileManager.GetFiles()
+		files := make(map[string]string)
+		for filename, file := range filesInCtx {
+			files[filename] = file.Content
+		}
+		modifiedFiles, err := diff.ApplyChanges(files, sections)
 		if err != nil {
 			fmt.Println("Error applying changes:", err)
 			return nil
@@ -62,9 +67,9 @@ func (h *CodeDiffHandler) PostProcess(
 		for filename, file := range modifiedFiles {
 			// fmt.Println("filename:", filename)
 			// fmt.Println("file:", file)
-			if orginalContent, exists := cm.Files[filename]; exists && orginalContent != file {
+			if orginalContent, exists := files[filename]; exists && orginalContent != file {
 				// patches[filename] = diff.GeneratePatch(orginalContent, file)
-				ext := filepath.Ext(filename)[1:]
+				ext := filepath.Ext(filename)[:1]
 				fmt.Fprintf(w, "```%s\n%s\n```\n", ext, file)
 			}
 		}

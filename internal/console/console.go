@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/c-bata/go-prompt"
@@ -53,13 +54,13 @@ func (c *Console) appendHistory(input string) {
 	if input == "" {
 		return
 	}
-	
+
 	file, err := os.OpenFile(c.historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return
 	}
 	defer file.Close()
-	
+
 	file.WriteString(input + "\n")
 }
 
@@ -73,7 +74,7 @@ type Command struct {
 func New(agent *llmagent.TemplateAgent) *Console {
 	c := &Console{
 		agent:       agent,
-		h:          highlighter.NewHighlighter(os.Stdout),
+		h:           highlighter.NewHighlighter(os.Stdout),
 		historyFile: getHistoryFilePath(),
 	}
 	c.commands = map[string]Command{
@@ -177,6 +178,40 @@ func (c *Console) getFileSuggestions(pattern string) []prompt.Suggest {
 	return suggestions
 }
 
+func (c *Console) getFileManagerSuggestions(pattern string) []prompt.Suggest {
+	filesInCtx := c.agent.ConversationManager.FileManager.GetFiles()
+	pattern = strings.ToLower(pattern)
+
+	suggestions := make([]prompt.Suggest, 0)
+	seen := make(map[string]bool)
+
+	for filename := range filesInCtx {
+		basename := filepath.Base(filename)
+		lowerBasename := strings.ToLower(basename)
+
+		// Skip if we've already seen this basename
+		if seen[basename] {
+			continue
+		}
+		seen[basename] = true
+
+		// Check if pattern matches anywhere in the basename
+		if strings.Contains(lowerBasename, pattern) {
+			suggestions = append(suggestions, prompt.Suggest{
+				Text:        basename,
+				Description: filename,
+			})
+		}
+	}
+
+	// Sort suggestions alphabetically
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].Text < suggestions[j].Text
+	})
+
+	return suggestions
+}
+
 func (c *Console) completer(d prompt.Document) []prompt.Suggest {
 	var suggestions []prompt.Suggest
 	input := d.TextBeforeCursor()
@@ -202,6 +237,14 @@ func (c *Console) completer(d prompt.Document) []prompt.Suggest {
 			word = "."
 		}
 		return c.getFileSuggestions(word)
+	} else if words[0] == "/remove" {
+		// Get the word being typed
+		word := d.GetWordBeforeCursor()
+		// If word is empty, suggest current directory
+		if word == "" {
+			word = "."
+		}
+		return c.getFileManagerSuggestions(word)
 	}
 
 	return suggestions
@@ -214,7 +257,7 @@ func (c *Console) handleAddFile(args []string) {
 	}
 
 	for _, file := range args {
-		if err := c.agent.ConversationManager.LoadFile(file); err != nil {
+		if err := c.agent.ConversationManager.AddFile(file, false); err != nil {
 			fmt.Printf("Error loading file %s: %v\n", file, err)
 			continue
 		}
@@ -228,33 +271,21 @@ func (c *Console) handleRemoveFile(args []string) {
 		return
 	}
 
-	loadedFiles := c.agent.ConversationManager.Files
 	for _, file := range args {
-		found := false
-		for _, loaded := range loadedFiles {
-			if loaded == file {
-				found = true
-				break
-			}
-		}
-		if !found {
-			fmt.Printf("File not found: %s\n", file)
-		} else {
-			// c.agent.ConversationManager.RemoveFiles(file)
-			fmt.Printf("Removed file: %s\n", file)
-		}
+		c.agent.ConversationManager.RemoveFile(file)
+		fmt.Printf("Removed file: %s\n", file)
 	}
 }
 
 func (c *Console) handleListFiles(args []string) {
-	files := c.agent.ConversationManager.Files
+	files := c.agent.ConversationManager.FileManager.GetFiles()
 	if len(files) == 0 {
 		fmt.Println("No files currently attached")
 		return
 	}
 	fmt.Println("Currently attached files:")
-	for _, file := range files {
-		fmt.Printf("- %s\n", file)
+	for fileName, file := range files {
+		fmt.Printf("- %s %s (%s)\n", fileName, file.LastUpdate, file.ReadOnly)
 	}
 }
 

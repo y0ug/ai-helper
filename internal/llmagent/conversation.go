@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"slices"
 
 	"github.com/y0ug/ai-helper/internal/config"
+	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/internal/llmcontext"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
@@ -21,7 +21,7 @@ type ConversationManager struct {
 	History      []*chat.ChatMessage
 	CurrentState string
 	Variables    map[string]interface{}
-	Files        map[string]string
+	FileManager  filemanager.FileManager
 }
 
 // NewTurn creates a new turn with initialized maps
@@ -52,13 +52,12 @@ func (cm *ConversationManager) SetVariable(name string, value interface{}) {
 }
 
 // LoadFile loads a file into the turn context
-func (cm *ConversationManager) LoadFile(path string) error {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("error reading file %s: %w", path, err)
-	}
-	cm.Files[path] = string(content)
-	return nil
+func (cm *ConversationManager) AddFile(path string, readOnly bool) error {
+	return cm.FileManager.AddFile(path, readOnly)
+}
+
+func (cm *ConversationManager) RemoveFile(path string) error {
+	return cm.FileManager.RemoveFile(path)
 }
 
 // PromptTemplate defines a template for a conversation state
@@ -95,12 +94,13 @@ type StateTransitioner interface {
 
 // NewConversationManager creates a new conversation manager
 func NewConversationManager(id string) *ConversationManager {
+	fm := filemanager.NewLocalFileManager()
 	return &ConversationManager{
-		ID:        id,
-		Templates: make(map[string]*PromptTemplate),
-		History:   make([]*chat.ChatMessage, 0),
-		Variables: make(map[string]interface{}),
-		Files:     make(map[string]string),
+		ID:          id,
+		Templates:   make(map[string]*PromptTemplate),
+		History:     make([]*chat.ChatMessage, 0),
+		Variables:   make(map[string]interface{}),
+		FileManager: fm,
 	}
 }
 
@@ -225,7 +225,19 @@ func (cm *ConversationManager) ProcessTurn(
 
 	// Copy current variables and files to the turn
 	requestCtx.Vars = cm.Variables
-	requestCtx.Files = cm.Files
+
+	// Create a map of file contents for the request context
+	filesInCtx := cm.FileManager.GetFiles()
+	files := make(map[string]string)
+	for path := range filesInCtx {
+		// Check if the variable value is a file path
+		if content, isEditable, err := cm.FileManager.GetFileContent(path); err == nil {
+			files[path] = content
+			// Optionally store the isEditable flag in variables
+			requestCtx.Vars[path+"_readonly"] = !isEditable
+		}
+	}
+	requestCtx.Files = files
 
 	// Execute pre-turn commands
 	for _, cmdStr := range template.PreTurnCmds {
@@ -315,4 +327,38 @@ func (cm *ConversationManager) GetCurrentTemplate() *PromptTemplate {
 // GetHistory returns the conversation history
 func (cm *ConversationManager) GetHistory() []*chat.ChatMessage {
 	return cm.History
+}
+
+// UpdateFileFromLLMResponse updates a file with content from LLM response
+func (cm *ConversationManager) UpdateFileFromLLMResponse(path string, content string) error {
+	// Check if file exists and is editable
+	_, isEditable, err := cm.FileManager.GetFileContent(path)
+	if err != nil {
+		return fmt.Errorf("file not found: %w", err)
+	}
+
+	if !isEditable {
+		return fmt.Errorf("file %s is read-only", path)
+	}
+
+	return cm.FileManager.UpdateFileContent(path, content)
+}
+
+// GetFileStatus gets the status of a file
+func (cm *ConversationManager) GetFileStatus(path string) (filemanager.FileStatus, error) {
+	return cm.FileManager.GetFileStatus(path)
+}
+
+// Optional: Add method to check if files have changed
+func (cm *ConversationManager) CheckFilesStatus() map[string]filemanager.FileStatus {
+	statuses := make(map[string]filemanager.FileStatus)
+
+	// Check all files mentioned in variables
+	for path := range cm.Variables {
+		if status, err := cm.FileManager.GetFileStatus(path); err == nil {
+			statuses[path] = status
+		}
+	}
+
+	return statuses
 }
