@@ -76,19 +76,21 @@ func main() {
 		chat.WithMaxTokens(100),
 	)
 
+	toolProcessor := llmagent.NewToolProcessor(logger)
+	toolProcessor.Start(ctx, &cfg.MCPServers)
+	defer toolProcessor.Stop()
+
 	agent, err := llmagent.New(
 		"test",
 		logger,
 		chatParams,
 		modelInfoProvider,
-		&cfg.MCPServers,
+		toolProcessor,
 		requestOpts...)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
-	agent.StartMCP(ctx)
 
 	h := highlighter.NewHighlighter(os.Stdout)
 	agent.AddMessage(chat.NewMessage("user",
@@ -101,5 +103,4 @@ func main() {
 	}
 
 	logger.Info("cost", "value", cost)
-	agent.StopMCP()
 }

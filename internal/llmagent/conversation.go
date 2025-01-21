@@ -182,8 +182,7 @@ func (cm *ConversationManager) IsInputNeeded() bool {
 }
 
 func (cm *ConversationManager) SetInput(input string) error {
-	if cm.IsInputNeeded() && input != "" {
-		// .logger.Debug("adding new input", "input", input)
+	if input != "" {
 		cm.Variables["Input"] = input
 	}
 	return nil
@@ -235,7 +234,7 @@ func (cm *ConversationManager) ProcessTurn(
 		if err != nil {
 			return nil, nil, fmt.Errorf("error checking file status for %s: %w", path, err)
 		}
-		
+
 		changed, err := cm.FileManager.HasFileChanged(path)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error checking file changes for %s: %w", path, err)
@@ -245,16 +244,17 @@ func (cm *ConversationManager) ProcessTurn(
 		// 1. It has changed since last send OR
 		// 2. It is out of sync with disk OR
 		// 3. It has been modified
-		if changed || status == filemanager.StatusOutOfSync || status == filemanager.StatusModified {
+		if changed || status == filemanager.StatusOutOfSync ||
+			status == filemanager.StatusModified {
 			content, isEditable, err := cm.FileManager.GetFileContent(path)
 			if err != nil {
 				return nil, nil, fmt.Errorf("error getting content for %s: %w", path, err)
 			}
-			
+
 			files[path] = content
 			requestCtx.Vars[path+"_readonly"] = !isEditable
-			requestCtx.Vars[path+"_status"] = status.String()
-			
+			// requestCtx.Vars[path+"_status"] = status.String()
+
 			// Mark as sent only if we successfully added it to context
 			if err := cm.FileManager.MarkFileAsSent(path); err != nil {
 				return nil, nil, fmt.Errorf("error marking %s as sent: %w", path, err)

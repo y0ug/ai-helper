@@ -228,22 +228,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: Unknown command '%s'\n", command)
 		os.Exit(1)
 	}
-
+	agent, err := llmagent.NewTemplateAgent(
+		generateSessionID(),
+		logger,
+		&cmd,
+		chatParams,
+		infoProviders,
+		toolProcessor,
+	)
+	if err != nil {
+		logger.Error("failed to create agent", "error", err)
+		return
+	}
 	// Handle interactive mode
 	if *interactiveMode {
 		// Create an agent for this command
-		agent, err := llmagent.New(
-			generateSessionID(),
-			logger,
-			chatParams,
-			infoProviders,
-			toolProcessor,
-		)
-		if err != nil {
-			logger.Error("failed to create agent", "error", err)
-
-			return
-		}
 
 		// Load prompt and system prompt content
 		promptContent, systemContent, vars, err := config.LoadPromptContent(cmd)
@@ -302,24 +301,9 @@ func main() {
 		return
 	}
 
-	agent, err := llmagent.NewTemplateAgent(
-		generateSessionID(),
-		logger,
-		&cmd,
-		chatParams,
-		infoProviders,
-		toolProcessor,
-	)
-	if err != nil {
-		logger.Error("failed to create agent", "error", err)
-		return
-	}
-
 	inputArgs := args[1:]
 	h := highlighter.NewHighlighter(os.Stdout)
-	argsCmd := make(map[string]string, 0)
-	argsCmd["Input"] = strings.Join(inputArgs, " ")
-	err = agent.LoadArgs(argsCmd)
+	err = agent.ConversationManager.SetInput(strings.Join(inputArgs, " "))
 	if err != nil {
 		logger.Error("failed to load args", "Error", err)
 		return
@@ -330,7 +314,7 @@ func main() {
 		for _, filepath := range additionalFiles {
 			filepath = strings.TrimSpace(filepath)
 			logger.Debug("Loading file", "path", filepath)
-			if err := agent.LoadFiles(filepath); err != nil {
+			if err := agent.ConversationManager.AddFile(filepath, false); err != nil {
 				logger.Error("failed to load files", "Error", err)
 				return
 			}
