@@ -229,12 +229,13 @@ func (cm *ConversationManager) ProcessTurn(
 	// Create a map of file contents for the request context
 	filesInCtx := cm.FileManager.GetFiles()
 	files := make(map[string]string)
-	for path, fileInfo := range filesInCtx {
+	for path := range filesInCtx {
+		status, err := cm.FileManager.GetFileStatus(path)
 		changed, err := cm.FileManager.HasFileChanged(path)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error checking file status: %w", err)
 		}
-		
+
 		if changed {
 			if content, isEditable, err := cm.FileManager.GetFileContent(path); err == nil {
 				files[path] = content
