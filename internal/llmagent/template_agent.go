@@ -41,7 +41,7 @@ func NewTemplateAgent(
 		return nil, fmt.Errorf("failed to create base agent: %w", err)
 	}
 
-	conversationManager := NewConversationManager(id)
+	conversationManager := NewConversationManager(id, logger)
 	if err := conversationManager.LoadCommand(command); err != nil {
 		return nil, fmt.Errorf("failed to load command: %w", err)
 	}
