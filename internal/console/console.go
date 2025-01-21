@@ -108,6 +108,11 @@ func New(agent *llmagent.TemplateAgent) *Console {
 			description: "Set state",
 			handler:     c.setState,
 		},
+		"/send": {
+			name:        "send",
+			description: "send request",
+			handler:     c.send,
+		},
 	}
 
 	c.pt = prompt.New(
@@ -140,9 +145,24 @@ func (c *Console) UpdatePrompt() (string, bool) {
 
 func (c *Console) Run() {
 	if !c.agent.GetConversation().IsInputNeeded() {
-		c.agent.Execute(context.Background(), c.h)
+		// c.agent.Execute(context.Background(), c.h)
 	}
 	c.pt.Run()
+}
+
+func (c *Console) ProcessTurn() {
+	msg, err := c.agent.GetConversation().ProcessTurn(context.Background())
+	if err != nil {
+		fmt.Printf("Error processing turn: %v\n", err)
+		return
+	}
+	for _, m := range msg {
+		l := len(m.Content[0].String())
+		if l > 128 {
+			l = 128
+		}
+		// fmt.Println(m.Role, m.Content[0].String()[:l])
+	}
 }
 
 func (c *Console) handleHelp(args []string) {
@@ -261,6 +281,7 @@ func (c *Console) handleAddFile(args []string) {
 		return
 	}
 
+	c.setState([]string{"add_files"})
 	for _, file := range args {
 		if err := c.agent.GetConversation().GetCtx().GetFM().AddFile(file, false); err != nil {
 			fmt.Printf("Error loading file %s: %v\n", file, err)
@@ -297,9 +318,37 @@ func (c *Console) handleListFiles(args []string) {
 func (c *Console) setState(args []string) {
 	state := args[0]
 
-	err := c.agent.GetConversation().UpdateState(state)
+	if state != c.agent.GetConversation().GetCurrentState() {
+		c.ProcessTurn()
+		err := c.agent.GetConversation().UpdateState(state)
+		if err != nil {
+			fmt.Printf("Error setting state: %v\n", err)
+		}
+	}
+}
+
+func (c *Console) send(args []string) {
+	// Send the request to the AI agent
+	responses, cost, err := c.agent.Execute(context.Background(), c.h)
+	// responses, cost, err := c.agent.ConversationManager.Execute(context.Background(), c.h)
 	if err != nil {
-		fmt.Printf("Error setting state: %v\n", err)
+		if strings.Contains(err.Error(), "context deadline exceeded") {
+			fmt.Println("❌ Request timed out. The model took too long to respond.")
+		} else if strings.Contains(err.Error(), "rate limit") {
+			fmt.Println("❌ Rate limit exceeded. Please wait a moment before trying again.")
+		} else {
+			fmt.Printf("❌ Error: %v\n", err)
+		}
+		return
+	}
+
+	if len(responses) == 0 {
+		fmt.Println("⚠️ Warning: No response received from the model")
+		return
+	}
+
+	if cost > 0 {
+		fmt.Printf("💰 Cost: $%.4f\n", cost)
 	}
 }
 
@@ -325,38 +374,12 @@ func (c *Console) executor(input string) {
 		return
 	}
 
+	c.setState([]string{"user_input_code"})
 	ctxMng := c.agent.GetConversation().GetCtx()
 	// Add the command to the agent's message queue
-	ctxMng.SetVariable("Input", input)
-
-	// // Load any attached files before sending
-	// for _, file := range c.attachedFiles {
-	// 	if err := c.agent.LoadFiles(file); err != nil {
-	// 		fmt.Printf("Error loading file %s: %v\n", file, err)
-	// 		return
-	// 	}
-	// }
-
-	// Send the request to the AI agent
-	responses, cost, err := c.agent.Execute(context.Background(), c.h)
-	// responses, cost, err := c.agent.ConversationManager.Execute(context.Background(), c.h)
-	if err != nil {
-		if strings.Contains(err.Error(), "context deadline exceeded") {
-			fmt.Println("❌ Request timed out. The model took too long to respond.")
-		} else if strings.Contains(err.Error(), "rate limit") {
-			fmt.Println("❌ Rate limit exceeded. Please wait a moment before trying again.")
-		} else {
-			fmt.Printf("❌ Error: %v\n", err)
-		}
-		return
+	if input != "" {
+		ctxMng.SetVariable("Input", input)
 	}
 
-	if len(responses) == 0 {
-		fmt.Println("⚠️ Warning: No response received from the model")
-		return
-	}
-
-	if cost > 0 {
-		fmt.Printf("💰 Cost: $%.4f\n", cost)
-	}
+	c.ProcessTurn()
 }

@@ -1,8 +1,6 @@
 package conversation
 
 import (
-	"fmt"
-
 	"github.com/y0ug/ai-helper/internal/config"
 )
 
@@ -55,7 +53,6 @@ func NewTemplatesFromConfig(tmpls map[string]config.Template) map[string]*Templa
 		}
 		templates[id] = template
 	}
-	fmt.Println(templates)
 	return templates
 }
 

@@ -319,6 +319,8 @@ commands:
               {{ .Vars.Input }}
 
       user_input_code:
+        handlers:
+          - codediff
         messages:
           - role: user
             content: |

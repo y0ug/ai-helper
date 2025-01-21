@@ -3,10 +3,10 @@ package context
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"maps"
 	"os"
 	"strings"
+	"text/template"
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/filemanager"
