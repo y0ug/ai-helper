@@ -76,32 +76,36 @@ commands:
           - name: Input
             type: stdin|arg|exec
             exec: git diff --cached
-        system: |
-          You are a git commit message expert. Generate semantic commit messages following conventions.
-        prompt: |
-          Generate a git commit message following this structure:
+        messages:
+          - role: system
+            content: You are a git commit message expert. Generate semantic commit messages following conventions.
+          - role: user
+            content: |
+              Generate a git commit message following this structure:
 
-          1. First line: conventional commit format (type: concise description)
-          2. Optional bullet points for additional context
+              1. First line: conventional commit format (type: concise description)
+              2. Optional bullet points for additional context
 
-          Recent commits:
-          {{ .Vars.RecentCommits }}
+              Recent commits:
+              {{ .Vars.RecentCommits }}
 
-          Changes:
-          ```
-          {{ .Vars.Input }}
-          ```
+              Changes:
+              ```
+              {{ .Vars.Input }}
+              ```
         next_states: [security_check]
 
       security_check:
-        system: |
-          You are a security expert checking for sensitive information in git diffs.
-        prompt: |
-          Check the following diff for sensitive information (API keys, passwords, tokens, etc.):
-          ```
-          {{ .Vars.Input }}
-          ```
-          Return "#ERROR# 🚨 Potential secret detected" if found, otherwise proceed with commit message.
+        messages:
+          - role: system
+            content: You are a security expert checking for sensitive information in git diffs.
+          - role: user
+            content: |
+              Check the following diff for sensitive information (API keys, passwords, tokens, etc.):
+              ```
+              {{ .Vars.Input }}
+              ```
+              Return "#ERROR# 🚨 Potential secret detected" if found, otherwise proceed with commit message.
 
   analyze:
     description: Analyze code files
