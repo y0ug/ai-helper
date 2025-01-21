@@ -39,12 +39,17 @@ func (fm *LocalFileManager) AddFile(path string, readOnly bool) error {
 		}
 	}
 
+	status := StatusAdded
+	if _, exists := fm.files[path]; exists {
+		status = StatusModified
+	}
+
 	fm.files[path] = &FileInfo{
 		Content:    string(content),
 		Hash:       newHash,
 		ReadOnly:   readOnly,
 		LastUpdate: time.Now(),
-		GitStatus:  StatusUnknown,
+		GitStatus:  status,
 	}
 
 	return nil
@@ -123,10 +128,11 @@ func (fm *LocalFileManager) UpdateFileContent(path string, newContent string) er
 	hasher.Write([]byte(newContent))
 	newHash := hex.EncodeToString(hasher.Sum(nil))
 
-	// Update file info
+	// Update file info and status
 	fileInfo.Content = newContent
 	fileInfo.Hash = newHash
 	fileInfo.LastUpdate = time.Now()
+	fileInfo.GitStatus = StatusModified
 
 	return nil
 }
@@ -140,24 +146,28 @@ func (fm *LocalFileManager) GetFileStatus(path string) (FileStatus, error) {
 		return StatusUnknown, fmt.Errorf("file %s not found", path)
 	}
 
-	// For local manager, check if file exists and if content matches stored hash
+	// First check if file exists on disk
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			fileInfo.GitStatus = StatusDeleted
 			return StatusDeleted, nil
 		}
 		return StatusUnknown, fmt.Errorf("error reading file: %w", err)
 	}
 
+	// Compare disk content with our stored content
 	hasher := sha256.New()
 	hasher.Write(content)
 	currentHash := hex.EncodeToString(hasher.Sum(nil))
 
 	if currentHash != fileInfo.Hash {
-		return StatusModified, nil
+		fileInfo.GitStatus = StatusOutOfSync
+		return StatusOutOfSync, nil
 	}
 
-	return StatusUnmodified, nil
+	// Return the tracked status if file matches disk
+	return fileInfo.GitStatus, nil
 }
 
 func (fm *LocalFileManager) GetFiles() map[string]*FileInfo {

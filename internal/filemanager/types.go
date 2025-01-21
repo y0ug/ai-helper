@@ -15,7 +15,29 @@ const (
 	StatusAdded
 	StatusDeleted
 	StatusRenamed
+	StatusOutOfSync // New status for when file content differs from disk
 )
+
+func (s FileStatus) String() string {
+	switch s {
+	case StatusUnknown:
+		return "unknown"
+	case StatusUnmodified:
+		return "unmodified"
+	case StatusModified:
+		return "modified"
+	case StatusAdded:
+		return "added"
+	case StatusDeleted:
+		return "deleted"
+	case StatusRenamed:
+		return "renamed"
+	case StatusOutOfSync:
+		return "out_of_sync"
+	default:
+		return "invalid"
+	}
+}
 
 type FileInfo struct {
 	Content    string
