@@ -1,9 +1,9 @@
-package llmagent
+package conversation
 
 import (
 	"context"
 	"fmt"
-	"io"
+	"log/slog"
 	"os/exec"
 	"slices"
 
@@ -16,6 +16,7 @@ import (
 // ConversationManager handles multi-turn conversations
 type ConversationManager struct {
 	ID           string
+	logger       *slog.Logger
 	Command      *config.Command
 	Templates    map[string]*PromptTemplate
 	History      []*chat.ChatMessage
@@ -72,31 +73,16 @@ type PromptTemplate struct {
 	PostTurnCmds []string
 }
 
-// TurnHandler defines the interface for custom turn processing
-type TurnHandler interface {
-	PreProcess(
-		ctx context.Context,
-		cm *ConversationManager,
-		requestCtx *llmcontext.RequestContext,
-	) error
-	PostProcess(
-		ctx context.Context,
-		cm *ConversationManager,
-		response []*chat.ChatResponse,
-		w io.Writer,
-	) error
-}
-
-// StateTransitioner defines the interface for state transitions
-type StateTransitioner interface {
-	DetermineNextState(cm *ConversationManager, response []*chat.ChatResponse) (string, error)
-}
-
 // NewConversationManager creates a new conversation manager
-func NewConversationManager(id string) *ConversationManager {
+func NewConversationManager(id string, logger *slog.Logger) *ConversationManager {
+	if logger == nil {
+		logger = slog.New(slog.Default().Handler()).WithGroup("conversation_manager")
+	}
+	logger.Info("Creating new conversation manager", "id", id)
 	fm := filemanager.NewLocalFileManager()
 	return &ConversationManager{
 		ID:          id,
+		logger:      logger,
 		Templates:   make(map[string]*PromptTemplate),
 		History:     make([]*chat.ChatMessage, 0),
 		Variables:   make(map[string]interface{}),
@@ -195,10 +181,6 @@ func (cm *ConversationManager) StartConversation(templateID string) error {
 	}
 	cm.CurrentState = templateID
 	return nil
-}
-
-type Turn struct {
-	Messages []*chat.ChatMessage
 }
 
 // executeCommand runs a shell command and returns its output
