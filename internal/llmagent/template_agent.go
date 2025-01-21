@@ -75,9 +75,7 @@ func (ta *TemplateAgent) Execute(
 
 	// Clear previous messages and add the new ones
 	ta.ClearMessages()
-	for _, msg := range messages {
-		ta.AddMessage(msg)
-	}
+	ta.AddMessage(messages...)
 
 	// Execute chat completion
 
