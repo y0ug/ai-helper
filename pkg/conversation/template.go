@@ -1,6 +1,10 @@
 package conversation
 
-import "github.com/y0ug/ai-helper/internal/config"
+import (
+	"fmt"
+
+	"github.com/y0ug/ai-helper/internal/config"
+)
 
 // Template defines a template for a conversation state
 type Template struct {
@@ -51,6 +55,7 @@ func NewTemplatesFromConfig(tmpls map[string]config.Template) map[string]*Templa
 		}
 		templates[id] = template
 	}
+	fmt.Println(templates)
 	return templates
 }
 

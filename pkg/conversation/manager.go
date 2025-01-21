@@ -81,9 +81,15 @@ func (cm *ConversationManager) loadCommand(command *config.Command) error {
 		}
 	}
 
-	if err := cm.UpdateState(initialState); err != nil {
-		return fmt.Errorf("failed to update state: %w", err)
+	if _, ok := cm.Templates[initialState]; !ok {
+		return fmt.Errorf("initial state not found: %s", initialState)
 	}
+	cm.CurrentState = initialState
+
+	// We can't call updateState because GetTemplate() is not working yet
+	// if err := cm.UpdateState(initialState); err != nil {
+	// 	return fmt.Errorf("failed to update state: %w", err)
+	// }
 
 	return nil
 }

@@ -117,10 +117,10 @@ func (cc *conversationContext) GetTemplateFuncs() template.FuncMap {
 			files := cc.GetFM().GetNewFiles()
 
 			var sbReadOnly, sb strings.Builder
-			sbReadOnly.WriteString(`Do not propose changes to these files, treat them as *read-only*
-If you need to edit any of these files, ask me to *add them to the chat* first.\n\n`)
+			// sbReadOnly.WriteString(`Do not propose changes to these files, treat them as *read-only*
+			// If you need to edit any of these files, ask me to *add them to the chat* first.\n\n`)
 
-			sb.WriteString(`You can propose changes to these files.\n\n`)
+			// sb.WriteString(`You can propose changes to these files.\n\n`)
 			for path, file := range files {
 				if file.ReadOnly {
 					sbReadOnly.WriteString(fmt.Sprintf("\n%s\n```\n%s\n```\n", path, file.Content))
@@ -129,10 +129,10 @@ If you need to edit any of these files, ask me to *add them to the chat* first.\
 				}
 			}
 
-			sbReadOnly.WriteString("\n\n---\n\n")
-			sbReadOnly.WriteString(sb.String())
-			sbReadOnly.WriteString("\n\n---\n\n")
-			return sbReadOnly.String()
+			// sbReadOnly.WriteString("\n\n---\n\n")
+			// sbReadOnly.WriteString(sb.String())
+			// sbReadOnly.WriteString("\n\n---\n\n")
+			return sb.String()
 		},
 	}
 }

@@ -103,6 +103,11 @@ func New(agent *llmagent.TemplateAgent) *Console {
 			description: "List currently attached files",
 			handler:     c.handleListFiles,
 		},
+		"/state": {
+			name:        "state",
+			description: "Set state",
+			handler:     c.setState,
+		},
 	}
 
 	c.pt = prompt.New(
@@ -285,7 +290,16 @@ func (c *Console) handleListFiles(args []string) {
 	}
 	fmt.Println("Currently attached files:")
 	for fileName, file := range files {
-		fmt.Printf("- %s %s (%s)\n", fileName, file.LastUpdate, file.ReadOnly)
+		fmt.Printf("- %s %s (%t)\n", fileName, file.LastUpdate, file.ReadOnly)
+	}
+}
+
+func (c *Console) setState(args []string) {
+	state := args[0]
+
+	err := c.agent.GetConversation().UpdateState(state)
+	if err != nil {
+		fmt.Printf("Error setting state: %v\n", err)
 	}
 }
 
