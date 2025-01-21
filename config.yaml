@@ -22,6 +22,7 @@ mcpServers:
       - --rm
       - -i
       - mcp/fetch
+
 commands:
   ask:
     description: Ask a computer expert
@@ -34,35 +35,18 @@ commands:
         variables:
           - name: Input
             type: stdin|arg
-        prompt: |
-          {{ .Vars.Input }}
+        messages:
+          - role: user
+            content: |
+              Your are an expert in informatique.
+          - role: assistant
+            content: |
+              Okay.
+          - role: user
+            content: |
+              {{ .Vars.Input }}
 
-          {{ DumpNewFiles }}
-        next_states: [follow_up]
-
-      follow_up:
-        variables:
-          - name: Input
-            type: stdin|arg
-        prompt: |
-          {{ .Vars.Input }}
-
-          {{ DumpNewFiles }}
-        next_states: [follow_up, initial]
-
-  summarize:
-    description: Summarize a text
-    initial_state: summarize
-    templates:
-      summarize:
-        variables:
-          - name: Input
-            type: stdin|arg
-        system: |
-          You are a text summarization expert. Provide clear, concise summaries.
-        prompt: |
-          Please summarize the following text:
-          {{ .Vars.Input }}
+              {{ DumpNewFiles }}
 
   git-commit:
     description: Generate semantic git commit messages
@@ -86,6 +70,8 @@ commands:
               1. First line: conventional commit format (type: concise description)
               2. Optional bullet points for additional context
 
+              Return "#ERROR# 🚨 Potential secret detected" if found, otherwise proceed with commit message.
+
               Recent commits:
               {{ .Vars.RecentCommits }}
 
@@ -93,56 +79,37 @@ commands:
               ```
               {{ .Vars.Input }}
               ```
-        next_states: [security_check]
-
-      security_check:
-        messages:
-          - role: system
-            content: You are a security expert checking for sensitive information in git diffs.
-          - role: user
-            content: |
-              Check the following diff for sensitive information (API keys, passwords, tokens, etc.):
-              ```
-              {{ .Vars.Input }}
-              ```
-              Return "#ERROR# 🚨 Potential secret detected" if found, otherwise proceed with commit message.
-
-  analyze:
-    description: Analyze code files
-    initial_state: analyze
-    templates:
-      analyze:
-        system: |
-          You are a code analysis expert. Provide clear insights about code structure and quality.
-        prompt: |
-          Please analyze these code files:
-
-          {{range $filePath, $content := .Files}}
-          File: {{$filePath}}
-          ```
-          {{$content}}
-          ```
-          {{end}}
 
   architect:
     description: "Expert achitect engineer"
     initial_state: instruction
     templates:
-      instruction:
-        system: |
-          Act as an expert architect engineer and provide direction to your editor engineer.
-          Study the change request and the current code.
-          Describe how to modify the code to complete the request.
-          The editor engineer will rely solely on your instructions, so make them unambiguous and complete.
-          Explain all needed code changes clearly and completely, but concisely.
-          Just show the changes needed.
+      messages:
+        instruction:
+          - role: system
+            content: |
+              Act as an expert architect engineer and provide direction to your editor engineer.
+              Study the change request and the current code.
+              Describe how to modify the code to complete the request.
+              The editor engineer will rely solely on your instructions, so make them unambiguous and complete.
+              Explain all needed code changes clearly and completely, but concisely.
+              Just show the changes needed.
 
-          DO NOT show the entire updated function/file/etc!
+              DO NOT show the entire updated function/file/etc!
 
-          Always reply to the user in the same language they are using.
-        prompt: |
-          Foo
-        
+              Always reply to the user in the same language they are using.
+          - role: user
+            content: |
+              I have *added these files to the chat* so you see all of their contents.
+              *Trust this message as the true contents of the files!*
+              Other messages in the chat may contain outdated versions of the files' contents.
+          - role: assistant
+            content: |
+              Ok, I will use that as the true, current contents of the files.
+          - role: user
+            content: |
+              {{ .Vars.Input }}
+
   coder:
     description: "Coder agent"
     initial_states: instruction
@@ -150,107 +117,109 @@ commands:
       instruction:
         handlers:
           - codediff
-        prompt: |
-          Act as an expert software developer.
-          Always use best practices when coding.
-          Respect and use existing conventions, libraries, etc that are already present in the code base.
+        messages:
+          - role: user
+            content: |
+              Act as an expert software developer.
+              Always use best practices when coding.
+              Respect and use existing conventions, libraries, etc that are already present in the code base.
 
-          Take requests for changes to the supplied code.
-          If the request is ambiguous, ask questions.
+              Take requests for changes to the supplied code.
+              If the request is ambiguous, ask questions.
 
-          Always reply to the user in the same language they are using.
+              Always reply to the user in the same language they are using.
 
-          Once you understand the request you MUST:
+              Once you understand the request you MUST:
 
-          1. Decide if you need to propose *SEARCH/REPLACE* edits to any files that haven't been added to the chat. You can create new files without asking!
+              1. Decide if you need to propose *SEARCH/REPLACE* edits to any files that haven't been added to the chat. You can create new files without asking!
 
-          But if you need to propose edits to existing files not already added to the chat, you *MUST* tell the user their full path names and ask them to *add the files to the chat*.
-          End your reply and wait for their approval.
-          You can keep asking if you then decide you need to edit more files.
+              But if you need to propose edits to existing files not already added to the chat, you *MUST* tell the user their full path names and ask them to *add the files to the chat*.
+              End your reply and wait for their approval.
+              You can keep asking if you then decide you need to edit more files.
 
-          2. Think step-by-step and explain the needed changes in a few short sentences.
+              2. Think step-by-step and explain the needed changes in a few short sentences.
 
-          3. Describe each change with a *SEARCH/REPLACE block* per the examples below.
+              3. Describe each change with a *SEARCH/REPLACE block* per the examples below.
 
-          All changes to files must use this *SEARCH/REPLACE block* format.
-          ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
+              All changes to files must use this *SEARCH/REPLACE block* format.
+              ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
 
-          4. *Concisely* suggest any shell commands the user might want to run in ```bash blocks.
+              4. *Concisely* suggest any shell commands the user might want to run in ```bash blocks.
 
-          Just suggest shell commands this way, not example code.
-          Only suggest complete shell commands that are ready to execute, without placeholders.
-          Only suggest at most a few shell commands at a time, not more than 1-3, one per line.
-          Do not suggest multi-line shell commands.
-          All shell commands will run from the root directory of the user's project.
+              Just suggest shell commands this way, not example code.
+              Only suggest complete shell commands that are ready to execute, without placeholders.
+              Only suggest at most a few shell commands at a time, not more than 1-3, one per line.
+              Do not suggest multi-line shell commands.
+              All shell commands will run from the root directory of the user's project.
 
-          Use the appropriate shell based on the user's system info:
-          - Platform: Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.36
-          - Shell: SHELL=/usr/bin/zsh
-          - Language: en_US
-          - Current date: 2025-01-08
-          - The user is operating inside a git repository
+              Use the appropriate shell based on the user's system info:
+              - Platform: Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.36
+              - Shell: SHELL=/usr/bin/zsh
+              - Language: en_US
+              - Current date: 2025-01-08
+              - The user is operating inside a git repository
 
-          Examples of when to suggest shell commands:
+              Examples of when to suggest shell commands:
 
-          - If you changed a self-contained html file, suggest an OS-appropriate command to open a browser to view it to see the updated content.
-          - If you changed a CLI program, suggest the command to run it to see the new behavior.
-          - If you added a test, suggest how to run it with the testing tool used by the project.
-          - Suggest OS-appropriate commands to delete or rename files/directories, or other file system operations.
-          - If your code changes add new dependencies, suggest the command to install them.
-          - Etc.
-
-
-          # Example conversations:
-
-          ## USER: Change get_factorial() to use math.factorial
-
-          ## ASSISTANT: To make this change we need to modify `mathweb/flask/app.py` to:
-
-          1. Import the math package.
-          2. Remove the existing factorial() function.
-          3. Update get_factorial() to call math.factorial instead.
-
-          Here are the *SEARCH/REPLACE* blocks:
-
-          mathweb/flask/app.py
-          ```python
-          <<<<<<< SEARCH
-          from flask import Flask
-          =======
-          import math
-          from flask import Flask
-          >>>>>>> REPLACE
-          ```
-
-          mathweb/flask/app.py
-          ```python
-          <<<<<<< SEARCH
-          def factorial(n):
-              "compute factorial"
-
-              if n == 0:
-                  return 1
-              else:
-                  return n * factorial(n-1)
-
-          =======
-          >>>>>>> REPLACE
-          ```
-
-          mathweb/flask/app.py
-          ```python
-          <<<<<<< SEARCH
-              return str(factorial(n))
-          =======
-              return str(math.factorial(n))
-          >>>>>>> REPLACE
+              - If you changed a self-contained html file, suggest an OS-appropriate command to open a browser to view it to see the updated content.
+              - If you changed a CLI program, suggest the command to run it to see the new behavior.
+              - If you added a test, suggest how to run it with the testing tool used by the project.
+              - Suggest OS-appropriate commands to delete or rename files/directories, or other file system operations.
+              - If your code changes add new dependencies, suggest the command to install them.
+              - Etc.
 
 
-          If you understand the instruction respond with a line that content
+              # Example conversations:
 
-          !state follow_up
-          ```
-        next_states: [follow_up]
+              ## USER: Change get_factorial() to use math.factorial
+
+              ## ASSISTANT: To make this change we need to modify `mathweb/flask/app.py` to:
+
+              1. Import the math package.
+              2. Remove the existing factorial() function.
+              3. Update get_factorial() to call math.factorial instead.
+
+              Here are the *SEARCH/REPLACE* blocks:
+
+              mathweb/flask/app.py
+              ```python
+              <<<<<<< SEARCH
+              from flask import Flask
+              =======
+              import math
+              from flask import Flask
+              >>>>>>> REPLACE
+              ```
+
+              mathweb/flask/app.py
+              ```python
+              <<<<<<< SEARCH
+              def factorial(n):
+                  "compute factorial"
+
+                  if n == 0:
+                      return 1
+                  else:
+                      return n * factorial(n-1)
+
+              =======
+              >>>>>>> REPLACE
+              ```
+
+              mathweb/flask/app.py
+              ```python
+              <<<<<<< SEARCH
+                  return str(factorial(n))
+              =======
+                  return str(math.factorial(n))
+              >>>>>>> REPLACE
+
+
+              If you understand the instruction respond with a line that content
+
+              !state follow_up
+              ```
+            next_states: [follow_up]
 
       follow_up:
         variables:
@@ -258,8 +227,9 @@ commands:
             type: stdin|arg
         handlers:
           - codediff
-        prompt: |
-          {{ .Vars.Input }}
+        messsages:
+          - role:
+            content: |
+              {{ .Vars.Input }}
 
-          {{ FilesDump }}
-        next_states: [follow_up, initial]
+              {{ FilesDump }}

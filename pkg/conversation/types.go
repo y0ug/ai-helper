@@ -11,6 +11,7 @@ import (
 // Manager defines the interface for conversation management
 type Manager interface {
 	ProcessTurn(ctx context.Context) ([]*chat.ChatMessage, error)
+	ProcessResponse(ctx context.Context, responses []*chat.ChatResponse, w io.Writer) error
 	UpdateState(newState string) error
 	AddMessage(msg ...*chat.ChatMessage)
 	GetCurrentState() string

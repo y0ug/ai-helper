@@ -1,6 +1,8 @@
 package config
 
-import "strings"
+import (
+	"strings"
+)
 
 // Variable types
 const (
@@ -33,6 +35,11 @@ func (c *Template) NeedInput() bool {
 	return false
 }
 
+// We don't want this since we will have to process the template
+// func (m *Message) ToChatMessage() chat.ChatMessage {
+// 	return *chat.NewMessage(m.Role, chat.NewTextContent(m.Content))
+// }
+
 // Message represents a chat message with role and content
 type Message struct {
 	Role    string `yaml:"role"    json:"role"`
@@ -42,13 +49,11 @@ type Message struct {
 // Template represents a single conversation state template
 type Template struct {
 	Description  string     `yaml:"description,omitempty"    json:"description,omitempty"`
-	System       string     `yaml:"system,omitempty"         json:"system,omitempty"`
-	Prompt       string     `yaml:"prompt,omitempty"         json:"prompt,omitempty"`
 	Messages     []Message  `yaml:"messages,omitempty"       json:"messages,omitempty"`
 	Variables    []Variable `yaml:"variables,omitempty"      json:"variables,omitempty"`
-	NextStates   []string   `yaml:"next_states,omitempty"   json:"next_states,omitempty"`
+	NextStates   []string   `yaml:"next_states,omitempty"    json:"next_states,omitempty"`
 	Handlers     []string   `yaml:"handlers,omitempty"       json:"handlers,omitempty"`
-	PreTurnCmds  []string   `yaml:"pre_turn_cmds,omitempty" json:"pre_turn_cmds,omitempty"`
+	PreTurnCmds  []string   `yaml:"pre_turn_cmds,omitempty"  json:"pre_turn_cmds,omitempty"`
 	PostTurnCmds []string   `yaml:"post_turn_cmds,omitempty" json:"post_turn_cmds,omitempty"`
 }
 
@@ -57,7 +62,6 @@ type Command struct {
 	Name         string              `yaml:"-"                       json:"-"`
 	Description  string              `yaml:"description,omitempty"   json:"description,omitempty"`
 	Templates    map[string]Template `yaml:"templates"               json:"templates"`
-	InputCommand string              `yaml:"input_command,omitempty" json:"input_command,omitempty"`
 	Files        []string            `yaml:"files,omitempty"         json:"files,omitempty"`
 	MCPServers   []string            `yaml:"mcpServers,omitempty"    json:"mcpServers,omitempty"`
 	InitialState string              `yaml:"initial_state,omitempty" json:"initial_state,omitempty"`

@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os/exec"
 	"slices"
@@ -23,22 +24,11 @@ type ConversationManager struct {
 	ctx          ctmg.ContextManager
 }
 
-// NewTurn creates a new turn with initialized maps
-// func NewTurn(templateID string, template *PromptTemplate) *Turn {
-// 	return &Turn{
-// 		TemplateID: templateID,
-// 		Template:   template,
-// 		Timestamp:  time.Now(),
-// 		Variables:  make(map[string]interface{}),
-// 		Files:      make(map[string]string),
-// 	}
-// }
-
 // ValidateRequiredVars checks if all required variables are present
 func (cm *ConversationManager) ValidateRequiredVars() error {
 	requiredVars := cm.GetCurrentTemplate().RequiredVars
 	for _, required := range requiredVars {
-		if _, exists := cm.ctx.GetVariable(required); !exists {
+		if _, exists := cm.GetCtx().GetVariable(required); !exists {
 			return fmt.Errorf("missing required variable: %s", required)
 		}
 	}
@@ -65,7 +55,10 @@ func NewConversationManager(
 		ctx:       ctx,
 	}
 
-	cm.loadCommand(cmd)
+	err := cm.loadCommand(cmd)
+	if err != nil {
+		return nil //, fmt.Errorf("failed to load command: %w", err)
+	}
 	return cm
 }
 
@@ -76,28 +69,7 @@ func (cm *ConversationManager) GetCtx() ctmg.ContextManager {
 // LoadCommand loads a command configuration into the conversation manager
 func (cm *ConversationManager) loadCommand(command *config.Command) error {
 	// Convert command templates to PromptTemplates
-	for id, tmpl := range command.Templates {
-		template := &Template{
-			ID:           id,
-			SystemPrompt: tmpl.System,
-			UserPrompt:   tmpl.Prompt,
-			Variables:    tmpl.Variables,
-			RequiredVars: extractRequiredVars(tmpl.Variables),
-			NextStates:   tmpl.NextStates,
-			Handlers:     make(map[string]TurnHandler),
-			PreTurnCmds:  tmpl.PreTurnCmds,
-			PostTurnCmds: tmpl.PostTurnCmds,
-		}
-
-		// Register handlers
-		for _, handlerName := range tmpl.Handlers {
-			switch handlerName {
-			case "codediff":
-				template.Handlers[handlerName] = NewCodeDiffHandler()
-			}
-		}
-		cm.Templates[template.ID] = template
-	}
+	cm.Templates = NewTemplatesFromConfig(command.Templates)
 
 	// Set initial state
 	initialState := command.InitialState
@@ -109,28 +81,18 @@ func (cm *ConversationManager) loadCommand(command *config.Command) error {
 		}
 	}
 
-	if err := cm.StartConversation(initialState); err != nil {
-		return fmt.Errorf("failed to start conversation: %w", err)
+	if err := cm.UpdateState(initialState); err != nil {
+		return fmt.Errorf("failed to update state: %w", err)
 	}
 
 	return nil
 }
 
-// extractRequiredVars extracts required variable names from Variable slice
-func extractRequiredVars(vars []config.Variable) []string {
-	required := make([]string, 0)
-	for _, v := range vars {
-		if v.Type != "" {
-			required = append(required, v.Name)
-		}
-	}
-	return required
-}
-
 func (cm *ConversationManager) IsInputNeeded() bool {
 	k := "Input"
 	if slices.Contains(cm.GetCurrentTemplate().RequiredVars, k) {
-		if _, ok := cm.ctx.GetVariable(k); ok {
+		if _, ok := cm.GetCtx().GetVariable(k); ok {
+			// Input already set
 			return false
 		}
 		return true
@@ -140,17 +102,8 @@ func (cm *ConversationManager) IsInputNeeded() bool {
 
 func (cm *ConversationManager) SetInput(input string) error {
 	if input != "" {
-		cm.ctx.SetVariable("Input", input)
+		cm.GetCtx().SetVariable("Input", input)
 	}
-	return nil
-}
-
-// StartConversation initializes a conversation with a specific template
-func (cm *ConversationManager) StartConversation(templateID string) error {
-	if _, exists := cm.Templates[templateID]; !exists {
-		return fmt.Errorf("template %s not found", templateID)
-	}
-	cm.CurrentState = templateID
 	return nil
 }
 
@@ -179,7 +132,7 @@ func (cm *ConversationManager) ProcessTurn(
 		if err != nil {
 			return nil, fmt.Errorf("pre-turn command failed: %w", err)
 		}
-		cm.ctx.SetVariable("PreTurnOutput_"+cmdStr, output)
+		cm.GetCtx().SetVariable("PreTurnOutput_"+cmdStr, output)
 	}
 
 	// Run pre-processing handlers
@@ -204,35 +157,58 @@ func (cm *ConversationManager) ProcessTurn(
 	// so we rewrite the history
 	cm.History = messages
 
-	// // Run post-processing handlers
-	// for _, handler := range template.Handlers {
-	// 	if err := handler.PostProcess(ctx, cm, nil); err != nil {
-	// 		return nil, nil, fmt.Errorf("post-process error: %w", err)
-	// 	}
-	// }
-
-	// // Execute post-turn commands
-	// for _, cmdStr := range template.PostTurnCmds {
-	// 	output, err := cm.executeCommand(cmdStr)
-	// 	if err != nil {
-	// 		return nil, nil, fmt.Errorf("post-turn command failed: %w", err)
-	// 	}
-	// 	requestCtx.Vars["PostTurnOutput_"+cmdStr] = output
-	// }
-
 	return messages, nil
 }
 
-func (cm *ConversationManager) GetCurrentState() string {
-	return cm.CurrentState
-}
-
-func (cm *ConversationManager) UpdateState(newState string) error {
-	if slices.Contains(cm.GetCurrentTemplate().NextStates, newState) {
-		cm.CurrentState = newState
-		return nil
+// In pkg/conversation/manager.go
+func (cm *ConversationManager) ProcessResponse(
+	ctx context.Context,
+	responses []*chat.ChatResponse,
+	w io.Writer,
+) error {
+	if len(responses) == 0 {
+		return fmt.Errorf("no responses to process")
 	}
-	return fmt.Errorf("invalid state transition: %s -> %s", cm.CurrentState, newState)
+
+	template := cm.GetCurrentTemplate()
+
+	// Run post-processing handlers
+	for _, handler := range template.Handlers {
+		if err := handler.PostProcess(ctx, cm, responses, w); err != nil {
+			return fmt.Errorf("post-process error: %w", err)
+		}
+	}
+
+	// Add responses to conversation history
+	for _, resp := range responses {
+		cm.AddMessage(resp.ToMessageParams())
+	}
+
+	// Handle state transition
+	nextState, err := NewDefaultStateTransitioner().DetermineNextState(cm, responses)
+	if err != nil {
+		cm.logger.Warn("State transition error", "error", err)
+	} else {
+		currentState := cm.GetCurrentState()
+		if nextState != currentState {
+			cm.logger.Info("State transition", "from", currentState, "to", nextState)
+			if err := cm.UpdateState(nextState); err != nil {
+				cm.logger.Error("Failed to update state", "error", err)
+			}
+		}
+	}
+
+	// Execute post-turn commands
+	template = cm.GetCurrentTemplate()
+	for _, cmdStr := range template.PostTurnCmds {
+		output, err := cm.executeCommand(cmdStr)
+		if err != nil {
+			return fmt.Errorf("post-turn command failed: %w", err)
+		}
+		cm.GetCtx().SetVariable("PostTurnOutput_"+cmdStr, output)
+	}
+
+	return nil
 }
 
 // generateMessages creates the message sequence for a turn
@@ -240,24 +216,30 @@ func (cm *ConversationManager) generateMessages() ([]*chat.ChatMessage, error) {
 	var messages []*chat.ChatMessage
 	template := cm.GetCurrentTemplate()
 
-	// Generate system message if provided
-	if template.SystemPrompt != "" {
-		systemContent, err := cm.ctx.ExecuteTemplate(template.ID, template.SystemPrompt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute system template: %w", err)
-		}
-		messages = append(messages, chat.NewMessage("system", chat.NewTextContent(systemContent)))
-	}
-
 	// Add relevant conversation history from previous turns
-	messages = append(messages, cm.History...)
+	// we should not apply system messages if that the case
+	messages = cm.History
+	// messages = append(messages, cm.History...)
 
-	// Generate user message from prompt template
-	promptContent, err := cm.ctx.ExecuteTemplate(template.ID, template.UserPrompt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute prompt template: %w", err)
+	for _, msg := range template.Messages {
+		content, err := cm.GetCtx().ExecuteTemplate(template.ID, msg.Content)
+		if err != nil {
+			err := fmt.Errorf("failed to execute message template: %w", err)
+			cm.logger.Error(
+				"Failed to execute message template",
+				"error",
+				err,
+				"template.ID",
+				template.ID,
+				"role",
+				msg.Role,
+				"content",
+				msg.Content,
+			)
+			continue
+		}
+		messages = append(messages, chat.NewMessage(msg.Role, chat.NewTextContent(content)))
 	}
-	messages = append(messages, chat.NewMessage("user", chat.NewTextContent(promptContent)))
 
 	return messages, nil
 }
@@ -274,4 +256,16 @@ func (cm *ConversationManager) GetCurrentTemplate() *Template {
 // GetHistory returns the conversation history
 func (cm *ConversationManager) GetHistory() []*chat.ChatMessage {
 	return cm.History
+}
+
+func (cm *ConversationManager) GetCurrentState() string {
+	return cm.CurrentState
+}
+
+func (cm *ConversationManager) UpdateState(newState string) error {
+	if slices.Contains(cm.GetCurrentTemplate().NextStates, newState) {
+		cm.CurrentState = newState
+		return nil
+	}
+	return fmt.Errorf("invalid state transition: %s -> %s", cm.CurrentState, newState)
 }

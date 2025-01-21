@@ -87,37 +87,5 @@ func (ta *TemplateAgent) Execute(
 		return nil, cost, fmt.Errorf("chat completion failed: %w", err)
 	}
 
-	// Run post-processing handlers with responses
-	template := ta.conversation.GetCurrentTemplate()
-	for _, handler := range template.Handlers {
-		if err := handler.PostProcess(ctx, ta.conversation, responses, w); err != nil {
-			return responses, cost, fmt.Errorf("post-process error: %w", err)
-		}
-	}
-
-	if len(responses) == 0 {
-		return nil, cost, fmt.Errorf("no response received from model")
-	}
-
-	// conversation with messages
-	for _, resp := range responses {
-		ta.conversation.AddMessage(resp.ToMessageParams())
-	}
-
-	// Handle state transition
-	nextState, err := conversation.NewDefaultStateTransitioner().
-		DetermineNextState(ta.conversation, responses)
-	if err != nil {
-		ta.logger.Warn("State transition error", "error", err)
-	} else {
-		currentState := ta.conversation.GetCurrentState()
-		if nextState != currentState {
-			ta.logger.Info("State transition", "from", currentState, "to", nextState)
-			if err := ta.conversation.UpdateState(nextState); err != nil {
-				ta.logger.Error("Failed to update state", "error", err)
-			}
-		}
-	}
-
 	return responses, cost, nil
 }
