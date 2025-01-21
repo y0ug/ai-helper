@@ -33,14 +33,21 @@ func (c *Template) NeedInput() bool {
 	return false
 }
 
+// Message represents a chat message with role and content
+type Message struct {
+	Role    string `yaml:"role"    json:"role"`
+	Content string `yaml:"content" json:"content"`
+}
+
 // Template represents a single conversation state template
 type Template struct {
 	Description  string     `yaml:"description,omitempty"    json:"description,omitempty"`
 	System       string     `yaml:"system,omitempty"         json:"system,omitempty"`
-	Prompt       string     `yaml:"prompt"                   json:"prompt"`
+	Prompt       string     `yaml:"prompt,omitempty"         json:"prompt,omitempty"`
+	Messages     []Message  `yaml:"messages,omitempty"       json:"messages,omitempty"`
 	Variables    []Variable `yaml:"variables,omitempty"      json:"variables,omitempty"`
 	NextStates   []string   `yaml:"next_states,omitempty"   json:"next_states,omitempty"`
-	Handlers     []string   `yaml:"handlers,omitempty"      json:"handlers,omitempty"`
+	Handlers     []string   `yaml:"handlers,omitempty"       json:"handlers,omitempty"`
 	PreTurnCmds  []string   `yaml:"pre_turn_cmds,omitempty" json:"pre_turn_cmds,omitempty"`
 	PostTurnCmds []string   `yaml:"post_turn_cmds,omitempty" json:"post_turn_cmds,omitempty"`
 }

@@ -41,6 +41,18 @@ func (c *Config) GetCommandPrompt(name string) (string, string, error) {
 		}
 	}
 
+	// Handle both legacy and new message formats
+	if len(tmpl.Messages) > 0 {
+		var prompt, system string
+		for _, msg := range tmpl.Messages {
+			if msg.Role == "system" {
+				system = msg.Content
+			} else if msg.Role == "user" {
+				prompt = msg.Content
+			}
+		}
+		return prompt, system, nil
+	}
 	return tmpl.Prompt, tmpl.System, nil
 }
 
@@ -53,8 +65,8 @@ func (c *Config) ValidateConfig() error {
 
 		// Validate templates
 		for tname, tmpl := range cmd.Templates {
-			if tmpl.Prompt == "" {
-				return fmt.Errorf("empty prompt for template '%s' in command '%s'", tname, name)
+			if tmpl.Prompt == "" && len(tmpl.Messages) == 0 {
+				return fmt.Errorf("template '%s' in command '%s' must have either prompt or messages defined", tname, name)
 			}
 		}
 
