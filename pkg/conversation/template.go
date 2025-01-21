@@ -49,6 +49,8 @@ func NewTemplatesFromConfig(tmpls map[string]config.Template) map[string]*Templa
 			switch handlerName {
 			case "codediff":
 				template.Handlers[handlerName] = NewCodeDiffHandler()
+			case "add_file":
+				template.Handlers[handlerName] = NewAddFileHandler()
 			}
 		}
 		templates[id] = template

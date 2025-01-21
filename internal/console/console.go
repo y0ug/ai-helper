@@ -365,6 +365,31 @@ func (c *Console) executor(input string) {
 	// Handle commands
 	if strings.HasPrefix(input, "/") {
 		parts := strings.Fields(input)
+		slashCmd := parts[0]
+
+		currentCmd := c.agent.GetConversation().GetCtx().GetCommand()
+		scDef, found := currentCmd.SlashCommands[slashCmd]
+		if found {
+			// 2) If there's a next_state, do the transition
+			newState := scDef.NextState
+			if newState != "" {
+				err := c.agent.GetConversation().UpdateState(newState)
+				if err != nil {
+					fmt.Printf("Error setting state: %v\n", err)
+					return
+				}
+			}
+			// 3) Pass leftover arguments to Input
+			if len(parts) > 1 {
+				argsOnly := strings.Join(parts[1:], " ")
+				c.agent.GetConversation().GetCtx().SetVariable("Input", argsOnly)
+			}
+			fmt.Println("Command executed")
+			// 4) Kick off the turn so the new template/handlers do the real logic
+			c.ProcessTurn()
+			return
+		}
+
 		cmd, exists := c.commands[parts[0]]
 		if exists {
 			cmd.handler(parts[1:])

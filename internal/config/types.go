@@ -59,12 +59,18 @@ type Template struct {
 
 // Command represents a single AI command configuration
 type Command struct {
-	Name         string              `yaml:"-"                       json:"-"`
-	Description  string              `yaml:"description,omitempty"   json:"description,omitempty"`
-	Templates    map[string]Template `yaml:"templates"               json:"templates"`
-	Files        []string            `yaml:"files,omitempty"         json:"files,omitempty"`
-	MCPServers   []string            `yaml:"mcpServers,omitempty"    json:"mcpServers,omitempty"`
-	InitialState string              `yaml:"initial_state,omitempty" json:"initial_state,omitempty"`
+	Name          string                  `yaml:"-"                        json:"-"`
+	Description   string                  `yaml:"description,omitempty"    json:"description,omitempty"`
+	Templates     map[string]Template     `yaml:"templates"                json:"templates"`
+	Files         []string                `yaml:"files,omitempty"          json:"files,omitempty"`
+	MCPServers    []string                `yaml:"mcpServers,omitempty"     json:"mcpServers,omitempty"`
+	InitialState  string                  `yaml:"initial_state,omitempty"  json:"initial_state,omitempty"`
+	SlashCommands map[string]SlashCommand `yaml:"slash_commands,omitempty" json:"slash_commands,omitempty"`
+}
+
+type SlashCommand struct {
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	NextState   string `yaml:"next_state,omitempty"  json:"next_state,omitempty"`
 }
 
 // MCPServer represents a single MCP server configuration

@@ -83,6 +83,10 @@ commands:
   coder:
     description: "Expert achitect engineer"
     initial_state: coder
+    slash_commands:
+      "/add":
+        description: "Add file(s) to the conversation"
+        next_state: "add_files"
     templates:
       expert_architect:
         next_states: ["add_code", "user_input", "user_input_code"]
@@ -298,7 +302,9 @@ commands:
               - Etc.
 
       add_files:
-        next_states: ["user_input", "user_input_code"]
+        handlers:
+          - "add_file"
+        next_states: [user_input_code]
         messages:
           - role: user
             content: |
