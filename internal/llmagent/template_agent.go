@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/config"
+	"github.com/y0ug/ai-helper/pkg/conversation"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
