@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"maps"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/y0ug/ai-helper/internal/config"
@@ -14,32 +14,50 @@ import (
 
 // conversationContext implements ContextManager
 type conversationContext struct {
-	command *config.Command
-	env     map[string]string
-	fm      filemanager.FileManager
-	vars    map[string]interface{}
+	cmd  *config.Command
+	env  map[string]string
+	fm   filemanager.FileManager
+	vars map[string]interface{}
 }
 
 func NewContext(cmd *config.Command, fm filemanager.FileManager) *conversationContext {
 	return &conversationContext{
-		command: cmd,
-		env:     make(map[string]string),
-		fm:      fm,
-		vars:    make(map[string]interface{}),
+		cmd:  cmd,
+		env:  make(map[string]string),
+		fm:   fm,
+		vars: make(map[string]interface{}),
 	}
 }
 
 // ExecuteTemplate processes a template with the provided data
-func (cc *conversationContext) ExecuteTemplate(templateText string) (string, error) {
-	tmpl, err := template.New("prompt").
+func (cc *conversationContext) ExecuteTemplate(
+	templateID string,
+	templateText string,
+) (string, error) {
+	tmpl, err := template.New(templateID).
 		Funcs(cc.GetTemplateFuncs()).
 		Parse(templateText)
 	if err != nil {
 		return "", fmt.Errorf("error parsing template: %w", err)
 	}
 
+	varProcessor := NewVariableProcessor(cc.cmd)
+	vars, err := varProcessor.Process(templateID, cc.vars)
+	varsCopy := cc.vars
+	if err != nil {
+		err = fmt.Errorf("error processing variables: %w", err)
+		fmt.Println(err)
+	} else {
+		maps.Copy(varsCopy, vars)
+	}
+	data := TemplateData{
+		Env:   cc.env,
+		Files: cc.fm.GetFiles(),
+		Vars:  varsCopy,
+	}
+
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cc); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("error executing template: %w", err)
 	}
 
@@ -89,30 +107,32 @@ func (cc *conversationContext) GetEnv(key string) (string, bool) {
 
 // GetCommand returns the current command configuration
 func (cc *conversationContext) GetCommand() *config.Command {
-	return cc.command
+	return cc.cmd
 }
 
 // GetTemplateFuncs returns template helper functions
 func (cc *conversationContext) GetTemplateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"fileContent": func(path string) string {
-			content, err := cc.fm.ReadFile(path)
-			if err != nil {
-				return fmt.Sprintf("Error: file %s not found", path)
+		"DumpNewFiles": func() string {
+			files := cc.GetFM().GetNewFiles()
+
+			var sbReadOnly, sb strings.Builder
+			sbReadOnly.WriteString(`Do not propose changes to these files, treat them as *read-only*
+If you need to edit any of these files, ask me to *add them to the chat* first.\n\n`)
+
+			sb.WriteString(`You can propose changes to these files.\n\n`)
+			for path, file := range files {
+				if file.ReadOnly {
+					sbReadOnly.WriteString(fmt.Sprintf("\n%s\n```\n%s\n```\n", path, file.Content))
+				} else {
+					sb.WriteString(fmt.Sprintf("\n%s\n```\n%s\n```\n", path, file.Content))
+				}
 			}
-			return string(content)
-		},
-		"fileExt": filepath.Ext,
-		"fileName": func(path string) string {
-			return filepath.Base(path)
-		},
-		"formatFile": func(path string) string {
-			content, err := cc.fm.ReadFile(path)
-			if err != nil {
-				return fmt.Sprintf("Error: file %s not found", path)
-			}
-			ext := filepath.Ext(path)
-			return fmt.Sprintf("```%s\n%s\n```", ext[1:], string(content))
+
+			sbReadOnly.WriteString("\n\n---\n\n")
+			sbReadOnly.WriteString(sb.String())
+			sbReadOnly.WriteString("\n\n---\n\n")
+			return sbReadOnly.String()
 		},
 	}
 }

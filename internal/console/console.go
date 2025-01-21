@@ -128,13 +128,13 @@ func (c *Console) UpdatePrompt() (string, bool) {
 	return fmt.Sprintf(
 		"%s (%s,%s) ➜ ",
 		c.agent.GetModelName(),
-		c.agent.ConversationManager.Command.Name,
-		c.agent.ConversationManager.CurrentState,
+		c.agent.GetConversation().GetCtx().GetCommand().Name,
+		c.agent.GetConversation().GetCurrentState(),
 	), true
 }
 
 func (c *Console) Run() {
-	if !c.agent.ConversationManager.IsInputNeeded() {
+	if !c.agent.GetConversation().IsInputNeeded() {
 		c.agent.Execute(context.Background(), c.h)
 	}
 	c.pt.Run()
@@ -179,7 +179,7 @@ func (c *Console) getFileSuggestions(pattern string) []prompt.Suggest {
 }
 
 func (c *Console) getFileManagerSuggestions(pattern string) []prompt.Suggest {
-	filesInCtx := c.agent.ConversationManager.FileManager.GetFiles()
+	filesInCtx := c.agent.GetConversation().GetCtx().GetFM().GetFiles()
 	pattern = strings.ToLower(pattern)
 
 	suggestions := make([]prompt.Suggest, 0)
@@ -257,7 +257,7 @@ func (c *Console) handleAddFile(args []string) {
 	}
 
 	for _, file := range args {
-		if err := c.agent.ConversationManager.AddFile(file, false); err != nil {
+		if err := c.agent.GetConversation().GetCtx().GetFM().AddFile(file, false); err != nil {
 			fmt.Printf("Error loading file %s: %v\n", file, err)
 			continue
 		}
@@ -272,13 +272,13 @@ func (c *Console) handleRemoveFile(args []string) {
 	}
 
 	for _, file := range args {
-		c.agent.ConversationManager.RemoveFile(file)
+		c.agent.GetConversation().GetCtx().GetFM().RemoveFile(file)
 		fmt.Printf("Removed file: %s\n", file)
 	}
 }
 
 func (c *Console) handleListFiles(args []string) {
-	files := c.agent.ConversationManager.FileManager.GetFiles()
+	files := c.agent.GetConversation().GetCtx().GetFM().GetFiles()
 	if len(files) == 0 {
 		fmt.Println("No files currently attached")
 		return
@@ -311,9 +311,9 @@ func (c *Console) executor(input string) {
 		return
 	}
 
-	cm := c.agent.ConversationManager
+	ctxMng := c.agent.GetConversation().GetCtx()
 	// Add the command to the agent's message queue
-	cm.SetInput(input)
+	ctxMng.SetVariable("Input", input)
 
 	// // Load any attached files before sending
 	// for _, file := range c.attachedFiles {

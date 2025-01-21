@@ -1,10 +1,13 @@
 package conversation
 
+import "github.com/y0ug/ai-helper/internal/config"
+
 // Template defines a template for a conversation state
 type Template struct {
 	ID           string
 	SystemPrompt string
 	UserPrompt   string
+	Variables    []config.Variable
 	RequiredVars []string
 	NextStates   []string
 	Handlers     map[string]TurnHandler

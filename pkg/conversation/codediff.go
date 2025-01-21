@@ -1,4 +1,4 @@
-package llmagent
+package conversation
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/coder/diff"
 	"github.com/y0ug/ai-helper/internal/coder/parser"
-	"github.com/y0ug/ai-helper/pkg/conversation"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
@@ -24,28 +23,15 @@ func NewCodeDiffHandler() *CodeDiffHandler {
 // PreProcess handles pre-processing of code diffs
 func (h *CodeDiffHandler) PreProcess(
 	ctx context.Context,
-	cm conversation.Manager,
-	requestCtx conversation.Context,
+	cm Manager,
 ) error {
-	// Extract code blocks from previous messages
-	var searchReplace []string
-	for _, msg := range cm.GetHistory() {
-		if msg.Role == "assistant" {
-			blocks := extractSearchReplaceBlocks(msg.Content[0].String())
-			searchReplace = append(searchReplace, blocks...)
-		}
-	}
-
-	if len(searchReplace) > 0 {
-		requestCtx.Vars["CodeDiffs"] = strings.Join(searchReplace, "\n")
-	}
 	return nil
 }
 
 // PostProcess handles post-processing of code diffs
 func (h *CodeDiffHandler) PostProcess(
 	ctx context.Context,
-	cm conversation.Manager,
+	cm Manager,
 	response []*chat.ChatResponse,
 	w io.Writer,
 ) error {
@@ -54,7 +40,7 @@ func (h *CodeDiffHandler) PostProcess(
 	parser := parser.New()
 	if len(response) > 0 && len(response[0].Choice) > 0 && len(response[0].Choice[0].Content) > 0 {
 		sections := parser.ParseResponse(response[0].Choice[0].Content[0].String())
-		filesInCtx := cm.FileManager.GetFiles()
+		filesInCtx := cm.GetCtx().GetFM().GetFiles()
 		files := make(map[string]string)
 		for filename, file := range filesInCtx {
 			files[filename] = file.Content

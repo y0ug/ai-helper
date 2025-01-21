@@ -37,7 +37,7 @@ commands:
         prompt: |
           {{ .Vars.Input }}
 
-          {{ FilesDump }}
+          {{ DumpNewFiles }}
         next_states: [follow_up]
 
       follow_up:
@@ -47,7 +47,7 @@ commands:
         prompt: |
           {{ .Vars.Input }}
 
-          {{ FilesDump }}
+          {{ DumpNewFiles }}
         next_states: [follow_up, initial]
 
   summarize:

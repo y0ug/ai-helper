@@ -121,9 +121,8 @@ func main() {
 	inputArgs := args[1:]
 	input := strings.Join(inputArgs, " ")
 
-	if err := agent.ConversationManager.SetInput(input); err != nil {
-		logger.Error("Error loading args", "error", err)
-		os.Exit(1)
+	if input != "" {
+		agent.GetConversation().GetCtx().SetVariable("Input", input)
 	}
 
 	// Load additional files if specified
@@ -131,7 +130,7 @@ func main() {
 		files := strings.Split(*attachFiles, ",")
 		for _, file := range files {
 			file = strings.TrimSpace(file)
-			if err := agent.ConversationManager.AddFile(file, false); err != nil {
+			if err := agent.GetConversation().GetCtx().GetFM().AddFile(file, false); err != nil {
 				logger.Error("Error loading file", "file", file, "error", err)
 				os.Exit(1)
 			}

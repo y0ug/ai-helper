@@ -205,3 +205,44 @@ func (fm *LocalFileManager) HasFileChanged(path string) (bool, error) {
 
 	return fileInfo.LastSent != fileInfo.Hash, nil
 }
+
+func (fm *LocalFileManager) GetNewFiles() map[string]*FileInfo {
+	files := make(map[string]*FileInfo)
+	for path := range fm.GetFiles() {
+		// Get both status and changed state
+		status, err := fm.GetFileStatus(path)
+		if err != nil {
+			err = fmt.Errorf("error checking file status for %s: %w", path, err)
+			fmt.Println(err)
+			continue
+		}
+
+		changed, err := fm.HasFileChanged(path)
+		if err != nil {
+			err = fmt.Errorf("error checking file changes for %s: %w", path, err)
+			fmt.Println(err)
+			continue
+		}
+
+		// Add file to context if:
+		// 1. It has changed since last send OR
+		// 2. It is out of sync with disk OR
+		// 3. It has been modified
+		if changed || status == StatusOutOfSync ||
+			status == StatusModified {
+			// content, isEditable, err := fm.GetFileContent(path)
+			// if err != nil {
+			// 	return nil, fmt.Errorf("error getting content for %s: %w", path, err)
+			// }
+
+			files[path] = fm.files[path] // TODO this doesn't respect the mutex
+
+			if err := fm.MarkFileAsSent(path); err != nil {
+				err = fmt.Errorf("error marking %s as sent: %w", path, err)
+				fmt.Println(err)
+				continue
+			}
+		}
+	}
+	return files
+}

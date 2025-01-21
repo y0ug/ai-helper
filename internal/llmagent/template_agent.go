@@ -16,9 +16,9 @@ import (
 // TemplateAgent represents an AI agent that works with templates and commands
 type TemplateAgent struct {
 	*Agent
-	conversation *conversation.Manager
+	conversation  conversation.Manager
 	toolProcessor ToolProcessor
-	Command             *config.Command
+	Command       *config.Command
 }
 
 // NewTemplateAgent creates a new template-based agent
@@ -42,16 +42,17 @@ func NewTemplateAgent(
 		return nil, fmt.Errorf("failed to create base agent: %w", err)
 	}
 
-	conv := conversation.NewManager(id, logger)
-	if err := conv.LoadCommand(command); err != nil {
-		return nil, fmt.Errorf("failed to load command: %w", err)
-	}
+	conv := conversation.NewConversationManager(id, logger, command)
 
 	return &TemplateAgent{
 		Agent:         baseAgent,
 		conversation:  conv,
 		toolProcessor: toolProcessor,
 	}, nil
+}
+
+func (ta *TemplateAgent) GetConversation() conversation.Manager {
+	return ta.conversation
 }
 
 func (ta *TemplateAgent) GetModelName() string {
@@ -67,7 +68,7 @@ func (ta *TemplateAgent) Execute(
 	w io.Writer,
 ) ([]*chat.ChatResponse, float64, error) {
 	// Process the turn and get messages through conversation package
-	turn, messages, err := ta.conversation.ProcessTurn(ctx)
+	messages, err := ta.conversation.ProcessTurn(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to process turn: %w", err)
 	}
@@ -100,11 +101,14 @@ func (ta *TemplateAgent) Execute(
 		return nil, cost, fmt.Errorf("no response received from model")
 	}
 
-	// Update turn with messages
-	turn.Messages = ta.GetMessages()
+	// conversation with messages
+	for _, resp := range responses {
+		ta.conversation.AddMessage(resp.ToMessageParams())
+	}
 
 	// Handle state transition
-	nextState, err := conversation.NewDefaultStateTransitioner().DetermineNextState(ta.conversation, responses)
+	nextState, err := conversation.NewDefaultStateTransitioner().
+		DetermineNextState(ta.conversation, responses)
 	if err != nil {
 		ta.logger.Warn("State transition error", "error", err)
 	} else {

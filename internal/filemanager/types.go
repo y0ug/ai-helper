@@ -45,7 +45,7 @@ type FileInfo struct {
 	ReadOnly   bool
 	LastUpdate time.Time
 	GitStatus  FileStatus
-	LastSent   string    // Stores the hash of the content when it was last sent
+	LastSent   string // Stores the hash of the content when it was last sent
 	Branch     string
 	LastCommit string
 }
@@ -61,4 +61,5 @@ type FileManager interface {
 	GetFiles() map[string]*FileInfo
 	MarkFileAsSent(path string) error
 	HasFileChanged(path string) (bool, error)
+	GetNewFiles() map[string]*FileInfo
 }

@@ -10,7 +10,7 @@ import (
 // ContextManager handles all context-related operations for a conversation
 type ContextManager interface {
 	// Template operations
-	ExecuteTemplate(templateText string) (string, error)
+	ExecuteTemplate(string, string) (string, error)
 
 	// Variable management
 	SetVariable(key string, value interface{})
@@ -29,4 +29,10 @@ type ContextManager interface {
 
 	// Template functions
 	GetTemplateFuncs() template.FuncMap
+}
+
+type TemplateData struct {
+	Env   map[string]string
+	Files map[string]*filemanager.FileInfo
+	Vars  map[string]interface{}
 }

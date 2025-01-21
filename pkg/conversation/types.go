@@ -4,29 +4,25 @@ import (
 	"context"
 	"io"
 
+	ctmg "github.com/y0ug/ai-helper/pkg/conversation/context"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 // Manager defines the interface for conversation management
 type Manager interface {
-	ProcessTurn(ctx context.Context) (*Turn, []*chat.ChatMessage, error)
+	ProcessTurn(ctx context.Context) ([]*chat.ChatMessage, error)
 	UpdateState(newState string) error
-	AddMessage(msg *chat.ChatMessage)
+	AddMessage(msg ...*chat.ChatMessage)
 	GetCurrentState() string
 	GetCurrentTemplate() *Template
 	GetHistory() []*chat.ChatMessage
-}
-
-// Context defines the interface for context management
-type Context interface {
-	ExecuteTemplate(templateText string) (string, error)
-	SetVariable(key string, value interface{})
-	GetVariable(key string) (interface{}, bool)
+	GetCtx() ctmg.ContextManager
+	IsInputNeeded() bool
 }
 
 // TurnHandler defines the interface for custom turn processing
 type TurnHandler interface {
-	PreProcess(ctx context.Context, cm Manager, requestCtx Context) error
+	PreProcess(ctx context.Context, cm Manager) error
 	PostProcess(ctx context.Context, cm Manager, response []*chat.ChatResponse, w io.Writer) error
 }
 
