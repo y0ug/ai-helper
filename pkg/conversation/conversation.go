@@ -20,8 +20,14 @@ type ConversationManager struct {
 	Templates    map[string]*Template
 	History      []*chat.ChatMessage
 	CurrentState string
-	Variables    map[string]interface{}
 	FileManager  filemanager.FileManager
+}
+
+type Contexter struct {
+	Files     map[string]string
+	Template  *Template
+	Variables map[string]interface{}
+	Command   *config.Command
 }
 
 // NewTurn creates a new turn with initialized maps
@@ -60,18 +66,6 @@ func (cm *ConversationManager) RemoveFile(path string) error {
 	return cm.FileManager.RemoveFile(path)
 }
 
-// Template defines a template for a conversation state
-type Template struct {
-	ID           string
-	SystemPrompt string
-	UserPrompt   string
-	RequiredVars []string
-	NextStates   []string
-	Handlers     map[string]TurnHandler
-	PreTurnCmds  []string
-	PostTurnCmds []string
-}
-
 // NewConversationManager creates a new conversation manager
 func NewConversationManager(id string, logger *slog.Logger) *ConversationManager {
 	if logger == nil {
@@ -82,7 +76,7 @@ func NewConversationManager(id string, logger *slog.Logger) *ConversationManager
 	return &ConversationManager{
 		ID:          id,
 		logger:      logger,
-		Templates:   make(map[string]*PromptTemplate),
+		Templates:   make(map[string]*Template),
 		History:     make([]*chat.ChatMessage, 0),
 		Variables:   make(map[string]interface{}),
 		FileManager: fm,
@@ -94,7 +88,7 @@ func (cm *ConversationManager) LoadCommand(command *config.Command) error {
 	cm.Command = command
 	// Convert command templates to PromptTemplates
 	for id, tmpl := range command.Templates {
-		template := &PromptTemplate{
+		template := &Template{
 			ID:           id,
 			SystemPrompt: tmpl.System,
 			UserPrompt:   tmpl.Prompt,
@@ -147,7 +141,7 @@ func extractRequiredVars(vars []config.Variable) []string {
 }
 
 // AddTemplate adds a new template to the conversation manager
-func (cm *ConversationManager) AddTemplate(template *PromptTemplate) error {
+func (cm *ConversationManager) AddTemplate(template *Template) error {
 	if template.ID == "" {
 		return fmt.Errorf("template ID cannot be empty")
 	}
@@ -295,8 +289,8 @@ func (cm *ConversationManager) ProcessTurn(
 // generateMessages creates the message sequence for a turn
 func (cm *ConversationManager) generateMessages(
 	turn *Turn,
-	requestCtx *RequestContext,
-	template *PromptTemplate,
+	requestCtx *Context,
+	template *Template,
 ) ([]*chat.ChatMessage, error) {
 	var messages []*chat.ChatMessage
 
@@ -325,7 +319,7 @@ func (cm *ConversationManager) generateMessages(
 }
 
 // GetCurrentTemplate returns the currently active template
-func (cm *ConversationManager) GetCurrentTemplate() *PromptTemplate {
+func (cm *ConversationManager) GetCurrentTemplate() *Template {
 	return cm.Templates[cm.CurrentState]
 }
 
