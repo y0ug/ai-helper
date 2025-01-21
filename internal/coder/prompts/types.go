@@ -34,55 +34,55 @@ type Message struct {
 
 // ArchitectPrompts represents the architect-specific prompts
 type ArchitectPrompts struct {
-	BasePrompts `       yaml:",inline"`
-	MainSystem  string `yaml:"main_system"`
+	BasePrompts
+	MainSystem string `yaml:"main_system"`
 }
 
 // AskPrompts represents the ask-specific prompts
 type AskPrompts struct {
-	BasePrompts `       yaml:",inline"`
-	MainSystem  string `yaml:"main_system"`
+	BasePrompts
+	MainSystem string `yaml:"main_system"`
 }
 
 // EditBlockPrompts represents the editblock-specific prompts
 type EditBlockPrompts struct {
-	BasePrompts `       yaml:",inline"`
-	MainSystem  string `yaml:"main_system"`
+	BasePrompts
+	MainSystem string `yaml:"main_system"`
 }
 
 // EditBlockFencedPrompts represents the editblock-fenced-specific prompts
 type EditBlockFencedPrompts struct {
-	EditBlockPrompts `yaml:",inline"`
+	EditBlockPrompts
 }
 
 // EditBlockFunctionPrompts represents the editblock-function-specific prompts
 type EditBlockFunctionPrompts struct {
-	BasePrompts         `       yaml:",inline"`
+	BasePrompts
 	MainSystem          string `yaml:"main_system"`
 	RedactedEditMessage string `yaml:"redacted_edit_message"`
 }
 
 // EditorEditBlockPrompts represents the editor-editblock-specific prompts
 type EditorEditBlockPrompts struct {
-	EditBlockPrompts `       yaml:",inline"`
-	MainSystem       string `yaml:"main_system"`
+	EditBlockPrompts
+	MainSystem string `yaml:"main_system"`
 }
 
 // EditorWholeFilePrompts represents the editor-wholefile-specific prompts
 type EditorWholeFilePrompts struct {
-	WholeFilePrompts `       yaml:",inline"`
-	MainSystem       string `yaml:"main_system"`
+	WholeFilePrompts
+	MainSystem string `yaml:"main_system"`
 }
 
 // HelpPrompts represents the help-specific prompts
 type HelpPrompts struct {
-	BasePrompts `       yaml:",inline"`
-	MainSystem  string `yaml:"main_system"`
+	BasePrompts
+	MainSystem string `yaml:"main_system"`
 }
 
 // SingleWholeFileFunctionPrompts represents the single-wholefile-function-specific prompts
 type SingleWholeFileFunctionPrompts struct {
-	BasePrompts         `       yaml:",inline"`
+	BasePrompts
 	MainSystem          string `yaml:"main_system"`
 	SystemReminder      string `yaml:"system_reminder"`
 	RedactedEditMessage string `yaml:"redacted_edit_message"`
@@ -90,7 +90,7 @@ type SingleWholeFileFunctionPrompts struct {
 
 // WholeFilePrompts represents the wholefile-specific prompts
 type WholeFilePrompts struct {
-	BasePrompts         `       yaml:",inline"`
+	BasePrompts
 	MainSystem          string `yaml:"main_system"`
 	SystemReminder      string `yaml:"system_reminder"`
 	RedactedEditMessage string `yaml:"redacted_edit_message"`
