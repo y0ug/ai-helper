@@ -1,6 +1,3 @@
-imports:
-  - editblock_prompts.yaml
-
 editor_editblock_prompts:
   <<: *editblock_prompts
   main_system: |

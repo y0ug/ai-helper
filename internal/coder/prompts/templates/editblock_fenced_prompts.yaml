@@ -1,6 +1,3 @@
-imports:
-  - editblock_prompts.yaml
-
 editblock_fenced_prompts:
   <<: *editblock_prompts
   example_messages:

@@ -1,6 +1,3 @@
-imports:
-  - wholefile_prompts.yaml
-
 editor_wholefile_prompts:
   <<: *wholefile_prompts
   main_system: |

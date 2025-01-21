@@ -1,7 +1,5 @@
-imports:
-  - base_prompts.yaml
-
 architect_prompts:
+  <<: *base_prompts
   system_reminder: ""
   files_content_gpt_edits: "I committed the changes with git hash {{.Hash}} & commit msg: {{.Message}}"
   files_content_gpt_edits_no_repo: "I updated the files."
@@ -33,13 +31,3 @@ architect_prompts:
     DO NOT show the entire updated function/file/etc!
 
     Always reply to the user in {{.Language}}.
-  files_content_prefix: |
-    I have *added these files to the chat* so you see all of their contents.
-    *Trust this message as the true contents of the files!*
-    Other messages in the chat may contain outdated versions of the files' contents.
-  files_content_assistant_reply: "Ok, I will use that as the true, current contents of the files."
-  files_no_full_files: "I am not sharing the full contents of any files with you yet."
-  repo_content_prefix: |
-    I am working with you on code in a git repository.
-    Here are summaries of some files present in my git repo.
-    If you need to see the full contents of any files to answer my questions, ask me to *add them to the chat*.

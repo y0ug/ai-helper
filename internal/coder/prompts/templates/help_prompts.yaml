@@ -1,6 +1,3 @@
-imports:
-  - base_prompts.yaml
-
 help_prompts:
   <<: *base_prompts
   main_system: |
