@@ -42,6 +42,11 @@ type RepoManagerInterface interface {
 	ChooseFence()
 	GetFilesContent() string
 	GetReadOnlyFilesContent() string
+	GetRepoMap() string
+}
+
+func (c *RepoManager) GetRepoMap() string {
+	return ""
 }
 
 func (c *RepoManager) GetGit() gitrepo.GitRepoInterface {

@@ -192,26 +192,21 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 }
 
 func (c *BaseCoder) getRepoMessages() []prompts.Message {
-	// if c.repo == nil {
-	// 	return nil
-	// }
-	//
-	// repoContent := c.getRepoMap()
-	// if repoContent == "" {
-	// 	return nil
-	// }
-	//
-	// return []prompts.Message{
-	// 	{
-	// 		Role:    "user",
-	// 		Content: repoContent,
-	// 	},
-	// 	{
-	// 		Role:    "assistant",
-	// 		Content: "Ok, I won't try and edit those files without asking first.",
-	// 	},
-	// }
-	return []prompts.Message{}
+	repoContent := c.rm.GetRepoMap()
+	if repoContent == "" {
+		return nil
+	}
+
+	return []prompts.Message{
+		{
+			Role:    "user",
+			Content: repoContent,
+		},
+		{
+			Role:    "assistant",
+			Content: "Ok, I won't try and edit those files without asking first.",
+		},
+	}
 }
 
 func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
@@ -233,18 +228,10 @@ func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
 	}
 }
 
-func (c *BaseCoder) getRepoMap() string {
-	// if c.repo == nil {
-	//   return ""
-	// }
-	// return c.repo.GetRepoMap()
-	return ""
-}
-
 func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
 	if len(c.rm.GetFM().List(0)) == 0 {
 		promptsR := c.getPrompts()
-		if c.getRepoMap() != "" && promptsR.FilesNoFullFilesWithRepoMap != "" {
+		if c.rm.GetRepoMap() != "" && promptsR.FilesNoFullFilesWithRepoMap != "" {
 			return []prompts.Message{
 				{Role: "user", Content: promptsR.FilesNoFullFilesWithRepoMap},
 				{Role: "assistant", Content: promptsR.FilesNoFullFilesWithRepoMapReply},
