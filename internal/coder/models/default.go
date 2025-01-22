@@ -110,6 +110,8 @@ var DefaultModelSettings = []ModelSettings{
 		UseRepoMap:       true,
 		ExamplesAsSysMsg: true,
 		CacheControl:     true,
+		Streaming:        true,
+		UseSystemPrompt:  true,
 		Reminder:         "user",
 		ExtraParams: map[string]interface{}{
 			"extra_headers": map[string]string{

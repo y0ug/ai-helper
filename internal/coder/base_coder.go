@@ -36,6 +36,7 @@ type BaseCoder struct {
 	lintCommands         map[string]string
 	suggestShellCommands bool
 	rm                   repomanager.RepoManagerInterface
+	templateHandler      *prompts.TemplateHandler
 }
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
@@ -53,6 +54,12 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 		editSvc := editservice.NewEditBlockService(c.logger, c.rm.GetFence())
 		c.rm.SetEditService(editSvc)
 	}
+	c.templateHandler = prompts.NewTemplateHandler(
+		&c.prompts,
+		c.mainModel,
+		c.getTemplateInitData(),
+		c.logger,
+	)
 	return c
 }
 
@@ -242,12 +249,12 @@ func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
 // FormatMessages formats all messages for the LLM with appropriate prompts
 func (c *BaseCoder) FormatMessages() *ChatChunks {
 	c.rm.ChooseFence()
+	c.templateHandler.SetFence(c.rm.GetFence())
 	chunks := &ChatChunks{}
 
 	// Add system messages
-	systemPrompt := c.formatSystemPrompt()
-	hasSystemPrompt := true
-	if hasSystemPrompt {
+	systemPrompt := c.renderPrompt(c.getPrompts().MainSystem)
+	if c.mainModel.UseSystemPrompt {
 		chunks.System = []prompts.Message{{
 			Role:    "system",
 			Content: systemPrompt,
@@ -321,11 +328,10 @@ func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
 		return nil
 	}
 
-	promptsR := c.getPrompts()
 	return []prompts.Message{
 		{
 			Role:    "user",
-			Content: c.renderPrompt(promptsR.ReadOnlyFilesPrefix) + "\n" + content,
+			Content: c.renderPrompt(c.getPrompts().ReadOnlyFilesPrefix) + "\n" + content,
 		},
 		{
 			Role:    "assistant",
@@ -336,73 +342,42 @@ func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
 
 func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
 	if len(c.rm.GetFM().List(0)) == 0 {
-		promptsR := c.getPrompts()
-		if c.rm.GetRepoMap() != "" && promptsR.FilesNoFullFilesWithRepoMap != "" {
+		if c.rm.GetRepoMap() != "" && c.getPrompts().FilesNoFullFilesWithRepoMap != "" {
 			return []prompts.Message{
-				{Role: "user", Content: c.renderPrompt(promptsR.FilesNoFullFilesWithRepoMap)},
+				{Role: "user", Content: c.renderPrompt(c.getPrompts().FilesNoFullFilesWithRepoMap)},
 				{
 					Role:    "assistant",
-					Content: c.renderPrompt(promptsR.FilesNoFullFilesWithRepoMapReply),
+					Content: c.renderPrompt(c.getPrompts().FilesNoFullFilesWithRepoMapReply),
 				},
 			}
 		}
 		return []prompts.Message{
-			{Role: "user", Content: c.renderPrompt(promptsR.FilesNoFullFiles)},
+			{Role: "user", Content: c.renderPrompt(c.getPrompts().FilesNoFullFiles)},
 			{Role: "assistant", Content: "Ok."},
 		}
 	}
 
-	promptsR := c.getPrompts()
-	content := c.renderPrompt(promptsR.FilesContentPrefix) + "\n" + c.rm.GetFilesContent()
+	content := c.renderPrompt(c.getPrompts().FilesContentPrefix) + "\n" + c.rm.GetFilesContent()
 
 	return []prompts.Message{
 		{Role: "user", Content: content},
-		{Role: "assistant", Content: c.renderPrompt(promptsR.FilesContentAssistantReply)},
+		{Role: "assistant", Content: c.renderPrompt(c.getPrompts().FilesContentAssistantReply)},
 	}
 }
 
-// Don't use this function for getLanguage, getLazyPrompt, getPlatformInfo, getShellCmdPrompt
-func (c *BaseCoder) renderPromptData(tmpl string, data map[string]string) string {
-	formatted, err := prompts.RenderTemplate(tmpl, data)
-	if err != nil {
-		c.logger.Error("Error rendering template", "error", err, "content", tmpl)
-		return tmpl
+func (c *BaseCoder) getTemplateInitData() prompts.TemplateData {
+	return prompts.TemplateData{
+		"Language": c.getLanguage(),
+		"Platform": c.getPlatformInfo(),
 	}
-	return formatted
 }
 
 func (c *BaseCoder) renderPrompt(tmpl string) string {
-	formatted, err := prompts.RenderTemplate(tmpl, c.getTremplateData())
-	if err != nil {
-		c.logger.Error("Error rendering template", "error", err, "content", tmpl)
-		return tmpl
-	}
-	return formatted
+	return c.templateHandler.Render(tmpl)
 }
 
-func (c *BaseCoder) getTremplateData() TemplateData {
-	d := TemplateData{
-		Language:         c.getLanguage(),
-		LazyPrompt:       c.getLazyPrompt(),
-		Platform:         c.getPlatformInfo(),
-		ShellCmdPrompt:   c.getShellCmdPrompt(),
-		ShellCmdReminder: c.getShellCmdReminder(),
-		Fence0:           c.rm.GetFence()[0],
-		Fence1:           c.rm.GetFence()[1],
-	}
-	c.logger.Info("template data", "data", d)
-	return d
-}
-
-func (c *BaseCoder) formatSystemPrompt() string {
-	promptsR := c.getPrompts()
-
-	formatted, err := prompts.RenderTemplate(promptsR.MainSystem, c.getTremplateData())
-	if err != nil {
-		c.logger.Error("Error rendering template MainSystem", "error", err)
-		return promptsR.MainSystem
-	}
-	return formatted
+func (c *BaseCoder) renderPromptData(tmpl string, data map[string]string) string {
+	return c.templateHandler.RenderData(tmpl, data)
 }
 
 func (c *BaseCoder) getLanguage() string {
@@ -410,32 +385,6 @@ func (c *BaseCoder) getLanguage() string {
 		return c.chatLanguage
 	}
 	return "the same language they are using"
-}
-
-func (c *BaseCoder) getLazyPrompt() string {
-	if c.mainModel.Lazy {
-		d := TemplateData{
-			Platform: c.getPlatformInfo(),
-		}
-		formatted, err := prompts.RenderTemplate(c.getPrompts().LazyPrompt, d)
-		if err != nil {
-			c.logger.Error("Error rendering template LazyPrompt", "error", err)
-			return c.getPrompts().LazyPrompt
-		}
-		return formatted
-
-	}
-	return ""
-}
-
-type TemplateData struct {
-	Language         string
-	LazyPrompt       string
-	Platform         string
-	ShellCmdPrompt   string
-	ShellCmdReminder string
-	Fence0           string
-	Fence1           string
 }
 
 func processStream(

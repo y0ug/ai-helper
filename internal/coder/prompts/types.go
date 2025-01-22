@@ -120,16 +120,6 @@ type PromptsConfig struct {
 }
 
 // TemplateData contains data for template rendering
-type TemplateData struct {
-	Language       string
-	Hash           string
-	Message        string
-	Platform       string
-	LazyPrompt     string
-	ShellCmdPrompt string
-	Fence0         string
-	Fence1         string
-}
 
 // func mergePrompts(base, override *Prompts) *Prompts {
 // 	if base == nil {
