@@ -2,6 +2,7 @@ package coder
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +35,7 @@ var DefaultFences = []Fence{
 type BaseCoder struct {
 	mainModel  *models.Model
 	editFormat string
+	logger     *slog.Logger
 	// io                *io.InputOutput
 	repo                 *gitrepo.GitRepo
 	curMessages          []prompts.Message
