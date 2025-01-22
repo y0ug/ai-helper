@@ -49,7 +49,7 @@ func (fm *LocalFileManager) Add(path string, readOnly bool) error {
 		Hash:       newHash,
 		ReadOnly:   readOnly,
 		LastUpdate: time.Now(),
-		GitStatus:  status,
+		Status:     status,
 	}
 
 	return nil
@@ -88,7 +88,7 @@ func (fm *LocalFileManager) List(filters FileFilters) map[string]*FileInfo {
 		if filters.Has(FilterEditable) && !info.ReadOnly {
 			include = true
 		}
-		if filters.Has(FilterNew) && (info.GitStatus == StatusAdded || info.GitStatus == StatusModified) {
+		if filters.Has(FilterNew) && (info.Status == StatusAdded || info.Status == StatusModified) {
 			include = true
 		}
 
@@ -156,7 +156,7 @@ func (fm *LocalFileManager) Write(path string, newContent string) error {
 	fileInfo.Content = newContent
 	fileInfo.Hash = newHash
 	fileInfo.LastUpdate = time.Now()
-	fileInfo.GitStatus = StatusModified
+	fileInfo.Status = StatusModified
 
 	return nil
 }
@@ -174,7 +174,7 @@ func (fm *LocalFileManager) GetFileStatus(path string) (FileStatus, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fileInfo.GitStatus = StatusDeleted
+			fileInfo.Status = StatusDeleted
 			return StatusDeleted, nil
 		}
 		return StatusUnknown, fmt.Errorf("error reading file: %w", err)
@@ -186,12 +186,12 @@ func (fm *LocalFileManager) GetFileStatus(path string) (FileStatus, error) {
 	currentHash := hex.EncodeToString(hasher.Sum(nil))
 
 	if currentHash != fileInfo.Hash {
-		fileInfo.GitStatus = StatusOutOfSync
+		fileInfo.Status = StatusOutOfSync
 		return StatusOutOfSync, nil
 	}
 
 	// Return the tracked status if file matches disk
-	return fileInfo.GitStatus, nil
+	return fileInfo.Status, nil
 }
 
 func (fm *LocalFileManager) GetFiles() map[string]*FileInfo {

@@ -130,7 +130,7 @@ func main() {
 		files := strings.Split(*attachFiles, ",")
 		for _, file := range files {
 			file = strings.TrimSpace(file)
-			if err := agent.GetConversation().GetCtx().GetFM().AddFile(file, false); err != nil {
+			if err := agent.GetConversation().GetCtx().GetFM().Add(file, false); err != nil {
 				logger.Error("Error loading file", "file", file, "error", err)
 				os.Exit(1)
 			}

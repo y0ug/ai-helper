@@ -6,19 +6,20 @@ package gitrepo
 type GitRepoInterface interface {
 	Commit(fnames []string, context string, message string, aiderEdits bool) (string, string, error)
 	GetDiffs(fnames []string) (string, error)
-	DiffCommits(pretty bool, fromCommit, toCommit string) (string, error)
-	GetTrackedFiles() ([]string, error)
-	IsIgnoredFile(fname string) bool
+	// DiffCommits(pretty bool, fromCommit, toCommit string) (string, error)
+	// GetTrackedFiles() ([]string, error)
+	IsIgnoredFile(fname string) (bool, error)
 	PathInRepo(path string) bool
-	GetDirtyFiles() ([]string, error)
+	// GetDirtyFiles() ([]string, error)
 	IsDirty() bool
 	IsFileDirty(path string) bool
-	GetHeadCommit() (string, error)
+	// GetHeadCommit() (string, error)
 	GetHeadCommitSHA(short bool) (string, error)
 	GetHeadCommitMessage(defaultMsg string) (string, error)
 }
 
-var _ GitRepoInterface = (*GitRepoExec)(nil)
+// _ GitRepoInterface = (*GitRepoExec)(nil)
+var _ GitRepoInterface = (*GitRepo)(nil)
 
 // IOInterface defines methods for IO operations
 type IOInterface interface {

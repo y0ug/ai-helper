@@ -44,10 +44,8 @@ type FileInfo struct {
 	Hash       string
 	ReadOnly   bool
 	LastUpdate time.Time
-	GitStatus  FileStatus
+	Status     FileStatus
 	LastSent   string // Stores the hash of the content when it was last sent
-	Branch     string
-	LastCommit string
 }
 
 type FileFilter int

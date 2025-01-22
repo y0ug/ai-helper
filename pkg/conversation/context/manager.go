@@ -52,7 +52,7 @@ func (cc *conversationContext) ExecuteTemplate(
 	}
 	data := TemplateData{
 		Env:   cc.env,
-		Files: cc.fm.GetFiles(),
+		Files: cc.fm.List(0),
 		Vars:  varsCopy,
 	}
 

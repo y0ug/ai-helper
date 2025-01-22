@@ -40,7 +40,7 @@ func (h *CodeDiffHandler) PostProcess(
 	parser := parser.New()
 	if len(response) > 0 && len(response[0].Choice) > 0 && len(response[0].Choice[0].Content) > 0 {
 		sections := parser.ParseResponse(response[0].Choice[0].Content[0].String())
-		filesInCtx := cm.GetCtx().GetFM().GetFiles()
+		filesInCtx := cm.GetCtx().GetFM().List(0)
 		files := make(map[string]string)
 		for filename, file := range filesInCtx {
 			files[filename] = file.Content

@@ -1,44 +1,23 @@
 package coder
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/y0ug/ai-helper/internal/coder/models"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
-	"github.com/y0ug/ai-helper/pkg/gitrepo"
+	"github.com/y0ug/ai-helper/internal/coder/repomanager"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
-
-type Edit struct {
-	Path         string
-	OriginalText string
-	UpdatedText  string
-}
-
-// Fence represents a pair of opening and closing delimiters for code blocks
-type Fence [2]string
-
-// DefaultFences defines all possible fencing options in order of preference
-var DefaultFences = []Fence{
-	{"```", "```"},
-	{"````", "````"},
-	{"<source>", "</source>"},
-	{"<code>", "</code>"},
-	{"<pre>", "</pre>"},
-	{"<codeblock>", "</codeblock>"},
-	{"<sourcecode>", "</sourcecode>"},
-}
 
 type BaseCoder struct {
 	mainModel  *models.Model
 	editFormat string
 	logger     *slog.Logger
-	// io                *io.InputOutput
-	repo                 *gitrepo.GitRepo
-	fileManager          FileManager
+	llmClient  chat.Provider
+	// repo       gitrepo.GitRepoInterface
+	// fileManager          filemanager.FileManager
 	curMessages          []prompts.Message
 	doneMessages         []prompts.Message
 	lastCommitHash       string
@@ -51,21 +30,21 @@ type BaseCoder struct {
 	chatLanguage         string
 	verbose              bool
 	prompts              prompts.BasePrompts
-	fence                Fence
-	root                 string
-	absRootPathCache     map[string]string
 	lintCommands         map[string]string
 	suggestShellCommands bool
+	rm                   repomanager.RepoManagerInterface
 }
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
-	return &BaseCoder{
-		mainModel:   opts.MainModel,
-		editFormat:  opts.EditFormat,
-		fileManager: opts.FileManager,
-		repo:        opts.Repo,
-		prompts:     *prompts.NewBasePrompts(),
+	c := &BaseCoder{
+		mainModel:    opts.MainModel,
+		llmClient:    opts.LlmClient,
+		rm:           opts.RepoManager,
+		prompts:      *prompts.NewBasePrompts(),
+		curMessages:  make([]prompts.Message, 0),
+		doneMessages: make([]prompts.Message, 0),
 	}
+	return c
 }
 
 func (c *BaseCoder) getPrompts() *prompts.BasePrompts {
@@ -74,8 +53,9 @@ func (c *BaseCoder) getPrompts() *prompts.BasePrompts {
 
 func (c *BaseCoder) InitBeforeMessage() {
 	// Reset state before processing a new message
-	if c.repo != nil {
-		lastCommitHash, err := c.repo.GetHeadCommitSHA(false)
+	if c.rm.GetGit() != nil {
+		// Should commit before message
+		lastCommitHash, err := c.rm.GetGit().GetHeadCommitSHA(false)
 		if err != nil {
 			fmt.Println("Error getting head commit SHA:", err)
 		} else {
@@ -97,28 +77,67 @@ func (c *BaseCoder) SendMessage(message string) error {
 	})
 
 	// Format messages with appropriate prompts
-	_ = c.FormatMessages()
+	messages := c.FormatMessages()
 
-	// // Send to LLM and handle response
-	// response, err := c.SendToLLM(messages)
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// // Process response and apply edits
+	// Send to LLM and handle response
+	response, err := c.SendToLLM(messages)
+	if err != nil {
+		return err
+	}
+
+	c.logger.Info("response", "role", response[0].Role, "content", response[0].Content)
+	// Handle function call
+	// Show usage
+	// Check file mention
+
+	// Process response and apply edits
 	// edits, err := c.GetEdits(response)
 	// if err != nil {
 	// 	return err
 	// }
-	//
-	// return c.ApplyEdits(edits)
-	//
+
 	return nil
+	// return c.ApplyEdits(edits)
+}
+
+func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
+	messagesLLM := make([]*chat.ChatMessage, 0)
+	for m := range messages.System {
+		messagesLLM = append(
+			messagesLLM,
+			chat.NewMessage("system", chat.NewTextContent(messages.System[m].Content)),
+		)
+	}
+	for _, m := range messages.AllMessages() {
+		messagesLLM = append(
+			messagesLLM,
+			chat.NewMessage(m.Role, chat.NewTextContent(m.Content)))
+	}
+	// Send messages to LLM
+	chatParams := chat.NewChatParams(
+		chat.WithMaxTokens(c.mainModel.MaxChatHistoryTokens),
+		chat.WithModel(c.mainModel.Name),
+		chat.WithMessages(messagesLLM...))
+
+	ctx := context.Background()
+	response, err := c.llmClient.Send(ctx, *chatParams)
+	if err != nil {
+		return nil, err
+	}
+
+	msgParams := response.ToMessageParams()
+	m := prompts.Message{
+		Role:    msgParams.Role,
+		Content: msgParams.Content[0].String(),
+	}
+	c.logger.Info("msg", "role", m.Role, "content", m.Content)
+	// Process response
+	return []prompts.Message{m}, nil
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
 func (c *BaseCoder) FormatMessages() *ChatChunks {
-	c.chooseFence()
+	c.rm.ChooseFence()
 	chunks := &ChatChunks{}
 
 	// Add system messages
@@ -195,11 +214,7 @@ func (c *BaseCoder) getRepoMessages() []prompts.Message {
 }
 
 func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
-	if len(c.absReadOnlyNames) == 0 {
-		return nil
-	}
-
-	content := c.getReadOnlyFilesContent()
+	content := c.rm.GetReadOnlyFilesContent()
 	if content == "" {
 		return nil
 	}
@@ -226,7 +241,7 @@ func (c *BaseCoder) getRepoMap() string {
 }
 
 func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
-	if len(c.absFileNames) == 0 {
+	if len(c.rm.GetFM().List(0)) == 0 {
 		promptsR := c.getPrompts()
 		if c.getRepoMap() != "" && promptsR.FilesNoFullFilesWithRepoMap != "" {
 			return []prompts.Message{
@@ -241,44 +256,12 @@ func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
 	}
 
 	promptsR := c.getPrompts()
-	content := promptsR.FilesContentPrefix + "\n" + c.getFilesContent()
+	content := promptsR.FilesContentPrefix + "\n" + c.rm.GetFilesContent()
 
 	return []prompts.Message{
 		{Role: "user", Content: content},
 		{Role: "assistant", Content: promptsR.FilesContentAssistantReply},
 	}
-}
-
-func readFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
-}
-
-func (c *BaseCoder) getFilesContent() string {
-	var content string
-	files := c.fileManager.List(NewFileFilters(FilterEditable))
-	
-	for fname, info := range files {
-		relPath := c.getRelativePath(fname)
-		content += "\n" + relPath + "\n"
-		content += c.fence[0] + "\n"
-		content += info.Content
-		content += c.fence[1] + "\n"
-	}
-	return content
-}
-
-func (c *BaseCoder) getReadOnlyFilesContent() string {
-	var content string
-	files := c.fileManager.List(NewFileFilters(FilterReadOnly))
-	
-	for fname, info := range files {
-		relPath := c.getRelativePath(fname)
-		content += "\n" + relPath + "\n"
-		content += c.fence[0] + "\n"
-		content += info.Content
-		content += c.fence[1] + "\n"
-	}
-	return content
 }
 
 func (c *BaseCoder) formatSystemPrompt() string {
@@ -288,7 +271,7 @@ func (c *BaseCoder) formatSystemPrompt() string {
 		LazyPrompt:     c.getLazyPrompt(),
 		Platform:       c.getPlatformInfo(),
 		ShellCmdPrompt: c.getShellCmdPrompt(),
-		Fence:          c.fence,
+		Fence:          c.rm.GetFence(),
 	}
 
 	formatted, err := prompts.RenderTemplate(promptsR.MainSystem, data)
@@ -317,90 +300,5 @@ type TemplateData struct {
 	LazyPrompt     string
 	Platform       string
 	ShellCmdPrompt string
-	Fence          [2]string
-}
-
-// chooseFence selects appropriate fence markers that won't conflict with file contents
-func (c *BaseCoder) chooseFence() {
-	// Get all content from files to check for fence conflicts
-	allContent := c.getAllContent()
-
-	// Try each fence option until we find one that doesn't appear in the content
-	for _, fence := range DefaultFences {
-		if !hasFenceConflict(allContent, fence) {
-			c.fence = fence
-			return
-		}
-	}
-
-	// If all fences conflict (unlikely), use the default and warn
-	c.fence = DefaultFences[0]
-	// c.io.ToolWarning("Unable to find a non-conflicting fence strategy! Falling back to: " +
-	// 	c.fence[0] + "..." + c.fence[1])
-}
-
-// getAllContent combines content from all files being handled
-func (c *BaseCoder) getAllContent() string {
-	var builder strings.Builder
-	
-	// Get all files
-	files := c.fileManager.List(NewFileFilters(FilterAll))
-	
-	for _, info := range files {
-		builder.WriteString(info.Content)
-		builder.WriteString("\n")
-	}
-
-	return builder.String()
-}
-
-// hasFenceConflict checks if fence markers appear in the content
-func hasFenceConflict(content string, fence Fence) bool {
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, fence[0]) || strings.HasPrefix(line, fence[1]) {
-			return true
-		}
-	}
-	return false
-}
-
-// getRelativePath converts an absolute path to a path relative to the repository root or working directory
-func (c *BaseCoder) getRelativePath(absPath string) string {
-	// Check cache first
-	if relPath, ok := c.absRootPathCache[absPath]; ok {
-		return relPath
-	}
-
-	// Get relative path
-	relPath, err := filepath.Rel(c.root, absPath)
-	if err != nil {
-		// If we can't get relative path, return absolute path
-		return absPath
-	}
-
-	// Cache and return the result
-	c.absRootPathCache[absPath] = relPath
-	return relPath
-}
-
-// absRootPath converts a relative path to absolute path using root directory
-func (c *BaseCoder) absRootPath(path string) string {
-	// Check cache first
-	if cached, ok := c.absRootPathCache[path]; ok {
-		return cached
-	}
-
-	// Join with root and get absolute path
-	absPath := filepath.Join(c.root, path)
-	absPath, err := filepath.Abs(absPath)
-	if err != nil {
-		// If we can't get absolute path, return joined path
-		absPath = filepath.Join(c.root, path)
-	}
-
-	// Cache and return result
-	c.absRootPathCache[path] = absPath
-	return absPath
+	Fence          repomanager.Fence
 }

@@ -25,7 +25,7 @@ func (c *BaseCoder) getPlatformInfo() string {
 	}
 
 	// Git repo info
-	if c.repo != nil {
+	if c.rm.GetGit() != nil {
 		info += "- The user is operating inside a git repository\n"
 	}
 

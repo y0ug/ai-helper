@@ -1,6 +1,7 @@
 package editblock
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -67,8 +68,8 @@ ls -la
 		},
 	}
 
-	coder := &EditBlockCoder{
-		Fence: [2]string{"```", "```"},
+	coder := &EditBlockService{
+		fence: [2]string{"```", "```"},
 	}
 
 	for _, tt := range tests {
@@ -120,7 +121,7 @@ ls -la
 }
 
 func TestExtractEditBlock(t *testing.T) {
-	coder := &EditBlockCoder{Fence: [2]string{"```", "```"}}
+	coder := &EditBlockService{fence: [2]string{"```", "```"}}
 
 	t.Run("valid block", func(t *testing.T) {
 		lines := []string{
@@ -163,7 +164,7 @@ func TestExtractEditBlock(t *testing.T) {
 }
 
 func TestFindFilename(t *testing.T) {
-	coder := &EditBlockCoder{Fence: [2]string{"```", "```"}}
+	coder := &EditBlockService{fence: [2]string{"```", "```"}}
 
 	tests := []struct {
 		name     string
@@ -231,9 +232,9 @@ func TestApplyEdits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	coder := &EditBlockCoder{
-		RootPath: tempDir,
-		Fence:    [2]string{"```", "```"},
+	coder := &EditBlockService{
+		fence:  [2]string{"```", "```"},
+		logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
 	}
 
 	edit := EditBlock{

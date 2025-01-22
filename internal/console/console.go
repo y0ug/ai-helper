@@ -204,7 +204,7 @@ func (c *Console) getFileSuggestions(pattern string) []prompt.Suggest {
 }
 
 func (c *Console) getFileManagerSuggestions(pattern string) []prompt.Suggest {
-	filesInCtx := c.agent.GetConversation().GetCtx().GetFM().GetFiles()
+	filesInCtx := c.agent.GetConversation().GetCtx().GetFM().List(0)
 	pattern = strings.ToLower(pattern)
 
 	suggestions := make([]prompt.Suggest, 0)
@@ -283,7 +283,7 @@ func (c *Console) handleAddFile(args []string) {
 
 	c.setState([]string{"add_files"})
 	for _, file := range args {
-		if err := c.agent.GetConversation().GetCtx().GetFM().AddFile(file, false); err != nil {
+		if err := c.agent.GetConversation().GetCtx().GetFM().Add(file, false); err != nil {
 			fmt.Printf("Error loading file %s: %v\n", file, err)
 			continue
 		}
@@ -298,13 +298,13 @@ func (c *Console) handleRemoveFile(args []string) {
 	}
 
 	for _, file := range args {
-		c.agent.GetConversation().GetCtx().GetFM().RemoveFile(file)
+		c.agent.GetConversation().GetCtx().GetFM().Remove(file)
 		fmt.Printf("Removed file: %s\n", file)
 	}
 }
 
 func (c *Console) handleListFiles(args []string) {
-	files := c.agent.GetConversation().GetCtx().GetFM().GetFiles()
+	files := c.agent.GetConversation().GetCtx().GetFM().List(0)
 	if len(files) == 0 {
 		fmt.Println("No files currently attached")
 		return

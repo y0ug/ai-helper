@@ -23,7 +23,7 @@ func (h *AddFileHandler) PreProcess(ctx context.Context, cm Manager) error {
 	// Add the files
 	fm := cm.GetCtx().GetFM()
 	for _, fn := range filenames {
-		if err := fm.AddFile(fn, false); err != nil {
+		if err := fm.Add(fn, false); err != nil {
 			fmt.Printf("Error loading file %s: %v\n", fn, err)
 		} else {
 			fmt.Printf("Added file: %s\n", fn)
