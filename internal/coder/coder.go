@@ -14,10 +14,10 @@ type Coder interface {
 }
 
 type CoderOptions struct {
-	MainModel  *models.ModelSettings
-	EditFormat string
-	// IO         *io.InputOutput
-	// ... other options
+	MainModel   *models.ModelSettings
+	EditFormat  string
+	FileManager FileManager
+	Repo        *gitrepo.GitRepo
 }
 
 type FileManager interface {

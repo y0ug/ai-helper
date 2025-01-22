@@ -38,10 +38,9 @@ type BaseCoder struct {
 	logger     *slog.Logger
 	// io                *io.InputOutput
 	repo                 *gitrepo.GitRepo
+	fileManager          FileManager
 	curMessages          []prompts.Message
 	doneMessages         []prompts.Message
-	absFileNames         map[string]struct{}
-	absReadOnlyNames     map[string]struct{}
 	lastCommitHash       string
 	aiderCommitHashes    map[string]struct{}
 	temperature          float64
@@ -61,14 +60,11 @@ type BaseCoder struct {
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
 	return &BaseCoder{
-		// mainModel:  opts.MainModel,
-		// editFormat: opts.EditFormat,
-		// // io:                opts.IO,
-		// // repo:              opts.Repo,
-		// absFileNames:      make(map[string]struct{}),
-		// absReadOnlyNames:  make(map[string]struct{}),
-		// aiderCommitHashes: make(map[string]struct{}),
-		prompts: *prompts.NewBasePrompts(),
+		mainModel:   opts.MainModel,
+		editFormat:  opts.EditFormat,
+		fileManager: opts.FileManager,
+		repo:        opts.Repo,
+		prompts:     *prompts.NewBasePrompts(),
 	}
 }
 
@@ -259,16 +255,13 @@ func readFile(path string) ([]byte, error) {
 
 func (c *BaseCoder) getFilesContent() string {
 	var content string
-	for fname := range c.absFileNames {
+	files := c.fileManager.List(NewFileFilters(FilterEditable))
+	
+	for fname, info := range files {
 		relPath := c.getRelativePath(fname)
-		fileContent, err := readFile(fname)
-		if err != nil {
-			continue
-		}
-
 		content += "\n" + relPath + "\n"
 		content += c.fence[0] + "\n"
-		content += string(fileContent)
+		content += info.Content
 		content += c.fence[1] + "\n"
 	}
 	return content
@@ -276,16 +269,13 @@ func (c *BaseCoder) getFilesContent() string {
 
 func (c *BaseCoder) getReadOnlyFilesContent() string {
 	var content string
-	for fname := range c.absReadOnlyNames {
+	files := c.fileManager.List(NewFileFilters(FilterReadOnly))
+	
+	for fname, info := range files {
 		relPath := c.getRelativePath(fname)
-		fileContent, err := readFile(fname)
-		if err != nil {
-			continue
-		}
-
 		content += "\n" + relPath + "\n"
 		content += c.fence[0] + "\n"
-		content += string(fileContent)
+		content += info.Content
 		content += c.fence[1] + "\n"
 	}
 	return content
@@ -352,23 +342,13 @@ func (c *BaseCoder) chooseFence() {
 // getAllContent combines content from all files being handled
 func (c *BaseCoder) getAllContent() string {
 	var builder strings.Builder
-
-	// Get content from editable files
-	for fname := range c.absFileNames {
-		content, err := readFile(fname)
-		if err == nil {
-			builder.WriteString(string(content))
-			builder.WriteString("\n")
-		}
-	}
-
-	// Get content from read-only files
-	for fname := range c.absReadOnlyNames {
-		content, err := readFile(fname)
-		if err == nil {
-			builder.WriteString(string(content))
-			builder.WriteString("\n")
-		}
+	
+	// Get all files
+	files := c.fileManager.List(NewFileFilters(FilterAll))
+	
+	for _, info := range files {
+		builder.WriteString(info.Content)
+		builder.WriteString("\n")
 	}
 
 	return builder.String()
