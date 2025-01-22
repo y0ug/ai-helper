@@ -20,7 +20,7 @@ func NewLocalFileManager() *LocalFileManager {
 	}
 }
 
-func (fm *LocalFileManager) AddFile(path string, readOnly bool) error {
+func (fm *LocalFileManager) Add(path string, readOnly bool) error {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
 
@@ -55,7 +55,7 @@ func (fm *LocalFileManager) AddFile(path string, readOnly bool) error {
 	return nil
 }
 
-func (fm *LocalFileManager) RemoveFile(path string) error {
+func (fm *LocalFileManager) Remove(path string) error {
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
 
@@ -64,7 +64,7 @@ func (fm *LocalFileManager) RemoveFile(path string) error {
 	return nil
 }
 
-func (fm *LocalFileManager) ListFiles() map[string]*FileInfo {
+func (fm *LocalFileManager) List() map[string]*FileInfo {
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
 
@@ -75,7 +75,7 @@ func (fm *LocalFileManager) ListFiles() map[string]*FileInfo {
 	return files
 }
 
-func (fm *LocalFileManager) GetFileContent(path string) (string, bool, error) {
+func (fm *LocalFileManager) Get(path string) (string, bool, error) {
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
 
@@ -111,7 +111,7 @@ func (fm *LocalFileManager) GetFileLastUpdate(path string) (time.Time, error) {
 }
 
 // UpdateFileContent updates file content if it's not read-only
-func (fm *LocalFileManager) UpdateFileContent(path string, newContent string) error {
+func (fm *LocalFileManager) Write(path string, newContent string) error {
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
 	fileInfo, exists := fm.files[path]

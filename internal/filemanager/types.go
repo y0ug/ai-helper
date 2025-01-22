@@ -51,15 +51,16 @@ type FileInfo struct {
 }
 
 type FileManager interface {
-	AddFile(path string, readOnly bool) error
-	RemoveFile(path string) error
-	GetFileContent(path string) (string, bool, error)
-	UpdateFileContent(path string, newContent string) error
-	IsFileReadOnly(path string) (bool, error)
-	GetFileLastUpdate(path string) (time.Time, error)
-	GetFileStatus(path string) (FileStatus, error)
-	GetFiles() map[string]*FileInfo
+	Add(path string, readOnly bool) error
+	Remove(path string) error
+	Get(path string) (string, bool, error)
+	List() map[string]*FileInfo
+	Write(path string, newContent string) error
+
 	MarkFileAsSent(path string) error
 	HasFileChanged(path string) (bool, error)
 	GetNewFiles() map[string]*FileInfo
+	IsFileReadOnly(path string) (bool, error)
+	GetFileLastUpdate(path string) (time.Time, error)
+	GetFileStatus(path string) (FileStatus, error)
 }
