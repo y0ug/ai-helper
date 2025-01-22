@@ -50,11 +50,35 @@ type FileInfo struct {
 	LastCommit string
 }
 
+type FileFilter int
+
+const (
+	FilterAll FileFilter = iota
+	FilterReadOnly
+	FilterEditable
+	FilterNew
+)
+
+// FileFilters allows combining multiple filters using bitwise operations
+type FileFilters int
+
+func (f FileFilters) Has(filter FileFilter) bool {
+	return int(f)&(1<<filter) != 0
+}
+
+func NewFileFilters(filters ...FileFilter) FileFilters {
+	var result FileFilters
+	for _, f := range filters {
+		result |= 1 << f
+	}
+	return result
+}
+
 type FileManager interface {
 	Add(path string, readOnly bool) error
 	Remove(path string) error
 	Get(path string) (string, bool, error)
-	List() map[string]*FileInfo
+	List(filters FileFilters) map[string]*FileInfo
 	Write(path string, newContent string) error
 
 	MarkFileAsSent(path string) error

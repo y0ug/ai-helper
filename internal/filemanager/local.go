@@ -64,13 +64,37 @@ func (fm *LocalFileManager) Remove(path string) error {
 	return nil
 }
 
-func (fm *LocalFileManager) List() map[string]*FileInfo {
+func (fm *LocalFileManager) List(filters FileFilters) map[string]*FileInfo {
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
 
 	files := make(map[string]*FileInfo)
-	for k, v := range fm.files {
-		files[k] = v
+	for path, info := range fm.files {
+		// If no filters specified, include all files
+		if filters == 0 {
+			files[path] = info
+			continue
+		}
+
+		// Check each active filter
+		include := false
+
+		if filters.Has(FilterAll) {
+			include = true
+		}
+		if filters.Has(FilterReadOnly) && info.ReadOnly {
+			include = true
+		}
+		if filters.Has(FilterEditable) && !info.ReadOnly {
+			include = true
+		}
+		if filters.Has(FilterNew) && (info.GitStatus == StatusAdded || info.GitStatus == StatusModified) {
+			include = true
+		}
+
+		if include {
+			files[path] = info
+		}
 	}
 	return files
 }
