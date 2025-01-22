@@ -1,7 +1,6 @@
 package console
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -16,12 +15,11 @@ import (
 )
 
 type Console struct {
-	agent         *llmagent.TemplateAgent
-	h             *highlighter.Highlighter
-	commands      map[string]Command
-	pt            *prompt.Prompt
-	attachedFiles []string
-	historyFile   string
+	agent       *llmagent.TemplateAgent
+	h           *highlighter.Highlighter
+	commands    map[string]Command
+	pt          *prompt.Prompt
+	historyFile string
 }
 
 func getHistoryFilePath() string {
@@ -30,38 +28,6 @@ func getHistoryFilePath() string {
 		return ".ai-helper-history"
 	}
 	return filepath.Join(usr.HomeDir, ".ai-helper-history")
-}
-
-func (c *Console) loadHistory() []string {
-	var history []string
-	file, err := os.OpenFile(c.historyFile, os.O_RDONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return history
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line != "" {
-			history = append(history, line)
-		}
-	}
-	return history
-}
-
-func (c *Console) appendHistory(input string) {
-	if input == "" {
-		return
-	}
-
-	file, err := os.OpenFile(c.historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-
-	file.WriteString(input + "\n")
 }
 
 // Command represents a chat command
@@ -77,43 +43,8 @@ func New(agent *llmagent.TemplateAgent) *Console {
 		h:           highlighter.NewHighlighter(os.Stdout),
 		historyFile: getHistoryFilePath(),
 	}
-	c.commands = map[string]Command{
-		"/help": {
-			name:        "help",
-			description: "Show available commands",
-			handler:     c.handleHelp,
-		},
-		"/quit": {
-			name:        "quit",
-			description: "Exit the chat",
-			handler:     c.handleQuit,
-		},
-		"/add": {
-			name:        "add",
-			description: "Add file(s) to the conversation",
-			handler:     c.handleAddFile,
-		},
-		"/remove": {
-			name:        "remove",
-			description: "Remove file(s) from the conversation",
-			handler:     c.handleRemoveFile,
-		},
-		"/files": {
-			name:        "files",
-			description: "List currently attached files",
-			handler:     c.handleListFiles,
-		},
-		"/state": {
-			name:        "state",
-			description: "Set state",
-			handler:     c.setState,
-		},
-		"/send": {
-			name:        "send",
-			description: "send request",
-			handler:     c.send,
-		},
-	}
+
+	c.setCommands()
 
 	c.pt = prompt.New(
 		c.executor,

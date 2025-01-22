@@ -3,6 +3,7 @@ package coder
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/editservice"
@@ -13,10 +14,11 @@ import (
 )
 
 type BaseCoder struct {
-	mainModel  *models.Model
-	editFormat string
-	logger     *slog.Logger
-	llmClient  chat.Provider
+	mainModel    *models.Model
+	editFormat   string
+	logger       *slog.Logger
+	streamWriter io.Writer
+	llmClient    chat.Provider
 	// repo       gitrepo.GitRepoInterface
 	// fileManager          filemanager.FileManager
 	curMessages          []prompts.Message
@@ -30,7 +32,7 @@ type BaseCoder struct {
 	totalCost            float64
 	chatLanguage         string
 	verbose              bool
-	prompts              prompts.BasePrompts
+	prompts              prompts.EditBlockPrompts
 	lintCommands         map[string]string
 	suggestShellCommands bool
 	rm                   repomanager.RepoManagerInterface
@@ -41,14 +43,28 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 		mainModel:    opts.MainModel,
 		llmClient:    opts.LlmClient,
 		rm:           opts.RepoManager,
-		prompts:      *prompts.NewBasePrompts(),
+		logger:       opts.Logger,
+		prompts:      *prompts.NewEditBlockPrompts(),
 		curMessages:  make([]prompts.Message, 0),
 		doneMessages: make([]prompts.Message, 0),
+	}
+	editFormat := editservice.EditFormatDiff
+	if editFormat == editservice.EditFormatDiff {
+		editSvc := editservice.NewEditBlockService(c.logger, c.rm.GetFence())
+		c.rm.SetEditService(editSvc)
 	}
 	return c
 }
 
-func (c *BaseCoder) getPrompts() *prompts.BasePrompts {
+func (c *BaseCoder) SetStreamWriter(w io.Writer) {
+	c.streamWriter = w
+}
+
+func (c *BaseCoder) GetRM() repomanager.RepoManagerInterface {
+	return c.rm
+}
+
+func (c *BaseCoder) getPrompts() *prompts.EditBlockPrompts {
 	return &c.prompts
 }
 
@@ -80,25 +96,83 @@ func (c *BaseCoder) SendMessage(message string) error {
 	// Format messages with appropriate prompts
 	messages := c.FormatMessages()
 
+	for _, m := range messages.AllMessages() {
+		c.logger.Info("msg", "role", m.Role, "content", m.Content)
+	}
+
 	// Send to LLM and handle response
-	response, err := c.SendToLLM(messages)
+	msg, err := c.SendToLLM(messages)
 	if err != nil {
 		return err
 	}
 
-	c.logger.Info("response", "role", response[0].Role, "content", response[0].Content)
-	// Handle function call
-	// Show usage
-	// Check file mention
+	var isEdited bool
+	// Process the response
+	for _, m := range msg {
+		if m.Role != "assistant" {
+			continue
+		}
 
-	// Process response and apply edits
-	// edits, err := c.GetEdits(response)
-	// if err != nil {
-	// 	return err
-	// }
+		// Add assistant message to curMessage
+		c.curMessages = append(c.curMessages, msg...)
+
+		isEdit, err := c.rm.ProcessEdit(m.Content)
+		if err != nil {
+			c.logger.Error("Error processing edit", "error", err)
+		}
+		if isEdit {
+			isEdited = true
+		}
+
+		responseMsg := c.getPrompts().FilesContentGPTNoEdits
+		if isEdited {
+			commitMsg := "apply diff"
+			err = c.rm.GetFM().Commit(commitMsg)
+			if err != nil {
+				c.logger.Error("Error committing", "error", err)
+			}
+			// Should pass commit hash and message
+			data := map[string]string{
+				"Hash":    "12345",
+				"Message": commitMsg,
+			}
+			responseMsg = c.renderPromptData(c.getPrompts().FilesContentGPTEdits, data)
+		}
+
+		c.moveBackCurMessages(responseMsg)
+		// Should onlt have one assistant message??
+		break
+	}
 
 	return nil
 	// return c.ApplyEdits(edits)
+}
+
+func (c *BaseCoder) moveBackCurMessages(message string) {
+	c.logger.Info("adding", "message", message, "curMessage", c.curMessages)
+	// Clear current messages if everyting was done
+	c.doneMessages = append(c.doneMessages, c.curMessages...)
+	c.curMessages = make([]prompts.Message, 0)
+
+	if message != "" {
+		c.doneMessages = append(c.doneMessages, prompts.Message{
+			Role:    "user",
+			Content: message,
+		}, prompts.Message{
+			Role:    "assistant",
+			Content: "Ok.",
+		})
+	}
+}
+
+func (c *BaseCoder) processResponse(resp *chat.ChatResponse) ([]prompts.Message, error) {
+	// Process response
+	msgParams := resp.ToMessageParams()
+	c.logger.Info("response", "resp", resp)
+	c.logger.Info("msg", "role", msgParams.Role, "content", msgParams.Content)
+
+	// Process response
+	return []prompts.Message{{Role: msgParams.Role, Content: msgParams.Content[0].String()}}, nil
 }
 
 func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
@@ -121,19 +195,48 @@ func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
 		chat.WithMessages(messagesLLM...))
 
 	ctx := context.Background()
-	response, err := c.llmClient.Send(ctx, *chatParams)
-	if err != nil {
-		return nil, err
-	}
+	if c.streamWriter != nil {
+		stream, err := c.llmClient.Stream(ctx, *chatParams)
+		if err != nil {
+			c.logger.Error("Error streaming", "error", err)
+			return nil, err
+		}
 
-	msgParams := response.ToMessageParams()
-	m := prompts.Message{
-		Role:    msgParams.Role,
-		Content: msgParams.Content[0].String(),
+		eventCh := make(chan chat.EventStream)
+
+		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
+		go func() {
+			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
+			if err := chat.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
+				if err != context.Canceled {
+					c.logger.Error("Error consuming stream", "error", err)
+				}
+			}
+		}()
+
+		resp, err := processStream(ctx, c.streamWriter, eventCh)
+		if err != nil {
+			c.logger.Error("Error processing stream", "error", err)
+			return nil, nil
+		}
+
+		if resp == nil {
+			c.logger.Error("no message return")
+			return nil, fmt.Errorf("no message returned from LLM")
+		}
+		return c.processResponse(resp)
+	} else {
+		resp, err := c.llmClient.Send(ctx, *chatParams)
+		if err != nil {
+			return nil, err
+		}
+		if resp == nil {
+			c.logger.Error("no message return")
+			return nil, fmt.Errorf("no message returned from LLM")
+		}
+		return c.processResponse(resp)
 	}
-	c.logger.Info("msg", "role", m.Role, "content", m.Content)
-	// Process response
-	return []prompts.Message{m}, nil
+	// return nil, nil
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
@@ -157,7 +260,10 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 	}
 
 	// Add example messages from prompts
-	chunks.Examples = c.getPrompts().ExampleMessages
+	for _, msg := range c.getPrompts().ExampleMessages {
+		msg.Content = c.renderPrompt(msg.Content)
+		chunks.Examples = append(chunks.Examples, msg)
+	}
 
 	// Add chat history
 	chunks.Done = c.doneMessages
@@ -184,7 +290,7 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 	if reminder := c.getPrompts().SystemReminder; reminder != "" {
 		chunks.Reminder = []prompts.Message{{
 			Role:    "system",
-			Content: reminder,
+			Content: c.renderPrompt(reminder),
 		}}
 	}
 
@@ -219,7 +325,7 @@ func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
 	return []prompts.Message{
 		{
 			Role:    "user",
-			Content: promptsR.ReadOnlyFilesPrefix + "\n" + content,
+			Content: c.renderPrompt(promptsR.ReadOnlyFilesPrefix) + "\n" + content,
 		},
 		{
 			Role:    "assistant",
@@ -233,37 +339,67 @@ func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
 		promptsR := c.getPrompts()
 		if c.rm.GetRepoMap() != "" && promptsR.FilesNoFullFilesWithRepoMap != "" {
 			return []prompts.Message{
-				{Role: "user", Content: promptsR.FilesNoFullFilesWithRepoMap},
-				{Role: "assistant", Content: promptsR.FilesNoFullFilesWithRepoMapReply},
+				{Role: "user", Content: c.renderPrompt(promptsR.FilesNoFullFilesWithRepoMap)},
+				{
+					Role:    "assistant",
+					Content: c.renderPrompt(promptsR.FilesNoFullFilesWithRepoMapReply),
+				},
 			}
 		}
 		return []prompts.Message{
-			{Role: "user", Content: promptsR.FilesNoFullFiles},
+			{Role: "user", Content: c.renderPrompt(promptsR.FilesNoFullFiles)},
 			{Role: "assistant", Content: "Ok."},
 		}
 	}
 
 	promptsR := c.getPrompts()
-	content := promptsR.FilesContentPrefix + "\n" + c.rm.GetFilesContent()
+	content := c.renderPrompt(promptsR.FilesContentPrefix) + "\n" + c.rm.GetFilesContent()
 
 	return []prompts.Message{
 		{Role: "user", Content: content},
-		{Role: "assistant", Content: promptsR.FilesContentAssistantReply},
+		{Role: "assistant", Content: c.renderPrompt(promptsR.FilesContentAssistantReply)},
 	}
+}
+
+// Don't use this function for getLanguage, getLazyPrompt, getPlatformInfo, getShellCmdPrompt
+func (c *BaseCoder) renderPromptData(tmpl string, data map[string]string) string {
+	formatted, err := prompts.RenderTemplate(tmpl, data)
+	if err != nil {
+		c.logger.Error("Error rendering template", "error", err, "content", tmpl)
+		return tmpl
+	}
+	return formatted
+}
+
+func (c *BaseCoder) renderPrompt(tmpl string) string {
+	formatted, err := prompts.RenderTemplate(tmpl, c.getTremplateData())
+	if err != nil {
+		c.logger.Error("Error rendering template", "error", err, "content", tmpl)
+		return tmpl
+	}
+	return formatted
+}
+
+func (c *BaseCoder) getTremplateData() TemplateData {
+	d := TemplateData{
+		Language:         c.getLanguage(),
+		LazyPrompt:       c.getLazyPrompt(),
+		Platform:         c.getPlatformInfo(),
+		ShellCmdPrompt:   c.getShellCmdPrompt(),
+		ShellCmdReminder: c.getShellCmdReminder(),
+		Fence0:           c.rm.GetFence()[0],
+		Fence1:           c.rm.GetFence()[1],
+	}
+	c.logger.Info("template data", "data", d)
+	return d
 }
 
 func (c *BaseCoder) formatSystemPrompt() string {
 	promptsR := c.getPrompts()
-	data := TemplateData{
-		Language:       c.getLanguage(),
-		LazyPrompt:     c.getLazyPrompt(),
-		Platform:       c.getPlatformInfo(),
-		ShellCmdPrompt: c.getShellCmdPrompt(),
-		Fence:          c.rm.GetFence(),
-	}
 
-	formatted, err := prompts.RenderTemplate(promptsR.MainSystem, data)
+	formatted, err := prompts.RenderTemplate(promptsR.MainSystem, c.getTremplateData())
 	if err != nil {
+		c.logger.Error("Error rendering template MainSystem", "error", err)
 		return promptsR.MainSystem
 	}
 	return formatted
@@ -278,15 +414,52 @@ func (c *BaseCoder) getLanguage() string {
 
 func (c *BaseCoder) getLazyPrompt() string {
 	if c.mainModel.Lazy {
-		return c.getPrompts().LazyPrompt
+		d := TemplateData{
+			Platform: c.getPlatformInfo(),
+		}
+		formatted, err := prompts.RenderTemplate(c.getPrompts().LazyPrompt, d)
+		if err != nil {
+			c.logger.Error("Error rendering template LazyPrompt", "error", err)
+			return c.getPrompts().LazyPrompt
+		}
+		return formatted
+
 	}
 	return ""
 }
 
 type TemplateData struct {
-	Language       string
-	LazyPrompt     string
-	Platform       string
-	ShellCmdPrompt string
-	Fence          editservice.Fence
+	Language         string
+	LazyPrompt       string
+	Platform         string
+	ShellCmdPrompt   string
+	ShellCmdReminder string
+	Fence0           string
+	Fence1           string
+}
+
+func processStream(
+	ctx context.Context,
+	w io.Writer,
+	ch <-chan chat.EventStream,
+) (*chat.ChatResponse, error) {
+	var cm *chat.ChatResponse
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case set, ok := <-ch:
+			if !ok {
+				return cm, nil
+			}
+			if set.Type == "text_delta" {
+				if w != nil {
+					fmt.Fprintf(w, "%v", set.Delta)
+				}
+			}
+			if set.Type == "message_stop" {
+				cm = set.Message
+			}
+		}
+	}
 }

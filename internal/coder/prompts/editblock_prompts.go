@@ -58,13 +58,13 @@ Examples of when to suggest shell commands:
 
 Every *SEARCH/REPLACE block* must use this format:
 1. The *FULL* file path alone on a line, verbatim. No bold asterisks, no quotes around it, no escaping of characters, etc.
-2. The opening fence and code language, eg: {fence[0]}python
+2. The opening fence and code language, eg: {{ .Fence0 }}python
 3. The start of search block: <<<<<<< SEARCH
 4. A contiguous chunk of lines to search for in the existing source code
 5. The dividing line: =======
 6. The lines to replace into the source code
 7. The end of the replace block: >>>>>>> REPLACE
-8. The closing fence: {{.Fence[1]}}
+8. The closing fence: {{ .Fence1 }}
 
 Use the *FULL* file path, as shown to you by the user.
 
@@ -127,17 +127,17 @@ func getEditBlockExampleMessages() []Message {
 Here are the *SEARCH/REPLACE* blocks:
 
 mathweb/flask/app.py
-{{.Fence[0]}}python
+{{.Fence0}}python
 <<<<<<< SEARCH
 from flask import Flask
 =======
 import math
 from flask import Flask
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{.Fence1}}
 
 mathweb/flask/app.py
-{{.Fence[0]}}python
+{{.Fence0}}python
 <<<<<<< SEARCH
 def factorial(n):
     "compute factorial"
@@ -149,16 +149,16 @@ def factorial(n):
 
 =======
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{.Fence1}}
 
 mathweb/flask/app.py
-{{.Fence[0]}}python
+{{.Fence0}}python
 <<<<<<< SEARCH
     return str(factorial(n))
 =======
     return str(math.factorial(n))
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{.Fence1}}
 `,
 		},
 		{Role: "user", Content: "Refactor hello() into its own file."},
@@ -172,7 +172,7 @@ mathweb/flask/app.py
 Here are the *SEARCH/REPLACE* blocks:
 
 hello.py
-{{.Fence[0]}python
+{{.Fence0}}python
 <<<<<<< SEARCH
 =======
 def hello():
@@ -180,10 +180,10 @@ def hello():
 
     print("hello")
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{.Fence1}}
 
 main.py
-{fence[0]}python
+{{ .Fence0 }}python
 <<<<<<< SEARCH
 def hello():
     "print a greeting"
@@ -192,7 +192,7 @@ def hello():
 =======
 from hello import hello
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{.Fence1}}
 `,
 		},
 	}

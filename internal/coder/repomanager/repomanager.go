@@ -1,6 +1,7 @@
 package repomanager
 
 import (
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -38,11 +39,58 @@ var _ RepoManagerInterface = &RepoManager{}
 type RepoManagerInterface interface {
 	GetFM() filemanager.FileManager
 	GetGit() gitrepo.GitRepoInterface
-	GetFence() editservice.Fence
+	GetFence() [2]string
 	ChooseFence()
 	GetFilesContent() string
 	GetReadOnlyFilesContent() string
 	GetRepoMap() string
+	SetEditService(svc editservice.EditService)
+	ProcessEdit(content string) (bool, error)
+}
+
+func NewRepoManager(
+	root string,
+	logger *slog.Logger,
+	fm filemanager.FileManager,
+	git gitrepo.GitRepoInterface,
+) *RepoManager {
+	return &RepoManager{
+		root:             root,
+		logger:           logger,
+		fm:               fm,
+		git:              git,
+		absRootPathCache: make(map[string]string),
+	}
+}
+
+func (c *RepoManager) SetEditService(svc editservice.EditService) {
+	c.editSvc = svc
+}
+
+func (c *RepoManager) ProcessEdit(content string) (bool, error) {
+	c.editSvc.SetFence(c.fence)
+	results := c.editSvc.GetEdits(content)
+	if len(results) == 0 {
+		c.logger.Warn("No edits found")
+		return false, nil
+	}
+	var edits []editservice.Edit
+	for _, result := range results {
+		if result.Edit != nil {
+			edits = append(edits, *result.Edit)
+		}
+	}
+
+	err := c.editSvc.ApplyEdits(c.fm, edits, true)
+	if err != nil {
+		return false, fmt.Errorf("failed to apply edits dry run %w", err)
+	}
+	err = c.editSvc.ApplyEdits(c.fm, edits, false)
+	if err != nil {
+		return false, fmt.Errorf("failed to apply edits %w", err)
+	}
+
+	return true, nil
 }
 
 func (c *RepoManager) GetRepoMap() string {
@@ -57,7 +105,7 @@ func (c *RepoManager) GetFM() filemanager.FileManager {
 	return c.fm
 }
 
-func (c *RepoManager) GetFence() editservice.Fence {
+func (c *RepoManager) GetFence() [2]string {
 	return c.fence
 }
 

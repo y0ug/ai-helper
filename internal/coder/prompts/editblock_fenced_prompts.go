@@ -22,17 +22,17 @@ func getEditBlockFencedExampleMessages() []Message {
 Here are the *SEARCH/REPLACE* blocks:
 
 mathweb/flask/app.py
-{{.Fence[0]}}python
+{{ .Fence0 }}python
 <<<<<<< SEARCH
 from flask import Flask
 =======
 import math
 from flask import Flask
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{.Fence1}}
 
 mathweb/flask/app.py
-{{.Fence[0]}}python
+{{.Fence0}}python
 <<<<<<< SEARCH
 def factorial(n):
     "compute factorial"
@@ -44,16 +44,16 @@ def factorial(n):
 
 =======
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{ .Fence1 }}
 
 mathweb/flask/app.py
-{{.Fence[0]}}python
+{{ .Fence0 }}python
 <<<<<<< SEARCH
     return str(factorial(n))
 =======
     return str(math.factorial(n))
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{ .Fence1 }}
 `,
 		},
 		{Role: "user", Content: "Refactor hello() into its own file."},
@@ -67,7 +67,7 @@ mathweb/flask/app.py
 Here are the *SEARCH/REPLACE* blocks:
 
 hello.py
-{{.Fence[0]}python
+{{ .Fence0 }}python
 <<<<<<< SEARCH
 =======
 def hello():
@@ -75,10 +75,10 @@ def hello():
 
     print("hello")
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{ .Fence1 }}
 
 main.py
-{fence[0]}python
+{{ .Fence0 }}python
 <<<<<<< SEARCH
 def hello():
     "print a greeting"
@@ -87,7 +87,7 @@ def hello():
 =======
 from hello import hello
 >>>>>>> REPLACE
-{{.Fence[1]}}
+{{ .Fence1 }}
 `,
 		},
 	}

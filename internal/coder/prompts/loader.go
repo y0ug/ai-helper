@@ -2,7 +2,7 @@ package prompts
 
 import (
 	"bytes"
-	"html/template"
+	"text/template"
 )
 
 // RenderTemplate applies Go's text/template to a prompt, e.g. filling in {{.Hash}} etc.

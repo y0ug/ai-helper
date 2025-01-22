@@ -16,6 +16,7 @@ const (
 type EditService interface {
 	GetEdits(content string) []EditResult
 	ApplyEdits(filemanager.FileManager, []Edit, bool) error
+	SetFence(Fence)
 }
 
 type Fence [2]string

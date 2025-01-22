@@ -11,41 +11,39 @@ import (
 
 func (c *BaseCoder) getShellCmdPrompt() string {
 	// If shell commands are disabled, return no shell command prompt
-	if !c.suggestShellCommands {
-		prompts := c.getPrompts()
-		return prompts.NoShellCmdPrompt
-	}
-
-	// Get base prompt
 	prompts := c.getPrompts()
-	shellPrompt := prompts.ShellCmdPrompt
+	text := prompts.NoShellCmdPrompt
+	if !c.suggestShellCommands {
+		text = prompts.NoShellCmdPrompt
+	}
 
 	// Format with platform info
 	data := TemplateData{
 		Platform: c.getPlatformInfo(),
 	}
-	formatted, err := promptsA.RenderTemplate(shellPrompt, data)
+	formatted, err := promptsA.RenderTemplate(text, data)
 	if err != nil {
-		return shellPrompt
+		c.logger.Error("failed to render shell command prompt", "error", err)
+		return text
 	}
 
 	return formatted
 }
 
 func (c *BaseCoder) getShellCmdReminder() string {
-	if !c.suggestShellCommands {
-		prompts := c.getPrompts()
-		return prompts.NoShellCmdReminder
-	}
-
 	prompts := c.getPrompts()
+
 	reminder := prompts.ShellCmdReminder
+	if !c.suggestShellCommands {
+		reminder = prompts.NoShellCmdReminder
+	}
 
 	data := TemplateData{
 		Platform: c.getPlatformInfo(),
 	}
 	formatted, err := promptsA.RenderTemplate(reminder, data)
 	if err != nil {
+		c.logger.Error("failed to render shell command reminder", "error", err)
 		return reminder
 	}
 

@@ -13,7 +13,6 @@ type (
 	EditBlockService struct {
 		fence  Fence
 		logger *slog.Logger
-		fm     filemanager.FileManager
 		format EditFormat
 		mode   EditMode
 	}
@@ -31,13 +30,17 @@ var (
 	replaceRe = regexp.MustCompile(`^>{5,9} REPLACE\s*$`)
 )
 
-func NewBlockService(logger *slog.Logger, fence Fence) *EditBlockService {
+func NewEditBlockService(logger *slog.Logger, fence Fence) *EditBlockService {
 	return &EditBlockService{
 		fence:  fence,
 		logger: logger,
 		format: EditFormatDiff,
 		mode:   EditBlockMode,
 	}
+}
+
+func (c *EditBlockService) SetFence(fence Fence) {
+	c.fence = fence
 }
 
 func (c *EditBlockService) newEdit(filename, original, updated string) *Edit {
@@ -136,8 +139,9 @@ func (c *EditBlockService) ApplyEdits(
 		content, isEditable, err := fm.Get(edit.Filename)
 		if err != nil {
 			c.logger.Error("error reading file ", "filename", edit.Filename, "error", err)
-			c.logger.Info("file is not in the file list", "filename", edit.Filename)
-			continue
+			c.logger.Info("file is not in the file list adding it", "filename", edit.Filename)
+			content = ""
+			fm.Add(edit.Filename, false)
 		} else if !isEditable {
 			c.logger.Info("file is read-only we will not edit it", "filename", edit.Filename)
 			continue

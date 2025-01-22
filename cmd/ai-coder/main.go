@@ -10,6 +10,8 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/coder"
 	modelinfocoder "github.com/y0ug/ai-helper/internal/coder/models"
+	"github.com/y0ug/ai-helper/internal/coder/repomanager"
+	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
@@ -86,14 +88,16 @@ func main() {
 		logger.Error("Error creating git repo", "error", err)
 	}
 
+	rm := repomanager.NewRepoManager(rootPath, logger, fm, gitRepo)
 	coderOpts := coder.CoderOptions{
 		MainModel:   modelCoder,
 		Logger:      logger,
-		FileManager: fm,
-		Repo:        gitRepo,
-		RootPath:    rootPath,
 		LlmClient:   llmClient,
+		RepoManager: rm,
 	}
 
-	_ = coder.NewBaseCoder(coderOpts)
+	coder := coder.NewBaseCoder(coderOpts)
+
+	console := consolecoder.New(coder)
+	console.Run()
 }
