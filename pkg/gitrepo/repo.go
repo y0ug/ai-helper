@@ -8,7 +8,7 @@ type GitRepoInterface interface {
 	GetDiffs(fnames []string) (string, error)
 	DiffCommits(pretty bool, fromCommit, toCommit string) (string, error)
 	GetTrackedFiles() ([]string, error)
-	// IsIgnoredFile(fname string) bool
+	IsIgnoredFile(fname string) bool
 	PathInRepo(path string) bool
 	GetDirtyFiles() ([]string, error)
 	IsDirty() bool
