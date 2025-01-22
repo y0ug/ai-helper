@@ -5,15 +5,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/y0ug/ai-helper/internal/coder/editservice"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 )
 
 // Fence represents a pair of opening and closing delimiters for code blocks
-type Fence [2]string
 
 // DefaultFences defines all possible fencing options in order of preference
-var DefaultFences = []Fence{
+var DefaultFences = []editservice.Fence{
 	{"```", "```"},
 	{"````", "````"},
 	{"<source>", "</source>"},
@@ -24,11 +24,12 @@ var DefaultFences = []Fence{
 }
 
 type RepoManager struct {
-	fence            Fence
+	fence            editservice.Fence
 	root             string
 	logger           *slog.Logger
 	fm               filemanager.FileManager
 	git              gitrepo.GitRepoInterface
+	editSvc          editservice.EditService
 	absRootPathCache map[string]string
 }
 
@@ -37,7 +38,7 @@ var _ RepoManagerInterface = &RepoManager{}
 type RepoManagerInterface interface {
 	GetFM() filemanager.FileManager
 	GetGit() gitrepo.GitRepoInterface
-	GetFence() Fence
+	GetFence() editservice.Fence
 	ChooseFence()
 	GetFilesContent() string
 	GetReadOnlyFilesContent() string
@@ -51,7 +52,7 @@ func (c *RepoManager) GetFM() filemanager.FileManager {
 	return c.fm
 }
 
-func (c *RepoManager) GetFence() Fence {
+func (c *RepoManager) GetFence() editservice.Fence {
 	return c.fence
 }
 
@@ -90,7 +91,7 @@ func (c *RepoManager) getAllContent() string {
 }
 
 // hasFenceConflict checks if fence markers appear in the content
-func hasFenceConflict(content string, fence Fence) bool {
+func hasFenceConflict(content string, fence editservice.Fence) bool {
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)

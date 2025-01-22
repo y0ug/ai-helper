@@ -40,7 +40,11 @@ func (fm *VersionedFileManager) Add(path string, readOnly bool) error {
 	newHash := hex.EncodeToString(hasher.Sum(nil))
 
 	status := StatusAdded
-	if _, exists := fm.files[path]; exists {
+	if fi, exists := fm.files[path]; exists {
+		if fi.Hash == newHash {
+			// File already exists and has not changed
+			return nil
+		}
 		status = StatusModified
 	}
 
@@ -52,14 +56,19 @@ func (fm *VersionedFileManager) Add(path string, readOnly bool) error {
 		Status:     status,
 	}
 
+	version := FileVersion{
+		Content:   string(content),
+		Hash:      newHash,
+		Timestamp: time.Now(),
+		CommitMsg: "Updated from disk",
+	}
+
 	// Initialize version history
 	if _, exists := fm.versions[path]; !exists {
-		fm.versions[path] = []FileVersion{{
-			Content:   string(content),
-			Hash:      newHash,
-			Timestamp: time.Now(),
-			CommitMsg: "Initial version",
-		}}
+		version.CommitMsg = "Initial version"
+		fm.versions[path] = []FileVersion{version}
+	} else {
+		fm.versions[path] = append(fm.versions[path], version)
 	}
 
 	return nil

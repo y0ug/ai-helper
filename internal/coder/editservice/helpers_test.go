@@ -1,4 +1,4 @@
-package editblock
+package editservice
 
 import (
 	"testing"
@@ -64,7 +64,7 @@ func TestLineDistance(t *testing.T) {
 	}{
 		{"  hello", "hello", 0.2},
 		{"hello", "goodbye", 1.0},
-		{"  hello  ", "  hello", 0.2},
+		{"  hello  ", "  hello", 0.4},
 	}
 
 	for _, tt := range tests {

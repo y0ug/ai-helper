@@ -1,39 +1,23 @@
-package editblock
+package editservice
 
 import (
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/go-git/go-git/v5/plumbing/transport/file"
-	"github.com/y0ug/ai-helper/internal/coder/repomanager"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
 
-type EditBlockService struct {
-	fence  repomanager.Fence
-	logger *slog.Logger
-	fm     filemanager.FileManager
-}
-
-type EditBlock struct {
-	Filename string
-	Original string
-	Updated  string
-}
-
-type ShellCommand struct {
-	Command string
-}
-
-type EditResult struct {
-	Edit  *EditBlock
-	Shell *ShellCommand
-	Err   error
-}
+type (
+	EditBlockService struct {
+		fence  Fence
+		logger *slog.Logger
+		fm     filemanager.FileManager
+		format EditFormat
+		mode   EditMode
+	}
+)
 
 const (
 	searchMarker  = "<<<<<<< SEARCH"
@@ -47,13 +31,24 @@ var (
 	replaceRe = regexp.MustCompile(`^>{5,9} REPLACE\s*$`)
 )
 
-func NewBlockService(logger *slog.Logger, fence repomanager.Fence) *EditBlockService {
+func NewBlockService(logger *slog.Logger, fence Fence) *EditBlockService {
 	return &EditBlockService{
-		fence:  fence 
+		fence:  fence,
 		logger: logger,
+		format: EditFormatDiff,
+		mode:   EditBlockMode,
 	}
 }
 
+func (c *EditBlockService) newEdit(filename, original, updated string) *Edit {
+	return &Edit{
+		Filename: filename,
+		Original: original,
+		Updated:  updated,
+		Format:   c.format,
+		Mode:     c.mode,
+	}
+}
 
 func (c *EditBlockService) GetEdits(content string) []EditResult {
 	var results []EditResult
@@ -75,11 +70,7 @@ func (c *EditBlockService) GetEdits(content string) []EditResult {
 				results = append(results, EditResult{Err: err})
 			} else {
 				results = append(results, EditResult{
-					Edit: &EditBlock{
-						Filename: filename,
-						Original: original,
-						Updated:  updated,
-					},
+					Edit: c.newEdit(filename, original, updated),
 				})
 			}
 			i = newI
@@ -97,9 +88,9 @@ func (c *EditBlockService) extractEditBlock(
 ) (string, string, string, int, error) {
 	// Find filename in preceding lines
 	filename := c.findFilename(lines, start)
-  if filename == "" {
-		return "", "", "", i, fmt.Errorf("filename not found")
-  }
+	if filename == "" {
+		return "", "", "", start, fmt.Errorf("filename not found")
+	}
 
 	// Extract original and updated blocks
 	var original, updated []string
@@ -136,27 +127,39 @@ func (c *EditBlockService) findFilename(lines []string, current int) string {
 	return ""
 }
 
-func (c *EditBlockService) ApplyEdits(edits []EditBlock, dryrun bool, fm filemanager.FileManager) error {
+func (c *EditBlockService) ApplyEdits(
+	fm filemanager.FileManager,
+	edits []Edit,
+	dryrun bool,
+) error {
 	for _, edit := range edits {
-    content, isReadOnly, err := fm.Get(edit.Filename)
-    if err != nil {
-      c.logger.Errorf("error reading file %s: %v", edit.Filename, err)
-      c.logger.Info("file %s is not in the file list")
-    }
-    if isReadOnly {
-      c.logger.Infof("file %s is read-only we will not edit it", edit.Filename)
-      continue
-    }
-		fullPath := filepath.Join(c.RootPath, edit.Filename)
-		content, err := os.ReadFile(fullPath)
+		content, isEditable, err := fm.Get(edit.Filename)
 		if err != nil {
-			return err
+			c.logger.Error("error reading file ", "filename", edit.Filename, "error", err)
+			c.logger.Info("file is not in the file list", "filename", edit.Filename)
+			continue
+		} else if !isEditable {
+			c.logger.Info("file is read-only we will not edit it", "filename", edit.Filename)
+			continue
 		}
 
 		newContent := DoReplace(string(content), edit.Original, edit.Updated)
+		c.logger.Info(
+			"applying edit to file",
+			"filename",
+			edit.Filename,
+			"content",
+			string(content),
+			"new_content",
+			newContent,
+			"original",
+			edit.Original,
+			"updated",
+			edit.Updated,
+		)
 		if newContent != string(content) {
 			if !dryrun {
-				err = os.WriteFile(fullPath, []byte(newContent), 0644)
+				err := fm.Write(edit.Filename, newContent)
 				if err != nil {
 					return err
 				}

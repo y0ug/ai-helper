@@ -1,4 +1,4 @@
-package editblock
+package editservice
 
 import (
 	"math"

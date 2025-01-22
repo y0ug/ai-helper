@@ -74,10 +74,10 @@ func NewFileFilters(filters ...FileFilter) FileFilters {
 
 // FileVersion represents a specific version of a file
 type FileVersion struct {
-	Content    string
-	Hash       string
-	Timestamp  time.Time
-	CommitMsg  string
+	Content   string
+	Hash      string
+	Timestamp time.Time
+	CommitMsg string
 }
 
 type FileManager interface {
@@ -93,10 +93,10 @@ type FileManager interface {
 	IsFileReadOnly(path string) (bool, error)
 	GetFileLastUpdate(path string) (time.Time, error)
 	GetFileStatus(path string) (FileStatus, error)
-	
+
 	// Version control methods
-	Stage(path string, content string) error
+	// Stage(path string, content string) error
 	Commit(msg string) error
-	GetVersions(path string) ([]FileVersion, error)
-	Revert(path string, version string) error
+	// GetVersions(path string) ([]FileVersion, error)
+	// Revert(path string, version string) error
 }

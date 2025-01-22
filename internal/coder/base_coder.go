@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/y0ug/ai-helper/internal/coder/editservice"
 	"github.com/y0ug/ai-helper/internal/coder/models"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
@@ -300,5 +301,5 @@ type TemplateData struct {
 	LazyPrompt     string
 	Platform       string
 	ShellCmdPrompt string
-	Fence          repomanager.Fence
+	Fence          editservice.Fence
 }

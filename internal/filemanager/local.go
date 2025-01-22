@@ -158,6 +158,21 @@ func (fm *LocalFileManager) Write(path string, newContent string) error {
 	fileInfo.LastUpdate = time.Now()
 	fileInfo.Status = StatusModified
 
+	return os.WriteFile(path, []byte(newContent), 0644)
+}
+
+func (fm *LocalFileManager) Commit(msg string) error {
+	fm.mu.RLock()
+	defer fm.mu.RUnlock()
+	for path, fi := range fm.List(NewFileFilters(FilterNew)) {
+		if fi.Status == StatusModified {
+			err := os.WriteFile(path, []byte(fi.Content), 0644)
+			if err != nil {
+				fmt.Printf("failed to write file %v\n", err)
+			}
+			fi.Status = StatusUnmodified
+		}
+	}
 	return nil
 }
 

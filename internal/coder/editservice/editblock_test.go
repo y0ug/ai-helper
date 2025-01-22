@@ -1,4 +1,4 @@
-package editblock
+package editservice
 
 import (
 	"log/slog"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
+	"github.com/y0ug/ai-helper/internal/filemanager"
 )
 
 func TestFindEditBlocks(t *testing.T) {
@@ -25,7 +26,7 @@ Hello Go
 >>>>>>> REPLACE`,
 			expected: []EditResult{
 				{
-					Edit: &EditBlock{
+					Edit: &Edit{
 						Filename: "test.txt",
 						Original: "Hello world",
 						Updated:  "Hello Go",
@@ -55,7 +56,7 @@ ls -la
 ` + prompts.BlockFence + ``,
 			expected: []EditResult{
 				{
-					Edit: &EditBlock{
+					Edit: &Edit{
 						Filename: "test.txt",
 						Original: "Old content",
 						Updated:  "New content",
@@ -74,7 +75,7 @@ ls -la
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results := coder.FindEditBlocks(tt.input)
+			results := coder.GetEdits(tt.input)
 			if len(results) != len(tt.expected) {
 				t.Fatalf("expected %d results, got %d", len(tt.expected), len(results))
 			}
@@ -227,33 +228,171 @@ func TestDoReplace(t *testing.T) {
 
 func TestApplyEdits(t *testing.T) {
 	tempDir := t.TempDir()
-	testFile := filepath.Join(tempDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("original content"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
 	coder := &EditBlockService{
 		fence:  [2]string{"```", "```"},
 		logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
 	}
 
-	edit := EditBlock{
-		Filename: "test.txt",
-		Original: "original content",
-		Updated:  "new content",
-	}
+	t.Run("successful edit", func(t *testing.T) {
+		fm := filemanager.NewLocalFileManager()
+		originalData := []byte("hello\noriginal content\nbye")
+		testFile := filepath.Join(tempDir, "success.txt")
+		if err := os.WriteFile(testFile, originalData, 0644); err != nil {
+			t.Fatal(err)
+		}
+		fm.Add(testFile, false) // Editable
 
-	err := coder.ApplyEdits([]EditBlock{edit})
-	if err != nil {
-		t.Fatal(err)
-	}
+		edit := Edit{
+			Filename: testFile,
+			Original: "original content",
+			Updated:  "new content",
+		}
 
-	content, err := os.ReadFile(testFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+		err := coder.ApplyEdits(fm, []Edit{edit}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if string(content) != "new content" {
-		t.Errorf("expected 'new content', got %q", content)
-	}
+		fm.Commit("test")
+		content, err := os.ReadFile(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := "hello\nnew content\nbye"
+		if string(content) != expected {
+			t.Errorf("expected %q, got %q", expected, string(content))
+		}
+
+		contentS, _, err := fm.Get(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentS != expected {
+			t.Errorf("expected %q, got %q", expected, contentS)
+		}
+	})
+
+	t.Run("dryrun does not modify file", func(t *testing.T) {
+		fm := filemanager.NewLocalFileManager()
+		originalData := []byte("hello\ndryrun content\nbye")
+		testFile := filepath.Join(tempDir, "dryrun.txt")
+		if err := os.WriteFile(testFile, originalData, 0644); err != nil {
+			t.Fatal(err)
+		}
+		fm.Add(testFile, false) // Editable
+
+		edit := Edit{
+			Filename: testFile,
+			Original: "dryrun content",
+			Updated:  "modified content",
+		}
+
+		err := coder.ApplyEdits(fm, []Edit{edit}, true) // Dryrun
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fm.Commit("dryrun test")
+		content, err := os.ReadFile(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(content) != string(originalData) {
+			t.Errorf(
+				"dryrun should not modify file; expected %q, got %q",
+				originalData,
+				string(content),
+			)
+		}
+
+		contentS, _, err := fm.Get(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentS != string(originalData) {
+			t.Errorf("file manager content unchanged; expected %q, got %q", originalData, contentS)
+		}
+	})
+
+	t.Run("read-only file not modified", func(t *testing.T) {
+		fm := filemanager.NewLocalFileManager()
+		originalData := []byte("read-only content")
+		testFile := filepath.Join(tempDir, "readonly.txt")
+		if err := os.WriteFile(testFile, originalData, 0644); err != nil {
+			t.Fatal(err)
+		}
+		fm.Add(testFile, true) // Read-only
+
+		edit := Edit{
+			Filename: testFile,
+			Original: "read-only content",
+			Updated:  "new content",
+		}
+
+		err := coder.ApplyEdits(fm, []Edit{edit}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fm.Commit("read-only test")
+		content, err := os.ReadFile(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(content) != string(originalData) {
+			t.Errorf(
+				"read-only file should not be modified; expected %q, got %q",
+				originalData,
+				string(content),
+			)
+		}
+
+		contentS, _, err := fm.Get(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if contentS != string(originalData) {
+			t.Errorf("file manager content unchanged; expected %q, got %q", originalData, contentS)
+		}
+	})
+
+	t.Run("file not in manager not modified", func(t *testing.T) {
+		fm := filemanager.NewLocalFileManager()
+		originalData := []byte("not in manager content")
+		testFile := filepath.Join(tempDir, "notinmanager.txt")
+		if err := os.WriteFile(testFile, originalData, 0644); err != nil {
+			t.Fatal(err)
+		}
+		// Do not add to file manager
+
+		edit := Edit{
+			Filename: testFile,
+			Original: "not in manager content",
+			Updated:  "new content",
+		}
+
+		err := coder.ApplyEdits(fm, []Edit{edit}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// No commit needed as file isn't managed
+		content, err := os.ReadFile(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(content) != string(originalData) {
+			t.Errorf(
+				"file not in manager should not be modified; expected %q, got %q",
+				originalData,
+				string(content),
+			)
+		}
+
+		// Verify file is not in manager
+		_, _, err = fm.Get(testFile)
+		if err == nil {
+			t.Error("expected error when getting file not in manager, got nil")
+		}
+	})
 }
