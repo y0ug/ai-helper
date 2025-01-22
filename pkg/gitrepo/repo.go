@@ -18,7 +18,7 @@ type GitRepoInterface interface {
 	GetHeadCommitMessage(defaultMsg string) (string, error)
 }
 
-var _ GitRepoInterface = (*GitRepo)(nil)
+var _ GitRepoInterface = (*GitRepoExec)(nil)
 
 // IOInterface defines methods for IO operations
 type IOInterface interface {
