@@ -29,6 +29,7 @@ type RepoManagerInterface interface {
 	GetFM() filemanager.FileManager
 	GetGit() gitrepo.GitRepoInterface
 	GetFence() [2]string
+	GetRoot() string
 	ChooseFence()
 	GetFilesContent() string
 	GetReadOnlyFilesContent() string
@@ -52,6 +53,10 @@ func NewRepoManager(
 		git:              git,
 		absRootPathCache: make(map[string]string),
 	}
+}
+
+func (c *RepoManager) GetRoot() string {
+	return c.root
 }
 
 func (c *RepoManager) GetEditServiceFormat() string {

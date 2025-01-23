@@ -7,62 +7,39 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/editservice"
-	"github.com/y0ug/ai-helper/internal/coder/models"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
+	"github.com/y0ug/ai-helper/internal/coder/settings"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 type BaseCoder struct {
-	mainModel    *models.Model
-	editFormat   string
-	logger       *slog.Logger
-	streamWriter io.Writer
-	llmClient    chat.Provider
-	// repo       gitrepo.GitRepoInterface
-	// fileManager          filemanager.FileManager
-	curMessages          []prompts.Message
-	doneMessages         []prompts.Message
-	maxOutputToken       int
-	lastCommitHash       string
-	aiderCommitHashes    map[string]struct{}
-	temperature          float64
-	autoLint             bool
-	autoTest             bool
-	testCmd              string
-	totalCost            float64
-	chatLanguage         string
-	verbose              bool
-	prompts              prompts.Prompter
-	lintCommands         map[string]string
-	suggestShellCommands bool
-	rm                   repomanager.RepoManagerInterface
-	templateHandler      *prompts.TemplateHandler
+	logger          *slog.Logger
+	streamWriter    io.Writer
+	llmClient       chat.Provider
+	curMessages     []prompts.Message
+	doneMessages    []prompts.Message
+	prompts         prompts.Prompter
+	rm              repomanager.RepoManagerInterface
+	templateHandler *prompts.TemplateHandler
+	settings        *settings.CoderSettings
 }
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
 	c := &BaseCoder{
-		mainModel:    opts.MainModel,
 		llmClient:    opts.LlmClient,
 		rm:           opts.RepoManager,
 		logger:       opts.Logger,
 		curMessages:  make([]prompts.Message, 0),
 		doneMessages: make([]prompts.Message, 0),
-	}
-
-	c.maxOutputToken = 4096
-	if val, ok := c.mainModel.ExtraParams["max_tokens"]; ok {
-		switch val := val.(type) {
-		case int:
-			c.maxOutputToken = val
-		}
+		settings:     opts.Settings,
 	}
 
 	c.SetPrompts(opts.Prompts)
 	c.logger.Info(
 		"setting ",
-		"max_output_token", c.maxOutputToken,
-		"model_name", c.mainModel.Name,
+		"max_output_token", c.settings.GetMaxOutputToken(),
+		"model_name", c.settings.GetModelName(),
 		"prompt_name",
 		c.getPrompts().GetName(),
 		"edit_format",
@@ -85,8 +62,7 @@ func (c *BaseCoder) SetPrompts(pts prompts.Prompter) {
 
 	c.templateHandler = prompts.NewTemplateHandler(
 		c.prompts,
-		c.mainModel,
-		c.getTemplateInitData(),
+		c.settings,
 		c.logger,
 	)
 }
@@ -105,15 +81,15 @@ func (c *BaseCoder) getPrompts() prompts.Prompter {
 
 func (c *BaseCoder) InitBeforeMessage() {
 	// Reset state before processing a new message
-	if c.rm.GetGit() != nil {
-		// Should commit before message
-		lastCommitHash, err := c.rm.GetGit().GetHeadCommitSHA(false)
-		if err != nil {
-			fmt.Println("Error getting head commit SHA:", err)
-		} else {
-			c.lastCommitHash = lastCommitHash
-		}
-	}
+	// if c.rm.GetGit() != nil {
+	// 	// Should commit before message
+	// 	lastCommitHash, err := c.rm.GetGit().GetHeadCommitSHA(false)
+	// 	if err != nil {
+	// 		fmt.Println("Error getting head commit SHA:", err)
+	// 	} else {
+	// 		c.lastCommitHash = lastCommitHash
+	// 	}
+	// }
 }
 
 func (c *BaseCoder) Run(message string) error {
@@ -166,7 +142,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 				c.logger.Error("Error committing", "error", err)
 			}
 			// Should pass commit hash and message
-			data := map[string]string{
+			data := map[string]interface{}{
 				"Hash":    "12345",
 				"Message": commitMsg,
 			}
@@ -224,8 +200,8 @@ func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
 	}
 	// Send messages to LLM
 	chatParams := chat.NewChatParams(
-		chat.WithMaxTokens(c.maxOutputToken),
-		chat.WithModel(c.mainModel.Name),
+		chat.WithMaxTokens(c.settings.GetMaxOutputToken()),
+		chat.WithModel(c.settings.GetModelName()),
 		chat.WithMessages(messagesLLM...))
 
 	ctx := context.Background()
@@ -275,13 +251,13 @@ func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
 func (c *BaseCoder) FormatMessages() *ChatChunks {
-	c.rm.ChooseFence()
-	c.templateHandler.SetFence(c.rm.GetFence())
+	c.GetRM().ChooseFence()
+	c.settings.Update(c.GetRM())
 	chunks := &ChatChunks{}
 
 	// Add system messages
 	systemPrompt := c.renderPrompt(c.getPrompts().GetMainSystem())
-	if c.mainModel.UseSystemPrompt {
+	if c.settings.MainModel().UseSystemPrompt {
 		chunks.System = []prompts.Message{{
 			Role:    "system",
 			Content: systemPrompt,
@@ -400,26 +376,12 @@ func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
 	}
 }
 
-func (c *BaseCoder) getTemplateInitData() prompts.TemplateData {
-	return prompts.TemplateData{
-		"Language": c.getLanguage(),
-		"Platform": c.getPlatformInfo(),
-	}
-}
-
 func (c *BaseCoder) renderPrompt(tmpl string) string {
 	return c.templateHandler.Render(tmpl)
 }
 
-func (c *BaseCoder) renderPromptData(tmpl string, data map[string]string) string {
+func (c *BaseCoder) renderPromptData(tmpl string, data map[string]interface{}) string {
 	return c.templateHandler.RenderData(tmpl, data)
-}
-
-func (c *BaseCoder) getLanguage() string {
-	if c.chatLanguage != "" {
-		return c.chatLanguage
-	}
-	return "the same language they are using"
 }
 
 func processStream(

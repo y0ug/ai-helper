@@ -1,4 +1,4 @@
-package coder
+package settings
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"runtime"
 )
 
-func (c *BaseCoder) getPlatformInfo() string {
+func (c *CoderSettings) genPlatformInfo() string {
 	var info string
 
 	// Platform info
@@ -25,7 +25,7 @@ func (c *BaseCoder) getPlatformInfo() string {
 	}
 
 	// Git repo info
-	if c.rm.GetGit() != nil {
+	if c.isGit {
 		info += "- The user is operating inside a git repository\n"
 	}
 

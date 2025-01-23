@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
+
+const BlockFence = "```"
 
 func TestFindEditBlocks(t *testing.T) {
 	tests := []struct {
@@ -51,9 +52,9 @@ Old content
 =======
 New content
 >>>>>>> REPLACE
-` + prompts.BlockFence + `sh
+` + BlockFence + `sh
 ls -la
-` + prompts.BlockFence + ``,
+` + BlockFence + ``,
 			expected: []EditResult{
 				{
 					Edit: &Edit{

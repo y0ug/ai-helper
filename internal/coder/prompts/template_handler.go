@@ -7,71 +7,52 @@ import (
 	"log/slog"
 	"text/template"
 
-	"github.com/y0ug/ai-helper/internal/coder/models"
+	"github.com/y0ug/ai-helper/internal/coder/settings"
 )
 
 type TemplateHandler struct {
-	prompts   Prompter
-	mainModel *models.Model
-	data      TemplateData
-	logger    *slog.Logger
+	prompts  Prompter
+	data     TemplateData
+	settings *settings.CoderSettings
+	logger   *slog.Logger
 }
 
 func NewTemplateHandler(
 	prompts Prompter,
-	model *models.Model,
-	initialData TemplateData,
+	settings *settings.CoderSettings,
 	logger *slog.Logger,
 ) *TemplateHandler {
 	th := &TemplateHandler{
-		mainModel: model,
-		prompts:   prompts,
-		data:      initialData,
-		logger:    logger,
+		prompts:  prompts,
+		settings: settings,
+		logger:   logger,
 	}
-	for key, value := range initialData {
-		th.Set(key, value)
-	}
-	// TODO: check that language and platform are set
+
 	th.UpdateData()
 	return th
 }
 
-type TemplateVar string
-
-const (
-	VarLanguage       TemplateVar = "Language"
-	VarPlatform       TemplateVar = "Platform"
-	VarFence0         TemplateVar = "Fence0"
-	VarFence1         TemplateVar = "Fence1"
-	VarLazyPrompt     TemplateVar = "LazyPrompt"
-	VarShellCmdPrompt TemplateVar = "ShellCmdPrompt"
-	// Add other vars as needed
-)
-
 func (c *TemplateHandler) UpdateData() {
+	for key, value := range c.settings.GetTemplateData() {
+		c.Set(key, value)
+	}
 	c.Set("LazyPrompt", c.getLazyPrompt())
 	c.Set("ShellCmdPrompt", c.Render(c.prompts.GetShellCmdPrompt()))
 	c.Set("ShellCmdReminder", c.Render(c.prompts.GetShellCmdReminder()))
 }
 
-func (c *TemplateHandler) SetFence(fence [2]string) {
-	c.Set("Fence0", fence[0])
-	c.Set("Fence1", fence[1])
-}
-
 func (c *TemplateHandler) getLazyPrompt() string {
-	if c.mainModel.Lazy {
+	if c.settings.IsLazyModel() {
 		return c.Render(c.prompts.GetLazyPrompt())
 	}
 	return ""
 }
 
-func (th *TemplateHandler) Set(key string, value string) {
-	th.data[string(key)] = value
+func (th *TemplateHandler) Set(key string, value interface{}) {
+	th.data[key] = value
 }
 
-func (th *TemplateHandler) RenderData(templateText string, data map[string]string) string {
+func (th *TemplateHandler) RenderData(templateText string, data map[string]interface{}) string {
 	for key, value := range th.data {
 		if _, ok := data[key]; !ok {
 			data[key] = value
@@ -93,8 +74,8 @@ func (th *TemplateHandler) RenderData(templateText string, data map[string]strin
 }
 
 func (th *TemplateHandler) Render(templateText string) string {
-	return th.RenderData(templateText, make(map[string]string))
+	return th.RenderData(templateText, make(map[string]interface{}))
 }
 
 // TemplateData type changed to map for flexibility
-type TemplateData map[string]string
+type TemplateData map[string]interface{}
