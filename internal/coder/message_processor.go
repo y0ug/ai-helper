@@ -47,13 +47,23 @@ func (mp *MessageProcessor) ProcessResponse(messages []*chat.ChatMessage) error 
 
 	mp.history.AddMessage(msg)
 
-	isEdit, err := mp.rm.ProcessEdit(msg.Content[0].String())
+	state, contents, err := mp.rm.Process(msg)
 	if err != nil {
 		mp.logger.Error("Error processing edit", "error", err)
 		return err
 	}
 
-	if isEdit {
+	if len(contents) > 0 {
+		c := make([]*chat.MessageContent, 0)
+		for _, content := range contents {
+			c = append(c, &content)
+		}
+
+		respMsg := chat.NewMessage("tool", c...)
+		mp.history.AddMessage(respMsg)
+
+	}
+	if state == repomanager.ProcessTypeEdit {
 		if err := mp.handleSuccessfulEdit(); err != nil {
 			return err
 		}

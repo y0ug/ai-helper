@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/y0ug/ai-helper/internal/filemanager"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 type WholeFileService struct {
@@ -43,6 +44,23 @@ func (c *WholeFileService) newEdit(filename, original, updated string) *Edit {
 		Updated:  updated,
 		Format:   c.format,
 	}
+}
+
+func (c *WholeFileService) GetChatTools() []chat.Tool {
+	return nil
+}
+
+func (c *WholeFileService) GetEditsMsg(
+	msg *chat.ChatMessage,
+) ([]EditResult, []chat.MessageContent) {
+	edits := make([]EditResult, 0)
+	for _, content := range msg.Content {
+		if content.Type == chat.ContentTypeText {
+			results := c.GetEdits(content.String())
+			edits = append(edits, results...)
+		}
+	}
+	return edits, nil
 }
 
 func (c *WholeFileService) GetEdits(content string) []EditResult {

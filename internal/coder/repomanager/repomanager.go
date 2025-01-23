@@ -9,6 +9,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/coder/editservice"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 // Fence represents a pair of opening and closing delimiters for code blocks
@@ -37,8 +38,16 @@ type RepoManagerInterface interface {
 	SetEditService(svc editservice.EditService)
 	GetEditServiceFormat() string
 	GetEditServiceName() string
-	ProcessEdit(content string) (bool, error)
+	GetEditServiceChatTools() []chat.Tool
+	Process(*chat.ChatMessage) (ProcessType, []chat.MessageContent, error)
 }
+type ProcessType string
+
+var (
+	ProcessTypeEdit       ProcessType = "edit"
+	ProcessTypeFuncResult ProcessType = "func-result"
+	ProcessTypeNone       ProcessType = "none"
+)
 
 func NewRepoManager(
 	root string,
@@ -59,6 +68,13 @@ func (c *RepoManager) GetRoot() string {
 	return c.root
 }
 
+func (c *RepoManager) GetEditServiceChatTools() []chat.Tool {
+	if c.editSvc == nil {
+		return nil
+	}
+	return c.editSvc.GetChatTools()
+}
+
 func (c *RepoManager) GetEditServiceFormat() string {
 	if c.editSvc == nil {
 		return ""
@@ -77,16 +93,17 @@ func (c *RepoManager) SetEditService(svc editservice.EditService) {
 	c.editSvc = svc
 }
 
-func (c *RepoManager) ProcessEdit(content string) (bool, error) {
+func (c *RepoManager) Process(msg *chat.ChatMessage) (ProcessType, []chat.MessageContent, error) {
 	if c.editSvc == nil {
-		return false, nil
+		return ProcessTypeNone, nil, nil
 	}
 
 	// TODO: set it here or when we ChooseFence
 	c.editSvc.SetFence(c.fence)
-	results := c.editSvc.GetEdits(content)
+
+	results, msgs := c.editSvc.GetEditsMsg(msg)
 	if len(results) == 0 {
-		return false, nil
+		return ProcessTypeNone, nil, nil
 	}
 	var edits []editservice.Edit
 	for _, result := range results {
@@ -97,14 +114,14 @@ func (c *RepoManager) ProcessEdit(content string) (bool, error) {
 
 	err := c.editSvc.ApplyEdits(c.fm, edits, true)
 	if err != nil {
-		return false, fmt.Errorf("failed to apply edits dry run %w", err)
+		return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits dry run %w", err)
 	}
 	err = c.editSvc.ApplyEdits(c.fm, edits, false)
 	if err != nil {
-		return false, fmt.Errorf("failed to apply edits %w", err)
+		return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits %w", err)
 	}
 
-	return true, nil
+	return ProcessTypeNone, msgs, nil
 }
 
 func (c *RepoManager) GetRepoMap() string {

@@ -138,7 +138,11 @@ func (c *BaseCoder) SendMessage(message string) error {
 		)
 	}
 
-	responses, err := c.llmClient.SendMessages(context.Background(), messages)
+	tools := c.GetRM().GetEditServiceChatTools()
+	for _, tool := range tools {
+		c.logger.Debug("set tool", "name", tool.Name)
+	}
+	responses, err := c.llmClient.SendMessages(context.Background(), messages, tools)
 	if err != nil {
 		return err
 	}

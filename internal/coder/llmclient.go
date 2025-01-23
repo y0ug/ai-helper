@@ -33,13 +33,15 @@ func NewLLMClient(
 func (c *LLMClient) SendMessages(
 	ctx context.Context,
 	messages *ChatChunks,
+	tools []chat.Tool,
 ) ([]*chat.ChatMessage, error) {
-	messagesLLM := c.convertToLLMMessages(messages)
+	messagesLLM := messages.AllMessages()
 
 	chatParams := chat.NewChatParams(
 		chat.WithMaxTokens(c.settings.GetMaxOutputToken()),
 		chat.WithModel(c.settings.GetModelName()),
-		chat.WithMessages(messagesLLM...))
+		chat.WithMessages(messagesLLM...),
+		chat.WithTools(tools...))
 
 	fn := c.handleNonStreamingResponse
 
@@ -57,15 +59,6 @@ func (c *LLMClient) SendMessages(
 	chatMessages := make([]*chat.ChatMessage, 0)
 	chatMessages = append(chatMessages, msg)
 	return chatMessages, err
-}
-
-func (c *LLMClient) convertToLLMMessages(messages *ChatChunks) []*chat.ChatMessage {
-	var messagesLLM []*chat.ChatMessage
-
-	// Convert all other messages
-	messagesLLM = append(messagesLLM, messages.AllMessages()...)
-
-	return messagesLLM
 }
 
 func (c *LLMClient) handleNonStreamingResponse(

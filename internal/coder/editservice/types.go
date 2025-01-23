@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/filemanager"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 type (
@@ -27,6 +28,8 @@ const (
 
 type EditService interface {
 	GetEdits(content string) []EditResult
+	GetEditsMsg(msg *chat.ChatMessage) ([]EditResult, []chat.MessageContent)
+	GetChatTools() []chat.Tool
 	ApplyEdits(filemanager.FileManager, []Edit, bool) error
 	SetFence(Fence)
 	GetName() string
@@ -53,7 +56,7 @@ func New(editFormat EditFormat, logger *slog.Logger) EditService {
 	case EditFormatHelp:
 		return NewNoEditService(logger, editFormat)
 	case EditFormatFunc:
-		return nil
+		return NewSingleWholeFileFuncService(logger, editFormat, fence)
 	case EditFormatUdiff:
 		return nil
 	case EditFormatWhole:

@@ -29,24 +29,26 @@ func (c *ChatChunks) AllMessages() []*chat.ChatMessage {
 }
 
 func (c *ChatChunks) AddCacheControlHeaders() {
-	c.AddCacheControl(c.System)
-	c.AddCacheControl(c.ReadOnlyFiles)
-	c.AddCacheControl(c.ChatFiles)
-	c.AddCacheControl(c.Done)
-	c.AddCacheControl(c.Examples)
-	// if len(c.Examples) > 0 {
-	// 	c.AddCacheControl(c.Examples)
-	// } else {
-	// 	c.AddCacheControl(c.System)
-	// }
-	//
-	// if len(c.Repo) > 0 {
-	// 	c.AddCacheControl(c.Repo)
-	// } else {
-	// 	c.AddCacheControl(c.ReadOnlyFiles)
-	// }
-	//
+	// c.AddCacheControl(c.System)
+	// c.AddCacheControl(c.ReadOnlyFiles)
 	// c.AddCacheControl(c.ChatFiles)
+	// c.AddCacheControl(c.Done)
+	// c.AddCacheControl(c.Examples)
+
+	// 4 max cache messages for anthropic
+	if len(c.Examples) > 0 {
+		c.AddCacheControl(c.Examples)
+	} else {
+		c.AddCacheControl(c.System)
+	}
+
+	if len(c.Repo) > 0 {
+		c.AddCacheControl(c.Repo)
+	} else {
+		c.AddCacheControl(c.ReadOnlyFiles)
+	}
+
+	c.AddCacheControl(c.ChatFiles)
 }
 
 func (c *ChatChunks) AddCacheControl(messages []*chat.ChatMessage) {
