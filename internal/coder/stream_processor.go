@@ -58,6 +58,9 @@ func (sp *StreamProcessor) ProcessStream(
 				}
 			case "message_stop":
 				chatResponse = event.Message
+			case "error":
+				chatResponse = event.Message
+				return chatResponse, fmt.Errorf("error in stream: %v", event.Message)
 			}
 		}
 	}

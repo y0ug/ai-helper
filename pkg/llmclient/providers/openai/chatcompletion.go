@@ -131,6 +131,12 @@ func (cc *ChatCompletion) Accumulate(chunk ChatCompletionChunk) bool {
 	cc.Usage.CompletionTokens += chunk.Usage.CompletionTokens
 	cc.Usage.PromptTokens += chunk.Usage.PromptTokens
 	cc.Usage.TotalTokens += chunk.Usage.TotalTokens
+	cc.Usage.CompletionTokensDetails.AudioTokens += chunk.Usage.CompletionTokensDetails.AudioTokens
+	cc.Usage.CompletionTokensDetails.ReasoningTokens += chunk.Usage.CompletionTokensDetails.ReasoningTokens
+	cc.Usage.CompletionTokensDetails.AcceptedPredictionTokens += chunk.Usage.CompletionTokensDetails.AcceptedPredictionTokens
+	cc.Usage.CompletionTokensDetails.RejectedPredictionTokens += chunk.Usage.CompletionTokensDetails.RejectedPredictionTokens
+	cc.Usage.PromptTokensDetails.AudioTokens += chunk.Usage.PromptTokensDetails.AudioTokens
+	cc.Usage.PromptTokensDetails.CachedTokens += chunk.Usage.PromptTokensDetails.CachedTokens
 
 	for _, deltaChoice := range chunk.Choices {
 		cc.Choices = expandToFit(cc.Choices, int(deltaChoice.Index))

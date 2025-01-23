@@ -51,7 +51,7 @@ func (m *MessageContent) SetCache() {
 }
 
 func (m *MessageContent) IsCacheable() bool {
-	return m.CacheControl == nil || m.CacheControl.Type != "ephemeral"
+	return m.CacheControl != nil && m.CacheControl.Type == "ephemeral"
 }
 
 type CacheControl struct {

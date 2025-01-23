@@ -16,7 +16,7 @@ func NewAnthropicStreamHandler() *AnthropicStreamHandler {
 
 func (h *AnthropicStreamHandler) HandleEvent(event streaming.Event) (MessageStreamEvent, error) {
 	var result MessageStreamEvent
-
+	var err error
 	switch event.Type {
 	case "completion":
 		if err := json.Unmarshal(event.Data, &result); err != nil {
@@ -32,15 +32,19 @@ func (h *AnthropicStreamHandler) HandleEvent(event streaming.Event) (MessageStre
 			return result, err
 		}
 	case "error":
-		return result, fmt.Errorf("received error while streaming: %s", string(event.Data))
+		err = fmt.Errorf("received error while streaming: %s", string(event.Data))
+		if err := json.Unmarshal(event.Data, &result); err != nil {
+			return result, err
+		}
 	}
 
-	return result, nil
+	return result, err
 }
 
 func (h *AnthropicStreamHandler) ShouldContinue(event streaming.Event) bool {
-	if event.Type == "ping" {
-		return true
-	}
-	return event.Type != "error"
+	return true
+	// if event.Type == "ping" {
+	// 	return true
+	// }
+	// return event.Type != "error"
 }

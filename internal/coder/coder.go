@@ -19,4 +19,5 @@ type CoderOptions struct {
 	Prompts      prompts.Prompter
 	Settings     *settings.CoderSettings
 	StreamWriter io.Writer
+	Stream       bool
 }

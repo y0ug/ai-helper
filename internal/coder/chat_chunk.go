@@ -5,18 +5,18 @@ import (
 )
 
 type ChatChunks struct {
-	System        []chat.ChatMessage
-	Examples      []chat.ChatMessage
-	Done          []chat.ChatMessage
-	Repo          []chat.ChatMessage
-	ReadOnlyFiles []chat.ChatMessage
-	ChatFiles     []chat.ChatMessage
-	Cur           []chat.ChatMessage
-	Reminder      []chat.ChatMessage
+	System        []*chat.ChatMessage
+	Examples      []*chat.ChatMessage
+	Done          []*chat.ChatMessage
+	Repo          []*chat.ChatMessage
+	ReadOnlyFiles []*chat.ChatMessage
+	ChatFiles     []*chat.ChatMessage
+	Cur           []*chat.ChatMessage
+	Reminder      []*chat.ChatMessage
 }
 
-func (c *ChatChunks) AllMessages() []chat.ChatMessage {
-	var messages []chat.ChatMessage
+func (c *ChatChunks) AllMessages() []*chat.ChatMessage {
+	var messages []*chat.ChatMessage
 	messages = append(messages, c.System...)
 	messages = append(messages, c.Examples...)
 	messages = append(messages, c.Done...)
@@ -29,16 +29,28 @@ func (c *ChatChunks) AllMessages() []chat.ChatMessage {
 }
 
 func (c *ChatChunks) AddCacheControlHeaders() {
-	if len(c.Examples) > 0 {
-		c.AddCacheControl(&c.Examples)
-	} else {
-	}
-	// Add cache control headers to messages if needed
-	// Implementation depends on your caching strategy
+	c.AddCacheControl(c.System)
+	c.AddCacheControl(c.ReadOnlyFiles)
+	c.AddCacheControl(c.ChatFiles)
+	c.AddCacheControl(c.Done)
+	c.AddCacheControl(c.Examples)
+	// if len(c.Examples) > 0 {
+	// 	c.AddCacheControl(c.Examples)
+	// } else {
+	// 	c.AddCacheControl(c.System)
+	// }
+	//
+	// if len(c.Repo) > 0 {
+	// 	c.AddCacheControl(c.Repo)
+	// } else {
+	// 	c.AddCacheControl(c.ReadOnlyFiles)
+	// }
+	//
+	// c.AddCacheControl(c.ChatFiles)
 }
 
-func (c *ChatChunks) AddCacheControl(messages *[]chat.ChatMessage) {
-	for _, msg := range *messages {
+func (c *ChatChunks) AddCacheControl(messages []*chat.ChatMessage) {
+	for _, msg := range messages {
 		msg.SetCache()
 	}
 }

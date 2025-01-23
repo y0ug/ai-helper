@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/coder/chat"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
 	"github.com/y0ug/ai-helper/internal/coder/settings"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 type MessageFormatter struct {
@@ -19,13 +19,13 @@ type MessageFormatter struct {
 	settings        *settings.CoderSettings
 }
 
-func (mf *MessageFormatter) FormatAllMessages(history *ChatHistory) *ChatChunks {
+func (mf *MessageFormatter) FormatMessages(history *ChatHistory) *ChatChunks {
 	mf.rm.ChooseFence()
 	mf.settings.Update(mf.rm)
 	chunks := &ChatChunks{}
 
 	// Add system messages
-	exampleMessages := make([]chat.ChatMessage, 0)
+	exampleMessages := make([]*chat.ChatMessage, 0)
 
 	mainSystem := mf.RenderPrompt(mf.prompts.GetMainSystem())
 	if mf.settings.MainModel().ExamplesAsSysMsg {
@@ -40,11 +40,11 @@ func (mf *MessageFormatter) FormatAllMessages(history *ChatHistory) *ChatChunks 
 	} else {
 		for _, msg := range mf.prompts.GetExampleMessages() {
 			msg.Content = mf.RenderPrompt(msg.Content)
-			exampleMessages = append(exampleMessages, msg)
+			exampleMessages = append(exampleMessages, msg.ToChatMessage())
 		}
 
 		if len(exampleMessages) > 0 {
-			msg := []chat.ChatMessage{
+			msg := []*chat.ChatMessage{
 				chat.NewMessage("user", chat.NewTextContent("I switched to a new code base. Please don't consider the above files  or try to edit them any longer")),
 				chat.NewMessage("assistant", chat.NewTextContent("Ok.")),
 			}
@@ -57,11 +57,11 @@ func (mf *MessageFormatter) FormatAllMessages(history *ChatHistory) *ChatChunks 
 	}
 
 	if mf.settings.MainModel().UseSystemPrompt {
-		chunks.System = []chat.ChatMessage{
+		chunks.System = []*chat.ChatMessage{
 			chat.NewMessage("system", chat.NewTextContent(mainSystem)),
 		}
 	} else {
-		chunks.System = []chat.ChatMessage{
+		chunks.System = []*chat.ChatMessage{
 			chat.NewMessage("user", chat.NewTextContent(mainSystem)),
 			chat.NewMessage("assistant", chat.NewTextContent("Ok.")),
 		}
@@ -79,7 +79,7 @@ func (mf *MessageFormatter) FormatAllMessages(history *ChatHistory) *ChatChunks 
 
 	var finalMessage *chat.ChatMessage
 	if len(chunks.Cur) > 0 {
-		finalMessage = &chunks.Cur[len(chunks.Cur)-1]
+		finalMessage = chunks.Cur[len(chunks.Cur)-1]
 	}
 
 	// msgTokens := mf.settings.MainModel().TokenCount(chunks.AllMessages())
@@ -90,14 +90,15 @@ func (mf *MessageFormatter) FormatAllMessages(history *ChatHistory) *ChatChunks 
 	// Count if we have enought token to add the reminder
 	if len(systemReminder) > 0 {
 		if mf.settings.MainModel().Reminder == "sys" {
-			chunks.Reminder = []chat.ChatMessage{
+			chunks.Reminder = []*chat.ChatMessage{
 				chat.NewMessage("system", chat.NewTextContent(systemReminder)),
 			}
 		} else if mf.settings.MainModel().Reminder == "user" && finalMessage != nil && finalMessage.Role == "user" {
-			finalMessage.Content = fmt.Sprintf("%s\n\n%s", finalMessage.Content, systemReminder)
+			finalMessage.Content[0].Text = fmt.Sprintf("%s\n\n%s", finalMessage.Content[0].Text, systemReminder)
 		}
 	}
 
+	chunks.AddCacheControlHeaders()
 	return chunks
 }
 
@@ -121,48 +122,73 @@ func (mf *MessageFormatter) RenderPromptData(tmpl string, data map[string]interf
 	return mf.templateHandler.RenderData(tmpl, data)
 }
 
-func (mf *MessageFormatter) GetRepoMessages() []prompts.Message {
+func (mf *MessageFormatter) GetRepoMessages() []*chat.ChatMessage {
 	repoContent := mf.rm.GetRepoMap()
 	if repoContent == "" {
 		return nil
 	}
 
-	return []chat.ChatMessage{
+	return []*chat.ChatMessage{
 		chat.NewMessage("user", chat.NewTextContent(repoContent)),
-		chat.NewMessage("assistant", chat.NewTextContent("Ok, I won't try and edit those files without asking first.")),
+		chat.NewMessage(
+			"assistant",
+			chat.NewTextContent("Ok, I won't try and edit those files without asking first."),
+		),
 	}
 }
 
-func (mf *MessageFormatter) GetReadOnlyFilesMessages() []prompts.Message {
+func (mf *MessageFormatter) GetReadOnlyFilesMessages() []*chat.ChatMessage {
 	content := mf.rm.GetReadOnlyFilesContent()
 	if content == "" {
 		return nil
 	}
 
-	return []chat.ChatMessage{
-		chat.NewMessage("user", chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetReadOnlyFilesPrefix())+"\n"+content)),
-		chat.NewMessage("assistant", chat.NewTextContent("Ok, I will use these files as references.")),
+	return []*chat.ChatMessage{
+		chat.NewMessage(
+			"user",
+			chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetReadOnlyFilesPrefix())+"\n"+content),
+		),
+		chat.NewMessage(
+			"assistant",
+			chat.NewTextContent("Ok, I will use these files as references."),
+		),
 	}
 }
 
-func (mf *MessageFormatter) GetChatFilesMessages() []prompts.Message {
+func (mf *MessageFormatter) GetChatFilesMessages() []*chat.ChatMessage {
 	if len(mf.rm.GetFM().List(0)) == 0 {
 		if mf.rm.GetRepoMap() != "" && mf.prompts.GetFilesNoFullFilesWithRepoMap() != "" {
-			return []chat.ChatMessage{
-				chat.NewMessage("user", chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetFilesNoFullFilesWithRepoMap()))),
-				chat.NewMessage("assistant", chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetFilesNoFullFilesWithRepoMapReply()))),
+			return []*chat.ChatMessage{
+				chat.NewMessage(
+					"user",
+					chat.NewTextContent(
+						mf.RenderPrompt(mf.prompts.GetFilesNoFullFilesWithRepoMap()),
+					),
+				),
+				chat.NewMessage(
+					"assistant",
+					chat.NewTextContent(
+						mf.RenderPrompt(mf.prompts.GetFilesNoFullFilesWithRepoMapReply()),
+					),
+				),
 			}
 		}
-		return []chat.ChatMessage{
-			chat.NewMessage("user", chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetFilesNoFullFiles()))),
+		return []*chat.ChatMessage{
+			chat.NewMessage(
+				"user",
+				chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetFilesNoFullFiles())),
+			),
 			chat.NewMessage("assistant", chat.NewTextContent("Ok.")),
 		}
 	}
 
 	content := mf.RenderPrompt(mf.prompts.GetFilesContentPrefix()) + "\n" + mf.rm.GetFilesContent()
 
-	return []chat.ChatMessage{
+	return []*chat.ChatMessage{
 		chat.NewMessage("user", chat.NewTextContent(content)),
-		chat.NewMessage("assistant", chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetFilesContentAssistantReply()))),
+		chat.NewMessage(
+			"assistant",
+			chat.NewTextContent(mf.RenderPrompt(mf.prompts.GetFilesContentAssistantReply())),
+		),
 	}
 }

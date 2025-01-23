@@ -26,6 +26,11 @@ func (h *AnthropicEventHandler) HandleEvent(
 	evt := chat.EventStream{Type: event.Type}
 
 	switch event.Type {
+	case "error":
+		evt.Type = "error"
+		evt.Delta = nil
+		evt.Message = AnthropicMessageToChatMessage(&h.message)
+
 	case "content_block_delta":
 		var delta chat.MessageContent
 		if err := json.Unmarshal(event.Delta, &delta); err != nil {

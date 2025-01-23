@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/settings"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
@@ -34,7 +33,7 @@ func NewLLMClient(
 func (c *LLMClient) SendMessages(
 	ctx context.Context,
 	messages *ChatChunks,
-) ([]prompts.Message, error) {
+) ([]*chat.ChatMessage, error) {
 	messagesLLM := c.convertToLLMMessages(messages)
 
 	chatParams := chat.NewChatParams(
@@ -42,27 +41,29 @@ func (c *LLMClient) SendMessages(
 		chat.WithModel(c.settings.GetModelName()),
 		chat.WithMessages(messagesLLM...))
 
+	fn := c.handleNonStreamingResponse
+
 	if c.processor != nil && c.processor.HasWriter() {
-		return c.handleStreamingResponse(ctx, chatParams)
+		fn = c.handleStreamingResponse
 	}
 
-	return c.handleNonStreamingResponse(ctx, chatParams)
+	msg, err := fn(ctx, chatParams)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process tool/turn here?
+
+	chatMessages := make([]*chat.ChatMessage, 0)
+	chatMessages = append(chatMessages, msg)
+	return chatMessages, err
 }
 
 func (c *LLMClient) convertToLLMMessages(messages *ChatChunks) []*chat.ChatMessage {
 	var messagesLLM []*chat.ChatMessage
 
-	// Convert system messages
-	for _, m := range messages.System {
-		messagesLLM = append(messagesLLM,
-			chat.NewMessage("system", chat.NewTextContent(m.Content)))
-	}
-
 	// Convert all other messages
-	for _, m := range messages.AllMessages() {
-		messagesLLM = append(messagesLLM,
-			chat.NewMessage(m.Role, chat.NewTextContent(m.Content)))
-	}
+	messagesLLM = append(messagesLLM, messages.AllMessages()...)
 
 	return messagesLLM
 }
@@ -70,7 +71,7 @@ func (c *LLMClient) convertToLLMMessages(messages *ChatChunks) []*chat.ChatMessa
 func (c *LLMClient) handleNonStreamingResponse(
 	ctx context.Context,
 	chatParams *chat.ChatParams,
-) ([]prompts.Message, error) {
+) (*chat.ChatMessage, error) {
 	resp, err := c.client.Send(ctx, *chatParams)
 	if err != nil {
 		return nil, fmt.Errorf("error chatting: %w", err)
@@ -82,7 +83,7 @@ func (c *LLMClient) handleNonStreamingResponse(
 func (c *LLMClient) handleStreamingResponse(
 	ctx context.Context,
 	chatParams *chat.ChatParams,
-) ([]prompts.Message, error) {
+) (*chat.ChatMessage, error) {
 	respChan, err := c.client.Stream(ctx, *chatParams)
 	if err != nil {
 		return nil, fmt.Errorf("error streaming response: %w", err)
@@ -96,12 +97,29 @@ func (c *LLMClient) handleStreamingResponse(
 	return c.processResponse(resp)
 }
 
-func (c *LLMClient) processResponse(resp *chat.ChatResponse) ([]prompts.Message, error) {
+func (c *LLMClient) processResponse(resp *chat.ChatResponse) (*chat.ChatMessage, error) {
+	if resp == nil {
+		return nil, fmt.Errorf("error processing response, nil response")
+	}
 	msgParams := resp.ToMessageParams()
+	if msgParams == nil {
+		return nil, fmt.Errorf("error converting response to message params, no choice")
+	}
+
 	c.logger.Debug("msg", "role", msgParams.Role, "content", msgParams.Content)
 
-	return []prompts.Message{{
-		Role:    msgParams.Role,
-		Content: msgParams.Content[0].String(),
-	}}, nil
+	c.logger.Info(
+		"usage",
+		"input_tokens",
+		resp.Usage.InputTokens,
+		"output_tokens",
+		resp.Usage.OutputTokens,
+		"input_cached_tokens",
+		resp.Usage.InputCachedTokens,
+		"input_cache_creation_tokens",
+		resp.Usage.InputCacheCreationTokens,
+		"output_reasoning_tokens",
+		resp.Usage.OutputReasoningTokens,
+	)
+	return msgParams, nil
 }

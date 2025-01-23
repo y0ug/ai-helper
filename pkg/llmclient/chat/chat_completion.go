@@ -25,6 +25,9 @@ type ChatResponse struct {
 }
 
 func (cm *ChatResponse) ToMessageParams() *ChatMessage {
+	if len(cm.Choice) == 0 {
+		return nil
+	}
 	return &ChatMessage{
 		Content: cm.Choice[0].Content,
 		Role:    cm.Choice[0].Role,

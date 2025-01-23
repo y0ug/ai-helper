@@ -79,7 +79,6 @@ func (c *RepoManager) SetEditService(svc editservice.EditService) {
 
 func (c *RepoManager) ProcessEdit(content string) (bool, error) {
 	if c.editSvc == nil {
-		c.logger.Warn("Edit service not set")
 		return false, nil
 	}
 
@@ -87,7 +86,6 @@ func (c *RepoManager) ProcessEdit(content string) (bool, error) {
 	c.editSvc.SetFence(c.fence)
 	results := c.editSvc.GetEdits(content)
 	if len(results) == 0 {
-		c.logger.Warn("No edits found")
 		return false, nil
 	}
 	var edits []editservice.Edit

@@ -8,6 +8,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
 	"github.com/y0ug/ai-helper/internal/coder/settings"
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 type BaseCoder struct {
@@ -43,7 +44,10 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 	}
 
 	// Stream processor for the LLMClient wrapper
-	streamProcessor := NewStreamProcessor(opts.StreamWriter, opts.Logger)
+	var streamProcessor *StreamProcessor
+	if opts.Stream {
+		streamProcessor = NewStreamProcessor(opts.StreamWriter, opts.Logger)
+	}
 
 	// Generate the LLMClient wrapper
 	llmClient := NewLLMClient(
@@ -117,50 +121,34 @@ func (c *BaseCoder) Run(message string) error {
 
 func (c *BaseCoder) SendMessage(message string) error {
 	// Add user message
-	c.history.AddMessage(prompts.Message{
-		Role:    "user",
-		Content: message,
-	})
+	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
 
 	// Format messages with appropriate prompts
 	messages := c.FormatMessages()
 
 	for _, m := range messages.AllMessages() {
-		c.logger.Debug("msg", "role", m.Role, "content", m.Content)
+		c.logger.Debug(
+			"msg",
+			"role",
+			m.Role,
+			"is_cacheable",
+			m.Content[0].IsCacheable(),
+			"content",
+			m.Content,
+		)
 	}
 
-	response, err := c.llmClient.SendMessages(context.Background(), messages)
+	responses, err := c.llmClient.SendMessages(context.Background(), messages)
 	if err != nil {
 		return err
 	}
 
-	return c.processor.ProcessResponse(response)
+	return c.processor.ProcessResponse(responses)
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
 func (c *BaseCoder) FormatMessages() *ChatChunks {
-	chunks := c.formatter.FormatAllMessages(c.history)
-
-	// Add chat history
-	chunks.Done = c.history.GetDoneMessages()
-
-	// Add repo content if available
-	if repoMsgs := c.formatter.GetRepoMessages(); len(repoMsgs) > 0 {
-		chunks.Repo = repoMsgs
-	}
-
-	// Add readonly files content
-	if readOnlyMsgs := c.formatter.GetReadOnlyFilesMessages(); len(readOnlyMsgs) > 0 {
-		chunks.ReadOnlyFiles = readOnlyMsgs
-	}
-
-	// Add chat files content
-	if chatFilesMsgs := c.formatter.GetChatFilesMessages(); len(chatFilesMsgs) > 0 {
-		chunks.ChatFiles = chatFilesMsgs
-	}
-
-	// Add current conversation
-	chunks.Cur = c.history.GetCurrentMessages()
+	chunks := c.formatter.FormatMessages(c.history)
 
 	return chunks
 }

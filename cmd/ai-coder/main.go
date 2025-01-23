@@ -15,10 +15,12 @@ import (
 	"github.com/y0ug/ai-helper/internal/coder/settings"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
+	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
 )
 
@@ -55,6 +57,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	promptName := os.Getenv("AI_PROMPT")
+	if promptName == "" {
+		promptName = "EditBlock"
+	}
+
 	modelInfo, err := modelinfo.Parse(model, infoProviders)
 	if err != nil {
 		logger.Error("Error parsing model info", "error", err)
@@ -62,7 +69,7 @@ func main() {
 	}
 	// modelInfoCoderRegistry := modelinfocoder.InitializeDefaultRegistry()
 	//  modelInfoCoderRegistry.GetModelSettings()
-	modelCoder, err := modelinfocoder.NewModel(model, nil, nil, "")
+	modelCoder, err := modelinfocoder.NewModel(modelInfo.Name, nil, nil, "")
 	if err != nil {
 		logger.Error("Error creating model coder", "error", err)
 		os.Exit(1)
@@ -77,8 +84,11 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("rootPath", "rootPath", rootPath)
-
-	llmClient, err := llmclient.New(modelInfo.Provider)
+	requestOpts := []options.RequestOption{
+		options.WithMiddleware(middleware.LoggingMiddleware()),
+		options.WithMiddleware(middleware.TimeitMiddleware(logger)),
+	}
+	llmClient, err := llmclient.New(modelInfo.Provider, requestOpts...)
 	if err != nil {
 		logger.Error("Error creating llm client", "error", err)
 		os.Exit(1)
@@ -91,7 +101,6 @@ func main() {
 
 	rm := repomanager.NewRepoManager(rootPath, logger, fm, gitRepo)
 
-	promptName := "EditBlock"
 	pts := prompts.New(promptName)
 	if pts == nil {
 		logger.Error("Error creating prompts", "prompt_name", promptName)
@@ -108,6 +117,7 @@ func main() {
 		Prompts:      pts,
 		StreamWriter: h,
 		Settings:     coderSettings,
+		Stream:       true,
 	}
 
 	coder := coder.NewBaseCoder(coderOpts)
