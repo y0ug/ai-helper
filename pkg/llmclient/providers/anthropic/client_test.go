@@ -2,7 +2,6 @@ package anthropic
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -150,7 +149,7 @@ func TestClientIntegration(t *testing.T) {
 		mockStream.EXPECT().Current().Return(chat.EventStream{
 			Type: "message_start",
 			Message: &chat.ChatResponse{
-				Choice: []chat.Choice{
+				Choice: []chat.ChatChoice{
 					{
 						Content: []*chat.MessageContent{
 							chat.NewTextContent("Looking at"),
