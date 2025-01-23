@@ -2,7 +2,6 @@ package consolecoder
 
 import (
 	"fmt"
-	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -28,14 +27,13 @@ func getHistoryFilePath() string {
 	return filepath.Join(usr.HomeDir, ".ai-coder-history")
 }
 
-func New(coder *coder.BaseCoder) *Console {
+func New(coder *coder.BaseCoder, h *highlighter.Highlighter) *Console {
 	c := &Console{
 		coder:       coder,
-		h:           highlighter.NewHighlighter(os.Stdout),
+		h:           h,
 		historyFile: getHistoryFilePath(),
 	}
 
-	coder.SetStreamWriter(c.h)
 	c.setCommands()
 
 	c.pt = prompt.New(

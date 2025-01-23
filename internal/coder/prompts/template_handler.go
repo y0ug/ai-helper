@@ -26,6 +26,7 @@ func NewTemplateHandler(
 		prompts:  prompts,
 		settings: settings,
 		logger:   logger,
+		data:     make(TemplateData),
 	}
 
 	th.UpdateData()

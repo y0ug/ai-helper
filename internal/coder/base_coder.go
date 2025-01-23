@@ -3,20 +3,17 @@ package coder
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/editservice"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
 	"github.com/y0ug/ai-helper/internal/coder/settings"
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 )
 
 type BaseCoder struct {
 	logger          *slog.Logger
-	streamWriter    io.Writer
-	llmClient       chat.Provider
+	llmClient       *LLMClient
 	curMessages     []prompts.Message
 	doneMessages    []prompts.Message
 	prompts         prompts.Prompter
@@ -27,13 +24,26 @@ type BaseCoder struct {
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
 	c := &BaseCoder{
-		llmClient:    opts.LlmClient,
+		// llmClient:    opts.LlmClient,
 		rm:           opts.RepoManager,
 		logger:       opts.Logger,
 		curMessages:  make([]prompts.Message, 0),
 		doneMessages: make([]prompts.Message, 0),
 		settings:     opts.Settings,
 	}
+
+	// Stream processor for the LLMClient wrapper
+	streamProcessor := NewStreamProcessor(opts.StreamWriter, opts.Logger)
+
+	// Generate the LLMClient wrapper
+	llmClient := NewLLMClient(
+		opts.LlmClient,
+		opts.Settings,
+		opts.Logger,
+		streamProcessor,
+	)
+
+	c.llmClient = llmClient
 
 	c.SetPrompts(opts.Prompts)
 	c.logger.Info(
@@ -65,10 +75,6 @@ func (c *BaseCoder) SetPrompts(pts prompts.Prompter) {
 		c.settings,
 		c.logger,
 	)
-}
-
-func (c *BaseCoder) SetStreamWriter(w io.Writer) {
-	c.streamWriter = w
 }
 
 func (c *BaseCoder) GetRM() repomanager.RepoManagerInterface {
@@ -111,51 +117,57 @@ func (c *BaseCoder) SendMessage(message string) error {
 		c.logger.Debug("msg", "role", m.Role, "content", m.Content)
 	}
 
-	// Send to LLM and handle response
-	msg, err := c.SendToLLM(messages)
+	response, err := c.llmClient.SendMessages(context.Background(), messages)
 	if err != nil {
 		return err
 	}
 
-	// if not interrupted
-	// Check for file mentions.
-	// If files are mentions and we add them start reflected_messages and reprocess
-	// else call callback reply_completed
+	return c.handleResponse(response)
+}
 
-	// Process the response
-	for _, m := range msg {
-		if m.Role != "assistant" {
-			continue
+func (c *BaseCoder) handleResponse(messages []prompts.Message) error {
+	if len(messages) == 0 {
+		return fmt.Errorf("no messages returned from LLM")
+	}
+
+	msg := messages[len(messages)-1]
+	if msg.Role != "assistant" {
+		return fmt.Errorf("last message should be from assistant")
+	}
+	// Add assistant message to curMessage
+	c.curMessages = append(c.curMessages, msg)
+
+	isEdit, err := c.rm.ProcessEdit(msg.Content)
+	if err != nil {
+		c.logger.Error("Error processing edit", "error", err)
+		return err
+	}
+
+	if isEdit {
+		if err := c.handleSuccessfulEdit(); err != nil {
+			return err
 		}
-
-		// Add assistant message to curMessage
-		c.curMessages = append(c.curMessages, msg...)
-
-		isEdit, err := c.rm.ProcessEdit(m.Content)
-		if err != nil {
-			c.logger.Error("Error processing edit", "error", err)
-		}
-		if isEdit {
-			commitMsg := "apply diff"
-			err = c.rm.GetFM().Commit(commitMsg)
-			if err != nil {
-				c.logger.Error("Error committing", "error", err)
-			}
-			// Should pass commit hash and message
-			data := map[string]interface{}{
-				"Hash":    "12345",
-				"Message": commitMsg,
-			}
-			responseMsg := c.renderPromptData(c.getPrompts().GetFilesContentGPTEdits(), data)
-			c.moveBackCurMessages(responseMsg)
-		}
-
-		// Should onlt have one assistant message??
-		break
 	}
 
 	return nil
-	// return c.ApplyEdits(edits)
+}
+
+func (c *BaseCoder) handleSuccessfulEdit() error {
+	commitMsg := "apply diff"
+	if err := c.rm.GetFM().Commit(commitMsg); err != nil {
+		c.logger.Error("Error committing", "error", err)
+		return err
+	}
+
+	// Should pass commit hash and message
+	data := map[string]interface{}{
+		"Hash":    "12345",
+		"Message": commitMsg,
+	}
+	responseMsg := c.renderPromptData(c.getPrompts().GetFilesContentGPTEdits(), data)
+	c.moveBackCurMessages(responseMsg)
+
+	return nil
 }
 
 func (c *BaseCoder) moveBackCurMessages(message string) {
@@ -173,80 +185,6 @@ func (c *BaseCoder) moveBackCurMessages(message string) {
 			Content: "Ok.",
 		})
 	}
-}
-
-func (c *BaseCoder) processResponse(resp *chat.ChatResponse) ([]prompts.Message, error) {
-	// Process response
-	msgParams := resp.ToMessageParams()
-	// c.logger.Debug("response", "resp", resp)
-	c.logger.Debug("msg", "role", msgParams.Role, "content", msgParams.Content)
-
-	// Process response
-	return []prompts.Message{{Role: msgParams.Role, Content: msgParams.Content[0].String()}}, nil
-}
-
-func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
-	messagesLLM := make([]*chat.ChatMessage, 0)
-	for m := range messages.System {
-		messagesLLM = append(
-			messagesLLM,
-			chat.NewMessage("system", chat.NewTextContent(messages.System[m].Content)),
-		)
-	}
-	for _, m := range messages.AllMessages() {
-		messagesLLM = append(
-			messagesLLM,
-			chat.NewMessage(m.Role, chat.NewTextContent(m.Content)))
-	}
-	// Send messages to LLM
-	chatParams := chat.NewChatParams(
-		chat.WithMaxTokens(c.settings.GetMaxOutputToken()),
-		chat.WithModel(c.settings.GetModelName()),
-		chat.WithMessages(messagesLLM...))
-
-	ctx := context.Background()
-	if c.streamWriter != nil {
-		stream, err := c.llmClient.Stream(ctx, *chatParams)
-		if err != nil {
-			c.logger.Error("Error streaming", "error", err)
-			return nil, err
-		}
-
-		eventCh := make(chan chat.EventStream)
-
-		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
-		go func() {
-			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
-			if err := chat.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
-				if err != context.Canceled {
-					c.logger.Error("Error consuming stream", "error", err)
-				}
-			}
-		}()
-
-		resp, err := processStream(ctx, c.streamWriter, eventCh)
-		if err != nil {
-			c.logger.Error("Error processing stream", "error", err)
-			return nil, nil
-		}
-
-		if resp == nil {
-			c.logger.Error("no message return")
-			return nil, fmt.Errorf("no message returned from LLM")
-		}
-		return c.processResponse(resp)
-	} else {
-		resp, err := c.llmClient.Send(ctx, *chatParams)
-		if err != nil {
-			return nil, err
-		}
-		if resp == nil {
-			c.logger.Error("no message return")
-			return nil, fmt.Errorf("no message returned from LLM")
-		}
-		return c.processResponse(resp)
-	}
-	// return nil, nil
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
@@ -382,30 +320,4 @@ func (c *BaseCoder) renderPrompt(tmpl string) string {
 
 func (c *BaseCoder) renderPromptData(tmpl string, data map[string]interface{}) string {
 	return c.templateHandler.RenderData(tmpl, data)
-}
-
-func processStream(
-	ctx context.Context,
-	w io.Writer,
-	ch <-chan chat.EventStream,
-) (*chat.ChatResponse, error) {
-	var cm *chat.ChatResponse
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case set, ok := <-ch:
-			if !ok {
-				return cm, nil
-			}
-			if set.Type == "text_delta" {
-				if w != nil {
-					fmt.Fprintf(w, "%v", set.Delta)
-				}
-			}
-			if set.Type == "message_stop" {
-				cm = set.Message
-			}
-		}
-	}
 }

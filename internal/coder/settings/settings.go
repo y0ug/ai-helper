@@ -25,8 +25,9 @@ type CoderSettings struct {
 	rootPath       string
 }
 
-func NewCoderSettings(mainModel *models.Model) CoderSettings {
-	return CoderSettings{
+func NewCoderSettings(mainModel *models.Model) *CoderSettings {
+	return &CoderSettings{
+		mainModel:            mainModel,
 		autoLint:             true,
 		autoTest:             true,
 		testCmd:              "go test",

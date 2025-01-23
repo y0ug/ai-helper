@@ -12,9 +12,11 @@ import (
 	modelinfocoder "github.com/y0ug/ai-helper/internal/coder/models"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
+	"github.com/y0ug/ai-helper/internal/coder/settings"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
+	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmclient"
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
 	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
@@ -98,16 +100,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	h := highlighter.NewHighlighter(os.Stdout)
+	coderSettings := settings.NewCoderSettings(modelCoder)
+
 	coderOpts := coder.CoderOptions{
-		MainModel:   modelCoder,
-		Logger:      logger,
-		LlmClient:   llmClient,
-		RepoManager: rm,
-		Prompts:     pts,
+		Logger:       logger,
+		LlmClient:    llmClient,
+		RepoManager:  rm,
+		Prompts:      pts,
+		StreamWriter: h,
+		Settings:     coderSettings,
 	}
 
 	coder := coder.NewBaseCoder(coderOpts)
 
-	console := consolecoder.New(coder)
+	console := consolecoder.New(coder, h)
 	console.Run()
 }

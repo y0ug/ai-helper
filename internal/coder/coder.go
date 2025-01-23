@@ -1,6 +1,7 @@
 package coder
 
 import (
+	"io"
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/models"
@@ -11,10 +12,11 @@ import (
 )
 
 type CoderOptions struct {
-	MainModel   *models.Model
-	RepoManager repomanager.RepoManagerInterface
-	LlmClient   chat.Provider
-	Logger      *slog.Logger
-	Prompts     prompts.Prompter
-	Settings    *settings.CoderSettings
+	MainModel    *models.Model
+	RepoManager  repomanager.RepoManagerInterface
+	LlmClient    chat.Provider
+	Logger       *slog.Logger
+	Prompts      prompts.Prompter
+	Settings     *settings.CoderSettings
+	StreamWriter io.Writer
 }
