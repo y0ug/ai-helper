@@ -217,6 +217,8 @@ func HandleLLMConversation(
 			if err := chat.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
 				if err != context.Canceled {
 					log.Printf("Error consuming stream: %v", err)
+					close(eventCh)
+					return
 				}
 			}
 		}()
@@ -224,7 +226,7 @@ func HandleLLMConversation(
 		msg, err = processStream(ctx, os.Stdout, eventCh)
 		if err != nil {
 			log.Printf("Error processing stream: %v", err)
-			return nil, nil
+			return nil, err
 		}
 
 		if msg == nil {
@@ -280,11 +282,13 @@ func processStream(
 			if !ok {
 				return cm, nil
 			}
-			if set.Type == "text_delta" {
+			switch set.Type {
+			case "text_delta":
 				fmt.Fprintf(w, "%v", set.Delta)
-			}
-			if set.Type == "message_stop" {
+			case "message_stop":
 				cm = set.Message
+			case "error":
+				return nil, fmt.Errorf("%v", set.Delta)
 			}
 		}
 	}
