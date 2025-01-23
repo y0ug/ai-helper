@@ -53,9 +53,8 @@ func (h *AnthropicStreamHandler) HandleEvent(event streaming.Event) (MessageStre
 }
 
 func (h *AnthropicStreamHandler) ShouldContinue(event streaming.Event) bool {
-	return true
-	// if event.Type == "ping" {
-	// 	return true
-	// }
-	// return event.Type != "error"
+	if event.Type == "ping" {
+		return true
+	}
+	return event.Type != "error"
 }

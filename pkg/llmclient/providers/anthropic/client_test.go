@@ -135,38 +135,21 @@ func TestClientIntegration(t *testing.T) {
 	})
 
 	t.Run("StreamingOverloadedError", func(t *testing.T) {
-		params := MessageNewParams{
-			Model:     "claude-3-5-sonnet-20241022",
-			MaxTokens: 4096,
-			Messages: []MessageParam{
-				{
-					Role: "user",
-					Content: []*chat.MessageContent{chat.NewTextContent(
-						"Write a very long essay that will likely overload the system",
-					)},
-				},
-			},
-		}
+		params := chat.NewChatParams(
+			chat.WithModel("claude-3-5-sonnet-20241022"),
+			chat.WithMaxTokens(4096),
+			chat.WithMessages(
+				chat.NewUserMessage("Write a very long essay that will likely overload the system"),
+			),
+		)
 
-		stream, err := client.Message.NewStreaming(ctx, params)
-		if err != nil {
-			t.Fatalf("Failed to create stream: %v", err)
-		}
-
-		message := Message{}
-		var streamErr error
-		for stream.Next() {
-			evt := stream.Current()
-			message.Accumulate(evt)
-		}
-		streamErr = stream.Err()
-
-		if streamErr == nil {
+		_, err := HandleLLMConversation(ctx, client, *params)
+		if err == nil {
 			t.Error("Expected overloaded error but got none")
 		}
 		
-		if streamErr != nil && streamErr.Error() != "Overloaded" {
-			t.Errorf("Expected 'Overloaded' error but got: %v", streamErr)
+		if err != nil && err.Error() != "Overloaded" {
+			t.Errorf("Expected 'Overloaded' error but got: %v", err)
 		}
 	})
 }
