@@ -2,11 +2,14 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmclient/http/streaming"
+	"go.uber.org/mock/gomock"
 )
 
 func skipIfNoAPIKey(t *testing.T) {
@@ -135,15 +138,46 @@ func TestClientIntegration(t *testing.T) {
 	})
 
 	t.Run("StreamingOverloadedError", func(t *testing.T) {
+		mockCtrl := gomock.NewController(t)
+		defer mockCtrl.Finish()
+
+		mockStream := streaming.NewMockStreamer[MessageStreamEvent](mockCtrl)
+		
+		// Mock the stream events sequence
+		mockStream.EXPECT().Next().Return(true)
+		mockStream.EXPECT().Current().Return(MessageStreamEvent{
+			Type: "message_start",
+			Message: Message{
+				Role: "assistant",
+			},
+		})
+		
+		// Mock the error event
+		mockStream.EXPECT().Next().Return(true)
+		mockStream.EXPECT().Current().Return(MessageStreamEvent{
+			Type: "error",
+			Delta: json.RawMessage(`{"error":{"type":"overloaded_error","message":"Overloaded","details":null}}`),
+		})
+		
+		mockStream.EXPECT().Next().Return(false)
+		mockStream.EXPECT().Err().Return(fmt.Errorf("Overloaded"))
+		mockStream.EXPECT().Close().Return(nil)
+
+		// Create a mock client that returns our mock stream
+		mockClient := NewMockProvider(mockCtrl)
+		mockClient.EXPECT().
+			Stream(gomock.Any(), gomock.Any()).
+			Return(mockStream, nil)
+
 		params := chat.NewChatParams(
 			chat.WithModel("claude-3-5-sonnet-20241022"),
 			chat.WithMaxTokens(4096),
 			chat.WithMessages(
-				chat.NewUserMessage("Write a very long essay that will likely overload the system"),
+				chat.NewUserMessage("Test message"),
 			),
 		)
 
-		_, err := HandleLLMConversation(ctx, client, *params)
+		_, err := HandleLLMConversation(context.Background(), mockClient, *params)
 		if err == nil {
 			t.Error("Expected overloaded error but got none")
 		}
