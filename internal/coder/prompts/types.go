@@ -1,6 +1,10 @@
 package prompts
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+)
 
 const BlockFence = "```"
 
@@ -118,4 +122,8 @@ type WholeFilePrompts struct {
 type Message struct {
 	Role    string `yaml:"role"`
 	Content string `yaml:"content"`
+}
+
+func (m *Message) ToChatMessage() *chat.ChatMessage {
+	return chat.NewMessage(m.Role, chat.NewTextContent(m.Content))
 }

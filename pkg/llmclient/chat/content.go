@@ -40,9 +40,28 @@ type MessageContent struct {
 	InputJson []byte          `json:"-"`               // Arguments to pass to the tool in json format
 
 	// Relevant for tool results
-	ToolUseID string        `json:"tool_use_id,omitempty"` // ID of the tool call this result is for
-	Content   string        `json:"content,omitempty"`     // Result returned from the tool
-	Source    *AIContentSrc `json:"source,omitempty"`      // Source of the content if type document/image
+	ToolUseID    string        `json:"tool_use_id,omitempty"`   // ID of the tool call this result is for
+	Content      string        `json:"content,omitempty"`       // Result returned from the tool
+	Source       *AIContentSrc `json:"source,omitempty"`        // Source of the content if type document/image
+	CacheControl *CacheControl `json:"cache_control,omitempty"` // Used to set cache
+}
+
+func (m *MessageContent) SetCache() {
+	m.CacheControl = NewCacheControlEphemeral()
+}
+
+func (m *MessageContent) IsCacheable() bool {
+	return m.CacheControl == nil || m.CacheControl.Type != "ephemeral"
+}
+
+type CacheControl struct {
+	Type string `json:"type"`
+}
+
+func NewCacheControlEphemeral() *CacheControl {
+	return &CacheControl{
+		Type: "ephemeral",
+	}
 }
 
 type AIContentSrc struct {

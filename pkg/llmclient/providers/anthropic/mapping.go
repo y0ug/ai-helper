@@ -35,6 +35,11 @@ func AnthropicMessageToChatMessage(am *Message) *chat.ChatResponse {
 	cm.Usage = &chat.ChatUsage{}
 	cm.Usage.InputTokens = am.Usage.InputTokens
 	cm.Usage.OutputTokens = am.Usage.OutputTokens
+	cm.Usage.OutputAudioTokens = 0
+	cm.Usage.OutputReasoningTokens = 0
+	cm.Usage.InputAudioTokens = 0
+	cm.Usage.InputCachedTokens = am.Usage.CacheReadInputTokens
+	cm.Usage.InputCacheCreationTokens = am.Usage.CacheCreationInputTokens
 
 	c := chat.ChatChoice{}
 	c.Content = append(c.Content, am.Content...)

@@ -139,7 +139,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
 func (c *BaseCoder) FormatMessages() *ChatChunks {
-	chunks := c.formatter.FormatAllMessages()
+	chunks := c.formatter.FormatAllMessages(c.history)
 
 	// Add chat history
 	chunks.Done = c.history.GetDoneMessages()

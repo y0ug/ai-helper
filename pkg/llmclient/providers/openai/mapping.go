@@ -105,6 +105,11 @@ func ToChatResponse(cc *ChatCompletion) *chat.ChatResponse {
 	cm.Usage = &chat.ChatUsage{}
 	cm.Usage.InputTokens = cc.Usage.PromptTokens
 	cm.Usage.OutputTokens = cc.Usage.CompletionTokens
+	cm.Usage.OutputReasoningTokens = cc.Usage.CompletionTokensDetails.ReasoningTokens
+	cm.Usage.InputCachedTokens = cc.Usage.PromptTokensDetails.CachedTokens
+	cm.Usage.InputAudioTokens = cc.Usage.PromptTokensDetails.AudioTokens
+	cm.Usage.OutputAudioTokens = cc.Usage.CompletionTokensDetails.AudioTokens
+
 	for _, choice := range cc.Choices {
 		c := chat.ChatChoice{}
 		for _, call := range choice.Message.ToolCalls {

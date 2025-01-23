@@ -43,13 +43,24 @@ type ChatChoice struct {
 }
 
 type ChatUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	OutputAudioTokens        int `json:"output_audio_tokens"`
+	OutputReasoningTokens    int `json:"output_reasoning_tokens"`
+	InputTokens              int `json:"input_tokens"`
+	InputAudioTokens         int `json:"input_audio_tokens"`
+	InputCachedTokens        int `json:"input_cached_tokens"`
+	InputCacheCreationTokens int `json:"input_cache_creation_tokens"`
 }
 
 type ChatMessage struct {
 	Role    string            `json:"role"`
 	Content []*MessageContent `json:"content"`
+}
+
+func (cm *ChatMessage) SetCache() {
+	for _, c := range cm.Content {
+		c.SetCache()
+	}
 }
 
 type Tool struct {

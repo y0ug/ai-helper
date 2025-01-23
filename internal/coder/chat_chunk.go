@@ -1,20 +1,22 @@
 package coder
 
-import "github.com/y0ug/ai-helper/internal/coder/prompts"
+import (
+	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+)
 
 type ChatChunks struct {
-	System        []prompts.Message
-	Examples      []prompts.Message
-	Done          []prompts.Message
-	Repo          []prompts.Message
-	ReadOnlyFiles []prompts.Message
-	ChatFiles     []prompts.Message
-	Cur           []prompts.Message
-	Reminder      []prompts.Message
+	System        []chat.ChatMessage
+	Examples      []chat.ChatMessage
+	Done          []chat.ChatMessage
+	Repo          []chat.ChatMessage
+	ReadOnlyFiles []chat.ChatMessage
+	ChatFiles     []chat.ChatMessage
+	Cur           []chat.ChatMessage
+	Reminder      []chat.ChatMessage
 }
 
-func (c *ChatChunks) AllMessages() []prompts.Message {
-	var messages []prompts.Message
+func (c *ChatChunks) AllMessages() []chat.ChatMessage {
+	var messages []chat.ChatMessage
 	messages = append(messages, c.System...)
 	messages = append(messages, c.Examples...)
 	messages = append(messages, c.Done...)
@@ -27,6 +29,16 @@ func (c *ChatChunks) AllMessages() []prompts.Message {
 }
 
 func (c *ChatChunks) AddCacheControlHeaders() {
+	if len(c.Examples) > 0 {
+		c.AddCacheControl(&c.Examples)
+	} else {
+	}
 	// Add cache control headers to messages if needed
 	// Implementation depends on your caching strategy
+}
+
+func (c *ChatChunks) AddCacheControl(messages *[]chat.ChatMessage) {
+	for _, msg := range *messages {
+		msg.SetCache()
+	}
 }

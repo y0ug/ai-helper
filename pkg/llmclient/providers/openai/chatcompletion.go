@@ -216,7 +216,7 @@ type CompletionUsage struct {
 	}
 	PromptTokensDetails struct {
 		CachedTokens int `json:"cached_tokens"`
-		AutdioTokens int `json:"audio_tokens"`
+		AudioTokens  int `json:"audio_tokens"`
 	} `json:"prompt_tokens_details"`
 	Cost float64 `json:"cost,omitempty"`
 }
