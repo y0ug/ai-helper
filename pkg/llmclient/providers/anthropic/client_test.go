@@ -133,4 +133,40 @@ func TestClientIntegration(t *testing.T) {
 			t.Error("Expected error for invalid model but got none")
 		}
 	})
+
+	t.Run("StreamingOverloadedError", func(t *testing.T) {
+		params := MessageNewParams{
+			Model:     "claude-3-5-sonnet-20241022",
+			MaxTokens: 4096,
+			Messages: []MessageParam{
+				{
+					Role: "user",
+					Content: []*chat.MessageContent{chat.NewTextContent(
+						"Write a very long essay that will likely overload the system",
+					)},
+				},
+			},
+		}
+
+		stream, err := client.Message.NewStreaming(ctx, params)
+		if err != nil {
+			t.Fatalf("Failed to create stream: %v", err)
+		}
+
+		message := Message{}
+		var streamErr error
+		for stream.Next() {
+			evt := stream.Current()
+			message.Accumulate(evt)
+		}
+		streamErr = stream.Err()
+
+		if streamErr == nil {
+			t.Error("Expected overloaded error but got none")
+		}
+		
+		if streamErr != nil && streamErr.Error() != "Overloaded" {
+			t.Errorf("Expected 'Overloaded' error but got: %v", streamErr)
+		}
+	})
 }
