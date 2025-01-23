@@ -1,6 +1,6 @@
 package coder
 
-import "github.com/y0ug/ai-helper/pkg/llmclient/chat"
+import "github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 
 type ChatHistory struct {
 	curMessages  []*chat.ChatMessage

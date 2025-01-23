@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient"
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
-	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
+	"github.com/y0ug/ai-helper/pkg/llmhaven"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
 )
 
 // NOP go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=llmagent .  Agenter
@@ -91,7 +91,7 @@ func (a *Agent) SetModel(model string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse model %s: %w", model, err)
 	}
-	provider, err := llmclient.New(modelInfo.Provider, a.requestOpts...)
+	provider, err := llmhaven.New(modelInfo.Provider, a.requestOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to create provider %s / %s", modelInfo.Provider, model)
 	}

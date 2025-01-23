@@ -8,9 +8,9 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/pkg/conversation"
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
-	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
 )
 
 // TemplateAgent represents an AI agent that works with templates and commands

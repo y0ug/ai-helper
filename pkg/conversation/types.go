@@ -5,7 +5,7 @@ import (
 	"io"
 
 	ctmg "github.com/y0ug/ai-helper/pkg/conversation/context"
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 // Manager defines the interface for conversation management

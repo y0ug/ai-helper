@@ -1,7 +1,7 @@
 package coder
 
 import (
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 type ChatChunks struct {

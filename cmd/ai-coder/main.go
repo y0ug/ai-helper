@@ -18,10 +18,10 @@ import (
 	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
-	"github.com/y0ug/ai-helper/pkg/llmclient"
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
-	"github.com/y0ug/ai-helper/pkg/llmclient/http/options"
-	"github.com/y0ug/ai-helper/pkg/llmclient/modelinfo"
+	"github.com/y0ug/ai-helper/pkg/llmhaven"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
 )
 
 func main() {
@@ -88,7 +88,7 @@ func main() {
 		options.WithMiddleware(middleware.LoggingMiddleware()),
 		options.WithMiddleware(middleware.TimeitMiddleware(logger)),
 	}
-	llmClient, err := llmclient.New(modelInfo.Provider, requestOpts...)
+	llmClient, err := llmhaven.New(modelInfo.Provider, requestOpts...)
 	if err != nil {
 		logger.Error("Error creating llm client", "error", err)
 		os.Exit(1)

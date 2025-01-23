@@ -3,7 +3,7 @@ package prompts
 import (
 	"strings"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 const BlockFence = "```"

@@ -3,7 +3,7 @@ package llmagent
 import (
 	"context"
 
-	"github.com/y0ug/ai-helper/pkg/llmclient/chat"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 
