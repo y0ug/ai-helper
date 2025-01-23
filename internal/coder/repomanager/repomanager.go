@@ -102,6 +102,9 @@ func (c *RepoManager) Process(msg *chat.ChatMessage) (ProcessType, []chat.Messag
 	c.editSvc.SetFence(c.fence)
 
 	results, msgs := c.editSvc.GetEditsMsg(msg)
+	if len(msgs) > 0 {
+		return ProcessTypeEdit, msgs, nil
+	}
 	if len(results) == 0 {
 		return ProcessTypeNone, nil, nil
 	}

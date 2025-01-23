@@ -59,7 +59,7 @@ func (mp *MessageProcessor) ProcessResponse(messages []*chat.ChatMessage) error 
 			c = append(c, &content)
 		}
 
-		respMsg := chat.NewMessage("tool", c...)
+		respMsg := chat.NewMessage("user", c...)
 		mp.history.AddMessage(respMsg)
 
 	}
