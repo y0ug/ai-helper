@@ -139,29 +139,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
 func (c *BaseCoder) FormatMessages() *ChatChunks {
-	c.GetRM().ChooseFence()
-	c.settings.Update(c.GetRM())
-	chunks := &ChatChunks{}
-
-	// Add system messages
-	systemPrompt := c.formatter.RenderPrompt(c.getPrompts().GetMainSystem())
-	if c.settings.MainModel().UseSystemPrompt {
-		chunks.System = []prompts.Message{{
-			Role:    "system",
-			Content: systemPrompt,
-		}}
-	} else {
-		chunks.System = []prompts.Message{
-			{Role: "user", Content: systemPrompt},
-			{Role: "assistant", Content: "Ok."},
-		}
-	}
-
-	// Add example messages from prompts
-	for _, msg := range c.getPrompts().GetExampleMessages() {
-		msg.Content = c.formatter.RenderPrompt(msg.Content)
-		chunks.Examples = append(chunks.Examples, msg)
-	}
+	chunks := c.formatter.FormatAllMessages()
 
 	// Add chat history
 	chunks.Done = c.history.GetDoneMessages()
@@ -183,14 +161,6 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 
 	// Add current conversation
 	chunks.Cur = c.history.GetCurrentMessages()
-
-	// Add reminder if needed
-	if reminder := c.getPrompts().GetSystemReminder(); reminder != "" {
-		chunks.Reminder = []prompts.Message{{
-			Role:    "system",
-			Content: c.formatter.RenderPrompt(reminder),
-		}}
-	}
 
 	return chunks
 }

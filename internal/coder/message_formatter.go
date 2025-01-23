@@ -16,6 +16,42 @@ type MessageFormatter struct {
 	settings        *settings.CoderSettings
 }
 
+func (mf *MessageFormatter) FormatAllMessages() *ChatChunks {
+	mf.rm.ChooseFence()
+	mf.settings.Update(mf.rm)
+	chunks := &ChatChunks{}
+
+	// Add system messages
+	systemPrompt := mf.RenderPrompt(mf.prompts.GetMainSystem())
+	if mf.settings.MainModel().UseSystemPrompt {
+		chunks.System = []prompts.Message{{
+			Role:    "system",
+			Content: systemPrompt,
+		}}
+	} else {
+		chunks.System = []prompts.Message{
+			{Role: "user", Content: systemPrompt},
+			{Role: "assistant", Content: "Ok."},
+		}
+	}
+
+	// Add example messages from prompts
+	for _, msg := range mf.prompts.GetExampleMessages() {
+		msg.Content = mf.RenderPrompt(msg.Content)
+		chunks.Examples = append(chunks.Examples, msg)
+	}
+
+	// Add reminder if needed
+	if reminder := mf.prompts.GetSystemReminder(); reminder != "" {
+		chunks.Reminder = []prompts.Message{{
+			Role:    "system",
+			Content: mf.RenderPrompt(reminder),
+		}}
+	}
+
+	return chunks
+}
+
 func NewMessageFormatter(logger *slog.Logger, rm repomanager.RepoManagerInterface,
 	p prompts.Prompter, settings *settings.CoderSettings,
 ) *MessageFormatter {
