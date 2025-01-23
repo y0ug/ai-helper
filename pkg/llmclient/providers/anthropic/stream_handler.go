@@ -32,10 +32,17 @@ func (h *AnthropicStreamHandler) HandleEvent(event streaming.Event) (MessageStre
 			return result, err
 		}
 	case "error":
-		err = fmt.Errorf("received error while streaming: %s", string(event.Data))
-		if err := json.Unmarshal(event.Data, &result); err != nil {
-			return result, err
+		var errorResp struct {
+			Error struct {
+				Type    string      `json:"type"`
+				Message string      `json:"message"`
+				Details interface{} `json:"details"`
+			} `json:"error"`
 		}
+		if err := json.Unmarshal(event.Data, &errorResp); err != nil {
+			return result, fmt.Errorf("failed to parse error response: %w", err)
+		}
+		err = fmt.Errorf("%s", errorResp.Error.Message)
 	}
 
 	return result, err
