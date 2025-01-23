@@ -128,21 +128,6 @@ func (mr *MockFileManagerMockRecorder) GetNewFiles() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNewFiles", reflect.TypeOf((*MockFileManager)(nil).GetNewFiles))
 }
 
-// GetVersions mocks base method.
-func (m *MockFileManager) GetVersions(path string) ([]FileVersion, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVersions", path)
-	ret0, _ := ret[0].([]FileVersion)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetVersions indicates an expected call of GetVersions.
-func (mr *MockFileManagerMockRecorder) GetVersions(path any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersions", reflect.TypeOf((*MockFileManager)(nil).GetVersions), path)
-}
-
 // HasFileChanged mocks base method.
 func (m *MockFileManager) HasFileChanged(path string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -213,34 +198,6 @@ func (m *MockFileManager) Remove(path string) error {
 func (mr *MockFileManagerMockRecorder) Remove(path any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockFileManager)(nil).Remove), path)
-}
-
-// Revert mocks base method.
-func (m *MockFileManager) Revert(path, version string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Revert", path, version)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Revert indicates an expected call of Revert.
-func (mr *MockFileManagerMockRecorder) Revert(path, version any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Revert", reflect.TypeOf((*MockFileManager)(nil).Revert), path, version)
-}
-
-// Stage mocks base method.
-func (m *MockFileManager) Stage(path, content string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stage", path, content)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Stage indicates an expected call of Stage.
-func (mr *MockFileManagerMockRecorder) Stage(path, content any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stage", reflect.TypeOf((*MockFileManager)(nil).Stage), path, content)
 }
 
 // Write mocks base method.

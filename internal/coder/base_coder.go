@@ -23,6 +23,7 @@ type BaseCoder struct {
 	// fileManager          filemanager.FileManager
 	curMessages          []prompts.Message
 	doneMessages         []prompts.Message
+	maxOutputToken       int
 	lastCommitHash       string
 	aiderCommitHashes    map[string]struct{}
 	temperature          float64
@@ -32,7 +33,7 @@ type BaseCoder struct {
 	totalCost            float64
 	chatLanguage         string
 	verbose              bool
-	prompts              prompts.EditBlockPrompts
+	prompts              prompts.Prompter
 	lintCommands         map[string]string
 	suggestShellCommands bool
 	rm                   repomanager.RepoManagerInterface
@@ -45,22 +46,49 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 		llmClient:    opts.LlmClient,
 		rm:           opts.RepoManager,
 		logger:       opts.Logger,
-		prompts:      *prompts.NewEditBlockPrompts(),
 		curMessages:  make([]prompts.Message, 0),
 		doneMessages: make([]prompts.Message, 0),
 	}
-	editFormat := editservice.EditFormatDiff
-	if editFormat == editservice.EditFormatDiff {
-		editSvc := editservice.NewEditBlockService(c.logger, c.rm.GetFence())
-		c.rm.SetEditService(editSvc)
+
+	c.maxOutputToken = 4096
+	if val, ok := c.mainModel.ExtraParams["max_tokens"]; ok {
+		switch val := val.(type) {
+		case int:
+			c.maxOutputToken = val
+		}
 	}
+
+	c.SetPrompts(opts.Prompts)
+	c.logger.Info(
+		"setting ",
+		"max_output_token", c.maxOutputToken,
+		"model_name", c.mainModel.Name,
+		"prompt_name",
+		c.getPrompts().GetName(),
+		"edit_format",
+		c.GetRM().GetEditServiceFormat(),
+		"edit_svc",
+		c.GetRM().GetEditServiceName(),
+	)
+	return c
+}
+
+func (c *BaseCoder) SetPrompts(pts prompts.Prompter) {
+	c.prompts = pts
+	editFormat := editservice.EditFormat(c.getPrompts().GetEditFormat())
+	editSvc := editservice.New(editFormat, c.logger)
+	if editSvc == nil {
+		c.logger.Error("Error creating edit service", "edit_format", editFormat)
+	}
+
+	c.rm.SetEditService(editSvc)
+
 	c.templateHandler = prompts.NewTemplateHandler(
-		&c.prompts,
+		c.prompts,
 		c.mainModel,
 		c.getTemplateInitData(),
 		c.logger,
 	)
-	return c
 }
 
 func (c *BaseCoder) SetStreamWriter(w io.Writer) {
@@ -71,8 +99,8 @@ func (c *BaseCoder) GetRM() repomanager.RepoManagerInterface {
 	return c.rm
 }
 
-func (c *BaseCoder) getPrompts() *prompts.EditBlockPrompts {
-	return &c.prompts
+func (c *BaseCoder) getPrompts() prompts.Prompter {
+	return c.prompts
 }
 
 func (c *BaseCoder) InitBeforeMessage() {
@@ -104,7 +132,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 	messages := c.FormatMessages()
 
 	for _, m := range messages.AllMessages() {
-		c.logger.Info("msg", "role", m.Role, "content", m.Content)
+		c.logger.Debug("msg", "role", m.Role, "content", m.Content)
 	}
 
 	// Send to LLM and handle response
@@ -113,7 +141,11 @@ func (c *BaseCoder) SendMessage(message string) error {
 		return err
 	}
 
-	var isEdited bool
+	// if not interrupted
+	// Check for file mentions.
+	// If files are mentions and we add them start reflected_messages and reprocess
+	// else call callback reply_completed
+
 	// Process the response
 	for _, m := range msg {
 		if m.Role != "assistant" {
@@ -128,11 +160,6 @@ func (c *BaseCoder) SendMessage(message string) error {
 			c.logger.Error("Error processing edit", "error", err)
 		}
 		if isEdit {
-			isEdited = true
-		}
-
-		responseMsg := c.getPrompts().FilesContentGPTNoEdits
-		if isEdited {
 			commitMsg := "apply diff"
 			err = c.rm.GetFM().Commit(commitMsg)
 			if err != nil {
@@ -143,10 +170,10 @@ func (c *BaseCoder) SendMessage(message string) error {
 				"Hash":    "12345",
 				"Message": commitMsg,
 			}
-			responseMsg = c.renderPromptData(c.getPrompts().FilesContentGPTEdits, data)
+			responseMsg := c.renderPromptData(c.getPrompts().GetFilesContentGPTEdits(), data)
+			c.moveBackCurMessages(responseMsg)
 		}
 
-		c.moveBackCurMessages(responseMsg)
 		// Should onlt have one assistant message??
 		break
 	}
@@ -156,7 +183,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 }
 
 func (c *BaseCoder) moveBackCurMessages(message string) {
-	c.logger.Info("adding", "message", message, "curMessage", c.curMessages)
+	c.logger.Debug("adding", "message", message, "curMessage", c.curMessages)
 	// Clear current messages if everyting was done
 	c.doneMessages = append(c.doneMessages, c.curMessages...)
 	c.curMessages = make([]prompts.Message, 0)
@@ -175,8 +202,8 @@ func (c *BaseCoder) moveBackCurMessages(message string) {
 func (c *BaseCoder) processResponse(resp *chat.ChatResponse) ([]prompts.Message, error) {
 	// Process response
 	msgParams := resp.ToMessageParams()
-	c.logger.Info("response", "resp", resp)
-	c.logger.Info("msg", "role", msgParams.Role, "content", msgParams.Content)
+	// c.logger.Debug("response", "resp", resp)
+	c.logger.Debug("msg", "role", msgParams.Role, "content", msgParams.Content)
 
 	// Process response
 	return []prompts.Message{{Role: msgParams.Role, Content: msgParams.Content[0].String()}}, nil
@@ -197,7 +224,7 @@ func (c *BaseCoder) SendToLLM(messages *ChatChunks) ([]prompts.Message, error) {
 	}
 	// Send messages to LLM
 	chatParams := chat.NewChatParams(
-		chat.WithMaxTokens(c.mainModel.MaxChatHistoryTokens),
+		chat.WithMaxTokens(c.maxOutputToken),
 		chat.WithModel(c.mainModel.Name),
 		chat.WithMessages(messagesLLM...))
 
@@ -253,7 +280,7 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 	chunks := &ChatChunks{}
 
 	// Add system messages
-	systemPrompt := c.renderPrompt(c.getPrompts().MainSystem)
+	systemPrompt := c.renderPrompt(c.getPrompts().GetMainSystem())
 	if c.mainModel.UseSystemPrompt {
 		chunks.System = []prompts.Message{{
 			Role:    "system",
@@ -267,7 +294,7 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 	}
 
 	// Add example messages from prompts
-	for _, msg := range c.getPrompts().ExampleMessages {
+	for _, msg := range c.getPrompts().GetExampleMessages() {
 		msg.Content = c.renderPrompt(msg.Content)
 		chunks.Examples = append(chunks.Examples, msg)
 	}
@@ -294,7 +321,7 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 	chunks.Cur = c.curMessages
 
 	// Add reminder if needed
-	if reminder := c.getPrompts().SystemReminder; reminder != "" {
+	if reminder := c.getPrompts().GetSystemReminder(); reminder != "" {
 		chunks.Reminder = []prompts.Message{{
 			Role:    "system",
 			Content: c.renderPrompt(reminder),
@@ -331,7 +358,7 @@ func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
 	return []prompts.Message{
 		{
 			Role:    "user",
-			Content: c.renderPrompt(c.getPrompts().ReadOnlyFilesPrefix) + "\n" + content,
+			Content: c.renderPrompt(c.getPrompts().GetReadOnlyFilesPrefix()) + "\n" + content,
 		},
 		{
 			Role:    "assistant",
@@ -342,26 +369,34 @@ func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
 
 func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
 	if len(c.rm.GetFM().List(0)) == 0 {
-		if c.rm.GetRepoMap() != "" && c.getPrompts().FilesNoFullFilesWithRepoMap != "" {
+		if c.rm.GetRepoMap() != "" && c.getPrompts().GetFilesNoFullFilesWithRepoMap() != "" {
 			return []prompts.Message{
-				{Role: "user", Content: c.renderPrompt(c.getPrompts().FilesNoFullFilesWithRepoMap)},
+				{
+					Role:    "user",
+					Content: c.renderPrompt(c.getPrompts().GetFilesNoFullFilesWithRepoMap()),
+				},
 				{
 					Role:    "assistant",
-					Content: c.renderPrompt(c.getPrompts().FilesNoFullFilesWithRepoMapReply),
+					Content: c.renderPrompt(c.getPrompts().GetFilesNoFullFilesWithRepoMapReply()),
 				},
 			}
 		}
 		return []prompts.Message{
-			{Role: "user", Content: c.renderPrompt(c.getPrompts().FilesNoFullFiles)},
+			{Role: "user", Content: c.renderPrompt(c.getPrompts().GetFilesNoFullFiles())},
 			{Role: "assistant", Content: "Ok."},
 		}
 	}
 
-	content := c.renderPrompt(c.getPrompts().FilesContentPrefix) + "\n" + c.rm.GetFilesContent()
+	content := c.renderPrompt(
+		c.getPrompts().GetFilesContentPrefix(),
+	) + "\n" + c.rm.GetFilesContent()
 
 	return []prompts.Message{
 		{Role: "user", Content: content},
-		{Role: "assistant", Content: c.renderPrompt(c.getPrompts().FilesContentAssistantReply)},
+		{
+			Role:    "assistant",
+			Content: c.renderPrompt(c.getPrompts().GetFilesContentAssistantReply()),
+		},
 	}
 }
 

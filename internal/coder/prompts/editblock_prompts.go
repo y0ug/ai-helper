@@ -3,9 +3,10 @@ package prompts
 const Fence = "`"
 
 func NewEditBlockPrompts() *EditBlockPrompts {
-	prompts := &EditBlockPrompts{
-		BasePrompts: *NewBasePrompts(),
-		MainSystem: `Act as an expert software developer.
+	prompts := &EditBlockPrompts{BasePrompts: *NewBasePrompts()}
+	prompts.Name = "EditBlock"
+	prompts.EditFormat = "diff"
+	prompts.MainSystem = `Act as an expert software developer.
 Always use best practices when coding.
 Respect and use existing conventions, libraries, etc that are already present in the code base.
 {{.LazyPrompt}}
@@ -28,8 +29,7 @@ You can keep asking if you then decide you need to edit more files.
 
 All changes to files must use this *SEARCH/REPLACE block* format.
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
-{{.ShellCmdPrompt}}`,
-	}
+{{.ShellCmdPrompt}}`
 	prompts.ExampleMessages = getEditBlockExampleMessages()
 	prompts.ShellCmdPrompt = `4. *Concisely* suggest any shell commands the user might want to run in ` + BlockFence + `bash blocks.
 

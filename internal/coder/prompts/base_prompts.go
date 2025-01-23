@@ -2,6 +2,8 @@ package prompts
 
 func NewBasePrompts() *BasePrompts {
 	return &BasePrompts{
+		Name:                       "Code",
+		EditFormat:                 "code",
 		SystemReminder:             "",
 		FilesContentGPTEdits:       "I committed the changes with git hash {{.Hash}} & commit msg: {{.Message}}",
 		FilesContentGPTEditsNoRepo: "I updated the files.",

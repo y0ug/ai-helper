@@ -4,6 +4,8 @@ func NewEditBlockFencedPrompts() *EditBlockFencedPrompts {
 	p := &EditBlockFencedPrompts{
 		EditBlockPrompts: *NewEditBlockPrompts(),
 	}
+	p.Name = "EditBlockFenced"
+	p.EditFormat = "editblock-fenced"
 	p.ExampleMessages = getEditBlockFencedExampleMessages()
 	return p
 }

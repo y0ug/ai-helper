@@ -1,10 +1,11 @@
 package prompts
 
 func NewEditorWholeFilePrompts() *EditorWholeFilePrompts {
-	return &EditorWholeFilePrompts{
-		WholeFilePrompts: *NewWholeFilePrompts(),
-		MainSystem: `Act as an expert software developer and make changes to source code.
+	p := &EditorWholeFilePrompts{WholeFilePrompts: *NewWholeFilePrompts()}
+	p.Name = "EditorWholeFile"
+	p.EditFormat = "editor-whole"
+	p.MainSystem = `Act as an expert software developer and make changes to source code.
 {{.LazyPrompt}}
-Output a copy of each file that needs changes.`,
-	}
+Output a copy of each file that needs changes.`
+	return p
 }

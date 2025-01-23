@@ -1,5 +1,7 @@
 package prompts
 
+//go:generate go run ./cmd/genprompts/main.go
+
 import (
 	"bytes"
 	"log/slog"
@@ -9,14 +11,14 @@ import (
 )
 
 type TemplateHandler struct {
-	prompts   *EditBlockPrompts
+	prompts   Prompter
 	mainModel *models.Model
 	data      TemplateData
 	logger    *slog.Logger
 }
 
 func NewTemplateHandler(
-	prompts *EditBlockPrompts,
+	prompts Prompter,
 	model *models.Model,
 	initialData TemplateData,
 	logger *slog.Logger,
@@ -49,8 +51,8 @@ const (
 
 func (c *TemplateHandler) UpdateData() {
 	c.Set("LazyPrompt", c.getLazyPrompt())
-	c.Set("ShellCmdPrompt", c.Render(c.prompts.ShellCmdPrompt))
-	c.Set("ShellCmdReminder", c.Render(c.prompts.ShellCmdReminder))
+	c.Set("ShellCmdPrompt", c.Render(c.prompts.GetShellCmdPrompt()))
+	c.Set("ShellCmdReminder", c.Render(c.prompts.GetShellCmdReminder()))
 }
 
 func (c *TemplateHandler) SetFence(fence [2]string) {
@@ -60,7 +62,7 @@ func (c *TemplateHandler) SetFence(fence [2]string) {
 
 func (c *TemplateHandler) getLazyPrompt() string {
 	if c.mainModel.Lazy {
-		return c.Render(c.prompts.LazyPrompt)
+		return c.Render(c.prompts.GetLazyPrompt())
 	}
 	return ""
 }

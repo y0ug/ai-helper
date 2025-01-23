@@ -13,17 +13,6 @@ import (
 
 // Fence represents a pair of opening and closing delimiters for code blocks
 
-// DefaultFences defines all possible fencing options in order of preference
-var DefaultFences = []editservice.Fence{
-	{"```", "```"},
-	{"````", "````"},
-	{"<source>", "</source>"},
-	{"<code>", "</code>"},
-	{"<pre>", "</pre>"},
-	{"<codeblock>", "</codeblock>"},
-	{"<sourcecode>", "</sourcecode>"},
-}
-
 type RepoManager struct {
 	fence            editservice.Fence
 	root             string
@@ -45,6 +34,8 @@ type RepoManagerInterface interface {
 	GetReadOnlyFilesContent() string
 	GetRepoMap() string
 	SetEditService(svc editservice.EditService)
+	GetEditServiceFormat() string
+	GetEditServiceName() string
 	ProcessEdit(content string) (bool, error)
 }
 
@@ -63,11 +54,31 @@ func NewRepoManager(
 	}
 }
 
+func (c *RepoManager) GetEditServiceFormat() string {
+	if c.editSvc == nil {
+		return ""
+	}
+	return string(c.editSvc.GetFormat())
+}
+
+func (c *RepoManager) GetEditServiceName() string {
+	if c.editSvc == nil {
+		return ""
+	}
+	return c.editSvc.GetName()
+}
+
 func (c *RepoManager) SetEditService(svc editservice.EditService) {
 	c.editSvc = svc
 }
 
 func (c *RepoManager) ProcessEdit(content string) (bool, error) {
+	if c.editSvc == nil {
+		c.logger.Warn("Edit service not set")
+		return false, nil
+	}
+
+	// TODO: set it here or when we ChooseFence
 	c.editSvc.SetFence(c.fence)
 	results := c.editSvc.GetEdits(content)
 	if len(results) == 0 {
@@ -115,7 +126,7 @@ func (c *RepoManager) ChooseFence() {
 	allContent := c.getAllContent()
 
 	// Try each fence option until we find one that doesn't appear in the content
-	for _, fence := range DefaultFences {
+	for _, fence := range editservice.DefaultFences {
 		if !hasFenceConflict(allContent, fence) {
 			c.fence = fence
 			return
@@ -123,9 +134,13 @@ func (c *RepoManager) ChooseFence() {
 	}
 
 	// If all fences conflict (unlikely), use the default and warn
-	c.fence = DefaultFences[0]
+	c.fence = editservice.DefaultFences[0]
 	c.logger.Warn(
 		"Unable to find a non-conflicting fence strategy! Falling back", "fence", c.fence)
+
+	if c.editSvc != nil {
+		c.editSvc.SetFence(c.fence)
+	}
 }
 
 // getAllContent combines content from all files being handled

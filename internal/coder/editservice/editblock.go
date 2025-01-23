@@ -9,14 +9,12 @@ import (
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
 
-type (
-	EditBlockService struct {
-		fence  Fence
-		logger *slog.Logger
-		format EditFormat
-		mode   EditMode
-	}
-)
+type EditBlockService struct {
+	fence  Fence
+	logger *slog.Logger
+	format EditFormat
+	name   string
+}
 
 const (
 	searchMarker  = "<<<<<<< SEARCH"
@@ -30,13 +28,21 @@ var (
 	replaceRe = regexp.MustCompile(`^>{5,9} REPLACE\s*$`)
 )
 
-func NewEditBlockService(logger *slog.Logger, fence Fence) *EditBlockService {
+func NewEditBlockService(logger *slog.Logger, format EditFormat, fence Fence) *EditBlockService {
 	return &EditBlockService{
 		fence:  fence,
 		logger: logger,
-		format: EditFormatDiff,
-		mode:   EditBlockMode,
+		format: format,
+		name:   "EditBlockService",
 	}
+}
+
+func (c *EditBlockService) GetName() string {
+	return c.name
+}
+
+func (c *EditBlockService) GetFormat() EditFormat {
+	return c.format
 }
 
 func (c *EditBlockService) SetFence(fence Fence) {
@@ -49,7 +55,6 @@ func (c *EditBlockService) newEdit(filename, original, updated string) *Edit {
 		Original: original,
 		Updated:  updated,
 		Format:   c.format,
-		Mode:     c.mode,
 	}
 }
 

@@ -11,18 +11,29 @@ import (
 type WholeFileService struct {
 	fence  Fence
 	logger *slog.Logger
-	fm     filemanager.FileManager
+	name   string
 	format EditFormat
-	mode   EditMode
 }
 
-func NewWholeFileService(logger *slog.Logger, fence Fence) *WholeFileService {
+func NewWholeFileService(logger *slog.Logger, format EditFormat, fence Fence) *WholeFileService {
 	return &WholeFileService{
 		fence:  fence,
 		logger: logger,
-		format: EditFormatDiff,
-		mode:   EditWholeMode,
+		format: format,
+		name:   "WholeFileService",
 	}
+}
+
+func (c *WholeFileService) GetName() string {
+	return c.name
+}
+
+func (c *WholeFileService) GetFormat() EditFormat {
+	return c.format
+}
+
+func (c *WholeFileService) SetFence(fence Fence) {
+	c.fence = fence
 }
 
 func (c *WholeFileService) newEdit(filename, original, updated string) *Edit {
@@ -31,7 +42,6 @@ func (c *WholeFileService) newEdit(filename, original, updated string) *Edit {
 		Original: original,
 		Updated:  updated,
 		Format:   c.format,
-		Mode:     c.mode,
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/coder"
 	modelinfocoder "github.com/y0ug/ai-helper/internal/coder/models"
+	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
@@ -89,11 +90,20 @@ func main() {
 	}
 
 	rm := repomanager.NewRepoManager(rootPath, logger, fm, gitRepo)
+
+	promptName := "Ask"
+	pts := prompts.New(promptName)
+	if pts == nil {
+		logger.Error("Error creating prompts", "prompt_name", promptName)
+		os.Exit(1)
+	}
+
 	coderOpts := coder.CoderOptions{
 		MainModel:   modelCoder,
 		Logger:      logger,
 		LlmClient:   llmClient,
 		RepoManager: rm,
+		Prompts:     pts,
 	}
 
 	coder := coder.NewBaseCoder(coderOpts)
