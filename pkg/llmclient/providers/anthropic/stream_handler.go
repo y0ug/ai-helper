@@ -42,6 +42,10 @@ func (h *AnthropicStreamHandler) HandleEvent(event streaming.Event) (MessageStre
 		if err := json.Unmarshal(event.Data, &errorResp); err != nil {
 			return result, fmt.Errorf("failed to parse error response: %w", err)
 		}
+		if err := json.Unmarshal(event.Data, &result); err != nil {
+			return result, fmt.Errorf("failed to parse error response: %w", err)
+		}
+		fmt.Println("result", string(result.data))
 		err = fmt.Errorf("%s", errorResp.Error.Message)
 	}
 
