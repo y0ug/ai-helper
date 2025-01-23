@@ -143,24 +143,28 @@ func TestClientIntegration(t *testing.T) {
 		mockCtrl := gomock.NewController(t)
 		defer mockCtrl.Finish()
 
-		mockStream := streaming.NewMockStreamer[MessageStreamEvent](mockCtrl)
+		mockStream := streaming.NewMockStreamer[chat.EventStream](mockCtrl)
 
 		// Mock the stream events sequence
 		mockStream.EXPECT().Next().Return(true)
-		mockStream.EXPECT().Current().Return(MessageStreamEvent{
+		mockStream.EXPECT().Current().Return(chat.EventStream{
 			Type: "message_start",
-			Message: Message{
-				Role: "assistant",
+			Message: &chat.ChatResponse{
+				Choice: []chat.Choice{
+					{
+						Content: []*chat.MessageContent{
+							chat.NewTextContent("Looking at"),
+						},
+					},
+				},
 			},
 		})
 
 		// Mock the error event
 		mockStream.EXPECT().Next().Return(true)
-		mockStream.EXPECT().Current().Return(MessageStreamEvent{
-			Type: "error",
-			Delta: json.RawMessage(
-				`{"error":{"type":"overloaded_error","message":"Overloaded","details":null}}`,
-			),
+		mockStream.EXPECT().Current().Return(chat.EventStream{
+			Type:  "error",
+			Delta: "Overloaded",
 		})
 
 		mockStream.EXPECT().Next().Return(false)
