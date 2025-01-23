@@ -47,8 +47,8 @@ func NewTemplatesFromConfig(tmpls map[string]config.Template) map[string]*Templa
 		// Register handlers
 		for _, handlerName := range tmpl.Handlers {
 			switch handlerName {
-			case "codediff":
-				template.Handlers[handlerName] = NewCodeDiffHandler()
+			// case "codediff":
+			// 	template.Handlers[handlerName] = NewCodeDiffHandler()
 			case "add_file":
 				template.Handlers[handlerName] = NewAddFileHandler()
 			}

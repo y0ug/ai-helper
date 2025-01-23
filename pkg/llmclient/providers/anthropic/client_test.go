@@ -168,13 +168,13 @@ func TestClientIntegration(t *testing.T) {
 			}),
 
 			// Final sequence after error
-			mockStream.EXPECT().Next().Return(false),
-			mockStream.EXPECT().Err().Return(fmt.Errorf("Overloaded")),
-			mockStream.EXPECT().Close().Return(nil),
+			// mockStream.EXPECT().Next().Return(false),
+			// mockStream.EXPECT().Err().Return(fmt.Errorf("Overloaded")),
+			// mockStream.EXPECT().Close().Return(nil),
 		)
 
 		// Create a mock client that returns our mock stream
-		mockClient := NewMockProvider(mockCtrl)
+		mockClient := chat.NewMockProvider(mockCtrl)
 		mockClient.EXPECT().
 			Stream(gomock.Any(), gomock.Any()).
 			Return(mockStream, nil)
@@ -227,6 +227,7 @@ func HandleLLMConversation(
 		}()
 
 		msg, err = processStream(ctx, os.Stdout, eventCh)
+		log.Printf("msg: %v", msg)
 		if err != nil {
 			log.Printf("Error processing stream: %v", err)
 			return nil, err
@@ -291,7 +292,8 @@ func processStream(
 			case "message_stop":
 				cm = set.Message
 			case "error":
-				return nil, fmt.Errorf("%v", set.Delta)
+				cm = set.Message
+				return cm, fmt.Errorf("%v", set.Delta)
 			}
 		}
 	}

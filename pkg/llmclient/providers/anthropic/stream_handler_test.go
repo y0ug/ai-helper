@@ -2,6 +2,7 @@ package anthropic
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ func TestAnthropicStreamHandler_HandleEvent_Error(t *testing.T) {
 			"details": nil,
 		},
 	}
-	
+
 	eventData, err := json.Marshal(errorData)
 	assert.NoError(t, err)
 
@@ -30,6 +31,8 @@ func TestAnthropicStreamHandler_HandleEvent_Error(t *testing.T) {
 	}
 
 	result, err := handler.HandleEvent(event)
+	fmt.Println(result)
+	fmt.Println(err)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Overloaded")
 }
