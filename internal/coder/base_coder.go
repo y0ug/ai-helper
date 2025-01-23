@@ -14,22 +14,24 @@ import (
 type BaseCoder struct {
 	logger          *slog.Logger
 	llmClient       *LLMClient
-	curMessages     []prompts.Message
-	doneMessages    []prompts.Message
 	prompts         prompts.Prompter
 	rm              repomanager.RepoManagerInterface
-	templateHandler *prompts.TemplateHandler
 	settings        *settings.CoderSettings
+	processor       *MessageProcessor
+	history         *ChatHistory
+	formatter       *MessageFormatter
 }
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
+	history := NewChatHistory()
+	formatter := NewMessageFormatter(opts.Logger, opts.RepoManager, opts.Prompts, opts.Settings)
+	
 	c := &BaseCoder{
-		// llmClient:    opts.LlmClient,
-		rm:           opts.RepoManager,
-		logger:       opts.Logger,
-		curMessages:  make([]prompts.Message, 0),
-		doneMessages: make([]prompts.Message, 0),
-		settings:     opts.Settings,
+		rm:       opts.RepoManager,
+		logger:   opts.Logger,
+		settings: opts.Settings,
+		history:  history,
+		formatter: formatter,
 	}
 
 	// Stream processor for the LLMClient wrapper
