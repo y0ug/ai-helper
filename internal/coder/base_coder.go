@@ -107,7 +107,7 @@ func (c *BaseCoder) Run(message string) error {
 
 func (c *BaseCoder) SendMessage(message string) error {
 	// Add user message
-	c.curMessages = append(c.curMessages, prompts.Message{
+	c.history.AddMessage(prompts.Message{
 		Role:    "user",
 		Content: message,
 	})
@@ -124,69 +124,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 		return err
 	}
 
-	return c.handleResponse(response)
-}
-
-func (c *BaseCoder) handleResponse(messages []prompts.Message) error {
-	if len(messages) == 0 {
-		return fmt.Errorf("no messages returned from LLM")
-	}
-
-	msg := messages[len(messages)-1]
-	if msg.Role != "assistant" {
-		return fmt.Errorf("last message should be from assistant")
-	}
-	// Add assistant message to curMessage
-	c.curMessages = append(c.curMessages, msg)
-
-	isEdit, err := c.rm.ProcessEdit(msg.Content)
-	if err != nil {
-		c.logger.Error("Error processing edit", "error", err)
-		return err
-	}
-
-	if isEdit {
-		if err := c.handleSuccessfulEdit(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (c *BaseCoder) handleSuccessfulEdit() error {
-	commitMsg := "apply diff"
-	if err := c.rm.GetFM().Commit(commitMsg); err != nil {
-		c.logger.Error("Error committing", "error", err)
-		return err
-	}
-
-	// Should pass commit hash and message
-	data := map[string]interface{}{
-		"Hash":    "12345",
-		"Message": commitMsg,
-	}
-	responseMsg := c.renderPromptData(c.getPrompts().GetFilesContentGPTEdits(), data)
-	c.moveBackCurMessages(responseMsg)
-
-	return nil
-}
-
-func (c *BaseCoder) moveBackCurMessages(message string) {
-	c.logger.Debug("adding", "message", message, "curMessage", c.curMessages)
-	// Clear current messages if everyting was done
-	c.doneMessages = append(c.doneMessages, c.curMessages...)
-	c.curMessages = make([]prompts.Message, 0)
-
-	if message != "" {
-		c.doneMessages = append(c.doneMessages, prompts.Message{
-			Role:    "user",
-			Content: message,
-		}, prompts.Message{
-			Role:    "assistant",
-			Content: "Ok.",
-		})
-	}
+	return c.processor.ProcessResponse(response)
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
@@ -196,7 +134,7 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 	chunks := &ChatChunks{}
 
 	// Add system messages
-	systemPrompt := c.renderPrompt(c.getPrompts().GetMainSystem())
+	systemPrompt := c.formatter.RenderPrompt(c.getPrompts().GetMainSystem())
 	if c.settings.MainModel().UseSystemPrompt {
 		chunks.System = []prompts.Message{{
 			Role:    "system",
@@ -211,115 +149,38 @@ func (c *BaseCoder) FormatMessages() *ChatChunks {
 
 	// Add example messages from prompts
 	for _, msg := range c.getPrompts().GetExampleMessages() {
-		msg.Content = c.renderPrompt(msg.Content)
+		msg.Content = c.formatter.RenderPrompt(msg.Content)
 		chunks.Examples = append(chunks.Examples, msg)
 	}
 
 	// Add chat history
-	chunks.Done = c.doneMessages
+	chunks.Done = c.history.GetDoneMessages()
 
 	// Add repo content if available
-	if repoMsgs := c.getRepoMessages(); len(repoMsgs) > 0 {
+	if repoMsgs := c.formatter.GetRepoMessages(); len(repoMsgs) > 0 {
 		chunks.Repo = repoMsgs
 	}
 
 	// Add readonly files content
-	if readOnlyMsgs := c.getReadOnlyFilesMessages(); len(readOnlyMsgs) > 0 {
+	if readOnlyMsgs := c.formatter.GetReadOnlyFilesMessages(); len(readOnlyMsgs) > 0 {
 		chunks.ReadOnlyFiles = readOnlyMsgs
 	}
 
 	// Add chat files content
-	if chatFilesMsgs := c.getChatFilesMessages(); len(chatFilesMsgs) > 0 {
+	if chatFilesMsgs := c.formatter.GetChatFilesMessages(); len(chatFilesMsgs) > 0 {
 		chunks.ChatFiles = chatFilesMsgs
 	}
 
 	// Add current conversation
-	chunks.Cur = c.curMessages
+	chunks.Cur = c.history.GetCurrentMessages()
 
 	// Add reminder if needed
 	if reminder := c.getPrompts().GetSystemReminder(); reminder != "" {
 		chunks.Reminder = []prompts.Message{{
 			Role:    "system",
-			Content: c.renderPrompt(reminder),
+			Content: c.formatter.RenderPrompt(reminder),
 		}}
 	}
 
 	return chunks
-}
-
-func (c *BaseCoder) getRepoMessages() []prompts.Message {
-	repoContent := c.rm.GetRepoMap()
-	if repoContent == "" {
-		return nil
-	}
-
-	return []prompts.Message{
-		{
-			Role:    "user",
-			Content: repoContent,
-		},
-		{
-			Role:    "assistant",
-			Content: "Ok, I won't try and edit those files without asking first.",
-		},
-	}
-}
-
-func (c *BaseCoder) getReadOnlyFilesMessages() []prompts.Message {
-	content := c.rm.GetReadOnlyFilesContent()
-	if content == "" {
-		return nil
-	}
-
-	return []prompts.Message{
-		{
-			Role:    "user",
-			Content: c.renderPrompt(c.getPrompts().GetReadOnlyFilesPrefix()) + "\n" + content,
-		},
-		{
-			Role:    "assistant",
-			Content: "Ok, I will use these files as references.",
-		},
-	}
-}
-
-func (c *BaseCoder) getChatFilesMessages() []prompts.Message {
-	if len(c.rm.GetFM().List(0)) == 0 {
-		if c.rm.GetRepoMap() != "" && c.getPrompts().GetFilesNoFullFilesWithRepoMap() != "" {
-			return []prompts.Message{
-				{
-					Role:    "user",
-					Content: c.renderPrompt(c.getPrompts().GetFilesNoFullFilesWithRepoMap()),
-				},
-				{
-					Role:    "assistant",
-					Content: c.renderPrompt(c.getPrompts().GetFilesNoFullFilesWithRepoMapReply()),
-				},
-			}
-		}
-		return []prompts.Message{
-			{Role: "user", Content: c.renderPrompt(c.getPrompts().GetFilesNoFullFiles())},
-			{Role: "assistant", Content: "Ok."},
-		}
-	}
-
-	content := c.renderPrompt(
-		c.getPrompts().GetFilesContentPrefix(),
-	) + "\n" + c.rm.GetFilesContent()
-
-	return []prompts.Message{
-		{Role: "user", Content: content},
-		{
-			Role:    "assistant",
-			Content: c.renderPrompt(c.getPrompts().GetFilesContentAssistantReply()),
-		},
-	}
-}
-
-func (c *BaseCoder) renderPrompt(tmpl string) string {
-	return c.templateHandler.Render(tmpl)
-}
-
-func (c *BaseCoder) renderPromptData(tmpl string, data map[string]interface{}) string {
-	return c.templateHandler.RenderData(tmpl, data)
 }
