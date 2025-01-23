@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"testing"
 
@@ -142,7 +144,7 @@ func TestClientIntegration(t *testing.T) {
 		defer mockCtrl.Finish()
 
 		mockStream := streaming.NewMockStreamer[MessageStreamEvent](mockCtrl)
-		
+
 		// Mock the stream events sequence
 		mockStream.EXPECT().Next().Return(true)
 		mockStream.EXPECT().Current().Return(MessageStreamEvent{
@@ -151,14 +153,16 @@ func TestClientIntegration(t *testing.T) {
 				Role: "assistant",
 			},
 		})
-		
+
 		// Mock the error event
 		mockStream.EXPECT().Next().Return(true)
 		mockStream.EXPECT().Current().Return(MessageStreamEvent{
 			Type: "error",
-			Delta: json.RawMessage(`{"error":{"type":"overloaded_error","message":"Overloaded","details":null}}`),
+			Delta: json.RawMessage(
+				`{"error":{"type":"overloaded_error","message":"Overloaded","details":null}}`,
+			),
 		})
-		
+
 		mockStream.EXPECT().Next().Return(false)
 		mockStream.EXPECT().Err().Return(fmt.Errorf("Overloaded"))
 		mockStream.EXPECT().Close().Return(nil)
@@ -181,9 +185,104 @@ func TestClientIntegration(t *testing.T) {
 		if err == nil {
 			t.Error("Expected overloaded error but got none")
 		}
-		
+
 		if err != nil && err.Error() != "Overloaded" {
 			t.Errorf("Expected 'Overloaded' error but got: %v", err)
 		}
 	})
+}
+
+func HandleLLMConversation(
+	ctx context.Context,
+	provider chat.Provider,
+	params chat.ChatParams,
+) (*chat.ChatResponse, error) {
+	var msg *chat.ChatResponse
+	for {
+
+		stream, err := provider.Stream(ctx, params)
+		if err != nil {
+			log.Printf("Error streaming: %v", err)
+			return nil, err
+		}
+
+		eventCh := make(chan chat.EventStream)
+
+		// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
+		go func() {
+			// llmclient.ConsumeStreamIO(ctx, stream, os.Stdout)
+			if err := chat.StreamChatMessageToChannel(ctx, stream, eventCh); err != nil {
+				if err != context.Canceled {
+					log.Printf("Error consuming stream: %v", err)
+				}
+			}
+		}()
+
+		msg, err = processStream(ctx, os.Stdout, eventCh)
+		if err != nil {
+			log.Printf("Error processing stream: %v", err)
+			return nil, nil
+		}
+
+		if msg == nil {
+			log.Printf("No message returned")
+			return nil, nil
+		}
+		fmt.Printf("\nUsage: %d %d\n", msg.Usage.InputTokens, msg.Usage.OutputTokens)
+
+		params.Messages = append(params.Messages, msg.ToMessageParams())
+		toolResults := make([]*chat.MessageContent, 0)
+		// for _, choice := range msg.Choice {
+		choice := msg.Choice[0]
+		for _, content := range choice.Content {
+			if content.Type == "tool_use" {
+				log.Printf(
+					"%s execution: %s with \"%s\"",
+					content.ID,
+					content.Name,
+					string(content.Input),
+				)
+				switch content.Name {
+				default:
+					log.Printf("Unknown tool: %s", content.Name)
+				}
+
+			}
+		}
+		// }
+		if len(toolResults) == 0 {
+			break
+		}
+
+		// if params.N != nil {
+		// 	*params.N = 1
+		// }
+
+		params.Messages = append(params.Messages, chat.NewMessage("user", toolResults...))
+	}
+	return msg, nil
+}
+
+func processStream(
+	ctx context.Context,
+	w io.Writer,
+	ch <-chan chat.EventStream,
+) (*chat.ChatResponse, error) {
+	var cm *chat.ChatResponse
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case set, ok := <-ch:
+			if !ok {
+				return cm, nil
+			}
+			if set.Type == "text_delta" {
+				fmt.Fprintf(w, "%v", set.Delta)
+			}
+			if set.Type == "message_stop" {
+				cm = set.Message
+			}
+		}
+	}
 }
