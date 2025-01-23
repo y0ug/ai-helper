@@ -68,8 +68,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("modelInfo", "modelInfo", modelInfo, "modelCoder", modelCoder)
-
 	fm := filemanager.NewLocalFileManager()
 	// Setup chat parameters
 	_ = chat.NewChatParams()
@@ -93,7 +91,7 @@ func main() {
 
 	rm := repomanager.NewRepoManager(rootPath, logger, fm, gitRepo)
 
-	promptName := "Ask"
+	promptName := "EditBlock"
 	pts := prompts.New(promptName)
 	if pts == nil {
 		logger.Error("Error creating prompts", "prompt_name", promptName)

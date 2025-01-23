@@ -2,7 +2,6 @@ package coder
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/editservice"
@@ -12,26 +11,35 @@ import (
 )
 
 type BaseCoder struct {
-	logger          *slog.Logger
-	llmClient       *LLMClient
-	prompts         prompts.Prompter
-	rm              repomanager.RepoManagerInterface
-	settings        *settings.CoderSettings
-	processor       *MessageProcessor
-	history         *ChatHistory
-	formatter       *MessageFormatter
+	logger    *slog.Logger
+	llmClient *LLMClient
+	prompts   prompts.Prompter
+	rm        repomanager.RepoManagerInterface
+	settings  *settings.CoderSettings
+	processor *MessageProcessor
+	history   *ChatHistory
+	formatter *MessageFormatter
 }
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
 	history := NewChatHistory()
 	formatter := NewMessageFormatter(opts.Logger, opts.RepoManager, opts.Prompts, opts.Settings)
-	
+	processor := NewMessageProcessor(
+		opts.Logger,
+		opts.RepoManager,
+		history,
+		formatter,
+		opts.Settings,
+		opts.Prompts,
+	)
+
 	c := &BaseCoder{
-		rm:       opts.RepoManager,
-		logger:   opts.Logger,
-		settings: opts.Settings,
-		history:  history,
+		rm:        opts.RepoManager,
+		logger:    opts.Logger,
+		settings:  opts.Settings,
+		history:   history,
 		formatter: formatter,
+		processor: processor,
 	}
 
 	// Stream processor for the LLMClient wrapper
@@ -47,17 +55,19 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 
 	c.llmClient = llmClient
 
+	// Should handle this better
 	c.SetPrompts(opts.Prompts)
+
 	c.logger.Info(
 		"setting ",
 		"max_output_token", c.settings.GetMaxOutputToken(),
 		"model_name", c.settings.GetModelName(),
 		"prompt_name",
-		c.getPrompts().GetName(),
+		opts.Prompts.GetName(),
 		"edit_format",
-		c.GetRM().GetEditServiceFormat(),
+		opts.RepoManager.GetEditServiceFormat(),
 		"edit_svc",
-		c.GetRM().GetEditServiceName(),
+		opts.RepoManager.GetEditServiceName(),
 	)
 	return c
 }
@@ -72,11 +82,11 @@ func (c *BaseCoder) SetPrompts(pts prompts.Prompter) {
 
 	c.rm.SetEditService(editSvc)
 
-	c.templateHandler = prompts.NewTemplateHandler(
-		c.prompts,
-		c.settings,
-		c.logger,
-	)
+	// c.templateHandler = prompts.NewTemplateHandler(
+	// 	c.prompts,
+	// 	c.settings,
+	// 	c.logger,
+	// )
 }
 
 func (c *BaseCoder) GetRM() repomanager.RepoManagerInterface {
@@ -87,7 +97,7 @@ func (c *BaseCoder) getPrompts() prompts.Prompter {
 	return c.prompts
 }
 
-func (c *BaseCoder) InitBeforeMessage() {
+func (c *BaseCoder) initBeforeMessage() {
 	// Reset state before processing a new message
 	// if c.rm.GetGit() != nil {
 	// 	// Should commit before message
@@ -101,7 +111,7 @@ func (c *BaseCoder) InitBeforeMessage() {
 }
 
 func (c *BaseCoder) Run(message string) error {
-	c.InitBeforeMessage()
+	c.initBeforeMessage()
 	return c.SendMessage(message)
 }
 

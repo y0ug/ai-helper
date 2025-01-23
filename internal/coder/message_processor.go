@@ -5,24 +5,27 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
+	"github.com/y0ug/ai-helper/internal/coder/repomanager"
+	"github.com/y0ug/ai-helper/internal/coder/settings"
 )
 
 type MessageProcessor struct {
-	logger     *slog.Logger
-	rm         *repomanager.RepoManagerInterface
-	history    *ChatHistory
-	formatter  *MessageFormatter
-	settings   *settings.CoderSettings
-	prompts    prompts.Prompter
+	logger    *slog.Logger
+	rm        repomanager.RepoManagerInterface
+	history   *ChatHistory
+	formatter *MessageFormatter
+	settings  *settings.CoderSettings
+	prompts   prompts.Prompter
 }
 
-func NewMessageProcessor(logger *slog.Logger, rm *repomanager.RepoManagerInterface, 
-	history *ChatHistory, formatter *MessageFormatter, settings *settings.CoderSettings, 
-	prompts prompts.Prompter) *MessageProcessor {
+func NewMessageProcessor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
+	history *ChatHistory, formatter *MessageFormatter, settings *settings.CoderSettings,
+	prompts prompts.Prompter,
+) *MessageProcessor {
 	return &MessageProcessor{
 		logger:    logger,
 		rm:        rm,
-		history:   history, 
+		history:   history,
 		formatter: formatter,
 		settings:  settings,
 		prompts:   prompts,

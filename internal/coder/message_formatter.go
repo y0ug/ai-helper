@@ -4,25 +4,27 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
+	"github.com/y0ug/ai-helper/internal/coder/repomanager"
 	"github.com/y0ug/ai-helper/internal/coder/settings"
 )
 
 type MessageFormatter struct {
 	logger          *slog.Logger
 	templateHandler *prompts.TemplateHandler
-	rm              *repomanager.RepoManagerInterface
+	rm              repomanager.RepoManagerInterface
 	prompts         prompts.Prompter
 	settings        *settings.CoderSettings
 }
 
-func NewMessageFormatter(logger *slog.Logger, rm *repomanager.RepoManagerInterface,
-	prompts prompts.Prompter, settings *settings.CoderSettings) *MessageFormatter {
+func NewMessageFormatter(logger *slog.Logger, rm repomanager.RepoManagerInterface,
+	p prompts.Prompter, settings *settings.CoderSettings,
+) *MessageFormatter {
 	return &MessageFormatter{
 		logger:          logger,
 		rm:              rm,
-		prompts:         prompts,
+		prompts:         p,
 		settings:        settings,
-		templateHandler: prompts.NewTemplateHandler(prompts, settings, logger),
+		templateHandler: prompts.NewTemplateHandler(p, settings, logger),
 	}
 }
 
