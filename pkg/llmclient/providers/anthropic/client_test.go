@@ -144,31 +144,34 @@ func TestClientIntegration(t *testing.T) {
 
 		mockStream := streaming.NewMockStreamer[chat.EventStream](mockCtrl)
 
-		// Mock the stream events sequence
-		mockStream.EXPECT().Next().Return(true)
-		mockStream.EXPECT().Current().Return(chat.EventStream{
-			Type: "message_start",
-			Message: &chat.ChatResponse{
-				Choice: []chat.ChatChoice{
-					{
-						Content: []*chat.MessageContent{
-							chat.NewTextContent("Looking at"),
+		gomock.InOrder(
+			// Mock the stream events sequence
+			mockStream.EXPECT().Next().Return(true),
+			mockStream.EXPECT().Current().Return(chat.EventStream{
+				Type: "message_start",
+				Message: &chat.ChatResponse{
+					Choice: []chat.ChatChoice{
+						{
+							Content: []*chat.MessageContent{
+								chat.NewTextContent("Looking at"),
+							},
 						},
 					},
 				},
-			},
-		})
+			}),
 
-		// Mock the error event
-		mockStream.EXPECT().Next().Return(true)
-		mockStream.EXPECT().Current().Return(chat.EventStream{
-			Type:  "error",
-			Delta: "Overloaded",
-		})
+			// Mock the error event
+			mockStream.EXPECT().Next().Return(true),
+			mockStream.EXPECT().Current().Return(chat.EventStream{
+				Type:  "error",
+				Delta: "Overloaded",
+			}),
 
-		mockStream.EXPECT().Next().Return(false)
-		mockStream.EXPECT().Err().Return(fmt.Errorf("Overloaded"))
-		mockStream.EXPECT().Close().Return(nil)
+			// Final sequence after error
+			mockStream.EXPECT().Next().Return(false),
+			mockStream.EXPECT().Err().Return(fmt.Errorf("Overloaded")),
+			mockStream.EXPECT().Close().Return(nil),
+		)
 
 		// Create a mock client that returns our mock stream
 		mockClient := NewMockProvider(mockCtrl)
