@@ -32,7 +32,7 @@ func NewMessageProcessor(logger *slog.Logger, rm repomanager.RepoManagerInterfac
 	}
 }
 
-func (mp *MessageProcessor) ProcessResponse(messages []prompts.Message) error {
+func (mp *MessageProcessor) ProcessResponse(messages []chat.ChatMessage) error {
 	if len(messages) == 0 {
 		return fmt.Errorf("no messages returned from LLM")
 	}
