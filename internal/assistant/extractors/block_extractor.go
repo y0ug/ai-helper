@@ -63,8 +63,8 @@ func (c *BlockExtractor) SetFence(fence Fence) {
 
 func (c *BlockExtractor) Extract(
 	msg *chat.ChatMessage,
-) ([]actions.Action[any], error) {
-	results := make([]actions.Action[any], 0)
+) ([]actions.Action, error) {
+	results := make([]actions.Action, 0)
 	for _, content := range msg.Content {
 		if content.Type == chat.ContentTypeText {
 			actions := c.getEdits(content.String())
@@ -74,21 +74,8 @@ func (c *BlockExtractor) Extract(
 	return results, nil
 }
 
-func NewShellExecActionWithConfirm(command string) []actions.Action[any] {
-	msg := fmt.Sprintf(
-		"Are you sure you want to run the following command?\n\n```\n%s\n```",
-		command,
-	)
-	return []actions.Action[any]{
-		actions.NewParsedAction(
-			actions.AwaitUserInput{Question: msg, InputType: actions.UserInputTypeConfirm},
-		),
-		actions.NewParsedAction(actions.ShellCommand{Command: command}),
-	}
-}
-
-func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
-	var results []actions.Action[any]
+func (c *BlockExtractor) getEdits(content string) []actions.Action {
+	var results []actions.Action
 	lines := strings.Split(content, "\n")
 	i := 0
 
@@ -96,8 +83,7 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
 		line := lines[i]
 		if isShellBlockStart(line) {
 			cmd, newI := extractShellCommand(lines, i)
-			action := NewShellExecActionWithConfirm(cmd)
-			results = append(results, action...)
+			results = append(results, actions.NewShellCommand(nil, cmd, false))
 			i = newI
 			continue
 		}
@@ -111,7 +97,7 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
 				// 	*NewActionError(NewExtractorError(c.GetName(), c.GetFormat(), err, newI)),
 				// )
 			} else {
-				results = append(results, NewActionApplyEdit(*edit))
+				results = append(results, edit)
 			}
 			i = newI
 			continue
@@ -124,11 +110,11 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
 func (c *BlockExtractor) extractEditBlock(
 	lines []string,
 	start int,
-) (*actions.ApplyEdit, int, error) {
+) (actions.Action, int, error) {
 	// Find filename in preceding lines
 	filename := c.findFilename(lines, start)
 	if filename == "" {
-		return nil, start, fmt.Errorf("filename not found")
+		return actions.Action{}, start, fmt.Errorf("filename not found")
 	}
 
 	// Extract original and updated blocks
@@ -139,7 +125,7 @@ func (c *BlockExtractor) extractEditBlock(
 	}
 
 	if i >= len(lines) {
-		return nil, i, fmt.Errorf("missing divider")
+		return actions.Action{}, i, fmt.Errorf("missing divider")
 	}
 	i++ // Skip divider
 
@@ -148,16 +134,13 @@ func (c *BlockExtractor) extractEditBlock(
 	}
 
 	if i >= len(lines) {
-		return nil, i, fmt.Errorf("missing replace marker")
+		return actions.Action{}, i, fmt.Errorf("missing replace marker")
 	}
 	i++ // Skip replace marker
 
-	edit := &actions.ApplyEdit{
-		Filename: filename,
-		Original: strings.Join(original, "\n"),
-		Updated:  strings.Join(updated, "\n"),
-	}
-	return edit, i, nil
+	originalStr := strings.Join(original, "\n")
+	updatedStr := strings.Join(updated, "\n")
+	return actions.NewApplyEdit(nil, filename, originalStr, updatedStr), i, nil
 }
 
 func (c *BlockExtractor) findFilename(lines []string, current int) string {

@@ -3,13 +3,7 @@ package extractors
 import (
 	"math"
 	"strings"
-
-	"github.com/y0ug/ai-helper/internal/assistant/actions"
 )
-
-func NewActionApplyEdit(edit actions.ApplyEdit) actions.Action[any] {
-	return actions.NewParsedAction(edit)
-}
 
 func isShellBlockStart(line string) bool {
 	shellPrefixes := []string{"```bash", "```sh", "```shell", "```cmd", "```batch"}

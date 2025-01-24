@@ -1,81 +1,131 @@
 package actions
 
-import "github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type ActionType string
 
-func ToGeneric[T ActionPayload](a Action[T]) Action[any] {
-	return Action[any]{
-		Type:    a.Type,
-		Payload: a.Payload,
-	}
+const (
+	ActionTypeEdit         ActionType = "edit"
+	ActionTypeShellCommand ActionType = "shell_command"
+	ActionTypeUserConfirm  ActionType = "user_confirm"
+	ActionTypeCommit       ActionType = "commit"
+	ActionTypeLog          ActionType = "log"
+)
+
+type ActionContext struct {
+	ToolCallID string
+	ParentID   uuid.UUID
+	ChainID    uuid.UUID
+	CreatedAt  time.Time
 }
 
-type Action[T any] struct {
-	Type    ActionType `json:"type"`
-	Payload T          `json:"payload,omitempty"`
-}
-
-type ActionPayload interface {
-	Type() ActionType
-}
-
-func NewParsedAction[T ActionPayload](payload T) Action[any] {
-	return Action[any]{
-		Type:    payload.Type(),
-		Payload: payload,
-	}
-}
-
-type SendChatMessage struct {
-	Msg        chat.ChatMessage `json:"msg"`
-	NeedRender bool             `json:"need_render"`
-}
-
-func (SendChatMessage) Type() ActionType {
-	return ActionType("send_chat_message")
+type Action struct {
+	ID      uuid.UUID
+	Type    ActionType
+	Payload interface{}
+	Context ActionContext
 }
 
 type ApplyEdit struct {
-	Filename string `json:"filename"`
-	Original string `json:"original"`
-	Updated  string `json:"updated"`
+	Filename string
+	Original string
+	Updated  string
 }
 
-func (ApplyEdit) Type() ActionType {
-	return ActionType("apply_edit")
+type ShellCommandAction struct {
+	Command      string
+	NeedsConfirm bool
+	Confirmed    bool
+	Output       string
 }
 
-type UserInputType string
-
-var (
-	UserInputTypeText    UserInputType = "text"
-	UserInputTypeConfirm UserInputType = "confirm"
-)
-
-type AwaitUserInput struct {
-	Question   string        `json:"question"`
-	InputType  UserInputType `json:"input_type"`
-	NextAction []Action[any] `json:"next_action"`
+func (s *ShellCommandAction) WithConfirmed(parentAction *Action) Action {
+	return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
+		Command:      s.Command,
+		NeedsConfirm: s.NeedsConfirm,
+		Confirmed:    true,
+		Output:       s.Output,
+	}, parentAction)
 }
 
-func (AwaitUserInput) Type() ActionType {
-	return ActionType("await_user_input")
+type UserConfirmAction struct {
+	Question string
+	Context  ActionContext
 }
 
-type ToolResultAction struct {
-	ToolResult chat.MessageContent `json:"tool_result"`
-	NextAction []Action[any]       `json:"next_action"`
+type CommitAction struct {
+	Message string
 }
 
-func (ToolResultAction) Type() ActionType {
-	return ActionType("tool_result")
+type LogAction struct {
+	Message string
 }
 
-type ShellCommand struct {
-	Command string `json:"command"`
+type UserResponseAction struct {
+	Allowed bool
+	Context ActionContext
 }
 
-func (ShellCommand) Type() ActionType {
-	return ActionType("shell_command")
+// Helper to convert an action to an Array of actions
+func Slice(action ...Action) []Action {
+	return action
+}
+
+func NewAction(actionType ActionType, payload interface{}) Action {
+	return NewActionWithParent(actionType, payload, nil)
+}
+
+func NewActionWithParent(actionType ActionType, payload interface{}, parentAction *Action) Action {
+	a := Action{
+		ID:      uuid.New(),
+		Type:    actionType,
+		Payload: payload,
+	}
+	if parentAction != nil {
+		a.Context = ActionContext{
+			ParentID:   parentAction.ID,
+			ChainID:    parentAction.Context.ChainID,
+			ToolCallID: parentAction.Context.ToolCallID,
+			CreatedAt:  time.Now(),
+		}
+	}
+	return a
+}
+
+func NewApplyEdit(parentAction *Action, filename, original, updated string) Action {
+	return NewActionWithParent(ActionTypeEdit, ApplyEdit{
+		Filename: filename,
+		Original: original,
+		Updated:  updated,
+	}, parentAction)
+}
+
+func NewShellCommand(parentAction *Action, command string, needsConfirm bool) Action {
+	return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
+		Command:      command,
+		NeedsConfirm: needsConfirm,
+	}, parentAction)
+}
+
+func NewUserConfirmAction(parentAction *Action, question string) Action {
+	return NewActionWithParent(ActionTypeUserConfirm, UserConfirmAction{
+		Question: question,
+		Context:  parentAction.Context,
+	}, parentAction)
+}
+
+func NewCommitAction(parentAction *Action, message string) Action {
+	return NewActionWithParent(ActionTypeCommit, CommitAction{
+		Message: message,
+	}, parentAction)
+}
+
+func NewLogAction(parentAction *Action, message string) Action {
+	return NewActionWithParent(ActionTypeLog, LogAction{
+		Message: message,
+	}, parentAction)
 }

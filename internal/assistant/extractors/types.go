@@ -44,7 +44,7 @@ const (
 )
 
 type Extractor interface {
-	Extract(msg *chat.ChatMessage) ([]actions.Action[any], error)
+	Extract(msg *chat.ChatMessage) ([]actions.Action, error)
 	GetChatTools() []chat.Tool
 	SetFence(Fence)
 	Name() string

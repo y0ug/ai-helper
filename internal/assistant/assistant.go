@@ -7,13 +7,15 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/assistant/executors"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/validation"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -68,7 +70,21 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 
 	c.llmClient = llmClient
 
-	executor := executors.New(opts.Logger)
+	validator := validation.NewValidationPipeline(c.logger)
+	// validator.AddStep(validation.NewDryRunValidator())
+
+	responseChan := make(chan executors.UserResponse, 10)
+	confirmChan := make(chan actions.Action, 10)
+	registry := executors.NewRegistry()
+	registry.Register(executors.NewShellExecutor(
+		[]string{`.*`}, // Example safe patterns
+		// []string{`^ls$`, `^go test .*`}, // Example safe patterns
+		confirmChan,
+		c.logger,
+	))
+	registry.Register(executors.NewEditExecutor(c.rm, validator, c.logger))
+	registry.Register(executors.NewUserInteractionExecutor(responseChan, confirmChan, c.logger))
+	registry.Register(executors.NewLogExecutor(c.logger))
 	// Should handle this better
 	c.SetPrompts(opts.Prompts)
 	processor := NewActionExecutor(
@@ -79,7 +95,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		opts.Settings,
 		opts.Prompts,
 		c.extractors,
-		executor,
+		registry,
 	)
 	c.processor = processor
 

@@ -2,7 +2,6 @@ package extractors
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -65,19 +64,17 @@ func (c *FuncWholeFileExtractor) SetFence(fence Fence) {
 func (c *FuncWholeFileExtractor) WriteFileHandler(
 	ctx context.Context,
 	input WriteFileInput,
-) (actions.Action[any], error) {
+) (actions.Action, error) {
 	c.logger.Debug("WriteFileHandler", "Explanation", input.Explanation)
-	action := NewActionApplyEdit(actions.ApplyEdit{
-		Filename: input.Filename,
-		Updated:  input.Content,
-	})
+	action := actions.NewApplyEdit(nil,
+		input.Filename, "", input.Content)
 	return action, nil
 }
 
 func (c *FuncWholeFileExtractor) Extract(
 	msg *chat.ChatMessage,
-) ([]actions.Action[any], error) {
-	results := make([]actions.Action[any], 0)
+) ([]actions.Action, error) {
+	results := make([]actions.Action, 0)
 	// fmt.Println("FuncWholeExtractor", msg)
 	for _, content := range msg.Content {
 		if content.Type == chat.ContentTypeToolUse {
@@ -105,7 +102,7 @@ func (c *FuncWholeFileExtractor) Extract(
 
 func (tp *FuncWholeFileExtractor) processToolCall(
 	content *chat.MessageContent,
-) (*actions.Action[any], error) {
+) (*actions.Action, error) {
 	ctx := context.TODO()
 	if content.GetType() != string(chat.ContentTypeToolUse) {
 		return nil, fmt.Errorf("invalid tool call: no tool call data")
@@ -122,7 +119,7 @@ func (tp *FuncWholeFileExtractor) processToolCall(
 		"id", content.ID,
 		"input", string(content.Input))
 
-	response, err := tool.Execute(ctx, content.Input)
+	_, err := tool.Execute(ctx, content.Input)
 	if err != nil {
 		logger.Error("Error executing tool",
 			"error", err,
@@ -130,16 +127,16 @@ func (tp *FuncWholeFileExtractor) processToolCall(
 		return nil, fmt.Errorf("error executing tool: %w", err)
 	}
 
-	var action actions.Action[actions.ApplyEdit]
-	json.Unmarshal(response, &action)
+	// var action actions.Action
+	// json.Unmarshal(response, &action)
 
-	toolResultAction := actions.NewParsedAction(actions.ToolResultAction{
-		ToolResult: *chat.NewToolResultContent(content.ID, ""),
-		NextAction: []actions.Action[any]{actions.ToGeneric(action)},
-	})
+	// toolResultAction := actions.NewParsedAction(actions.ToolResultAction{
+	// 	ToolResult: *chat.NewToolResultContent(content.ID, ""),
+	// 	NextAction: []actions.Action{actions.ToGeneric(action)},
+	// })
 	// tp.logger.Debug("Tool result", "json", string(response))
 	// var results ParsedAction
 	// logger.Debug("Tool result",
 	// 	"name", content.Name)
-	return &toolResultAction, nil
+	return nil, nil
 }

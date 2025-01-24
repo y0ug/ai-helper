@@ -1,10 +1,12 @@
 package repomanager
 
 import (
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
 
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
@@ -34,6 +36,7 @@ type RepoManagerInterface interface {
 	GetReadOnlyFilesContent() string
 	GetRepoMap() string
 	Process(*chat.ChatMessage) (ProcessType, []chat.MessageContent, error)
+	ApplyEdit(edits actions.ApplyEdit) error
 }
 type ProcessType string
 
@@ -223,4 +226,44 @@ func (c *RepoManager) GetReadOnlyFilesContent() string {
 		content += c.fence[1] + "\n"
 	}
 	return content
+}
+
+func (c *RepoManager) ApplyEdit(edit actions.ApplyEdit) error {
+	content, isEditable, err := c.fm.Get(edit.Filename)
+	if err != nil {
+		c.logger.Error("error reading file ", "filename", edit.Filename, "error", err)
+		c.logger.Info("file is not in the file list adding it", "filename", edit.Filename)
+		content = ""
+		c.fm.Add(edit.Filename, false)
+	} else if !isEditable {
+		c.logger.Info("file is read-only we will not edit it", "filename", edit.Filename)
+		return fmt.Errorf("file %s is read-only we will not edit it", edit.Filename)
+	}
+
+	newContent := extractors.ApplyEdit(string(content), edit.Original, edit.Updated)
+	if newContent == string(content) {
+		err = fmt.Errorf("new content is the same as the original content")
+	}
+
+	c.logger.Info(
+		"applying edit to file",
+		"filename",
+		edit.Filename,
+		"content",
+		string(content),
+		"new_content",
+		newContent,
+		"original",
+		edit.Original,
+		"updated",
+		edit.Updated,
+	)
+	if newContent != string(content) {
+		err := c.fm.Write(edit.Filename, newContent)
+		if err != nil {
+			return fmt.Errorf("error writing file %s: %w", edit.Filename, err)
+		}
+	}
+
+	return nil
 }
