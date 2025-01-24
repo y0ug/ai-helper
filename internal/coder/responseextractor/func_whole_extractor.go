@@ -2,9 +2,11 @@ package responseextractor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
+	"github.com/y0ug/ai-helper/internal/coder/actions"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -52,13 +54,13 @@ func (c *FuncWholeExtractor) GetChatTools() []chat.Tool {
 func (c *FuncWholeExtractor) WriteFileHandler(
 	ctx context.Context,
 	input WriteFileInput,
-) (ParsedAction, error) {
-	// c.logger.Debug("WriteFileHandler", "input", input)
-	edit := &Edit{
+) (actions.Action[any], error) {
+	c.logger.Debug("WriteFileHandler", "Explanation", input.Explanation)
+	action := NewActionEdit(actions.ApplyEdit{
 		Filename: input.Filename,
 		Updated:  input.Content,
-	}
-	return *NewActionEdit(edit), nil
+	})
+	return action, nil
 }
 
 func (c *FuncWholeExtractor) GetName() string {
@@ -74,27 +76,25 @@ func (c *FuncWholeExtractor) SetFence(fence Fence) {
 
 func (c *FuncWholeExtractor) Extract(
 	msg *chat.ChatMessage,
-) ([]ParsedAction, error) {
-	results := make([]ParsedAction, 0)
+) ([]actions.Action[any], error) {
+	results := make([]actions.Action[any], 0)
 	// fmt.Println("FuncWholeExtractor", msg)
 	for _, content := range msg.Content {
 		if content.Type == chat.ContentTypeToolUse {
-			toolsResultContent, err := c.processToolCall(content)
+			action, err := c.processToolCall(content)
 			if err != nil {
 				c.logger.Error("Error processing tool call", "error", err)
-				toolsResultContentError, err := chat.NewToolResultContentInterface(
-					content.ID,
-					NewActionError(err),
-				)
+				// toolsResultContentError, err := chat.NewToolResultContentInterface(
+				// 	content.ID,
+				// 	NewActionError(err),
+				// )
 				if err != nil {
 					c.logger.Error("Error processing tool call error", "error", err)
 				}
-				results = append(
-					results,
-					*NewAction(ActionApplyEditToolResult, toolsResultContentError),
-				)
+				// results = append(results, action)
+				// *NewAction(ActionApplyEditToolResult, toolsResultContentError),
 			} else {
-				results = append(results, *NewAction(ActionApplyEditToolResult, toolsResultContent))
+				results = append(results, *action)
 			}
 			// results := c.GetEdits(content.String())
 			// edits = append(edits, results...)
@@ -105,7 +105,7 @@ func (c *FuncWholeExtractor) Extract(
 
 func (tp *FuncWholeExtractor) processToolCall(
 	content *chat.MessageContent,
-) (*chat.MessageContent, error) {
+) (*actions.Action[any], error) {
 	ctx := context.TODO()
 	if content.GetType() != string(chat.ContentTypeToolUse) {
 		return nil, fmt.Errorf("invalid tool call: no tool call data")
@@ -130,10 +130,16 @@ func (tp *FuncWholeExtractor) processToolCall(
 		return nil, fmt.Errorf("error executing tool: %w", err)
 	}
 
+	var action actions.Action[actions.ApplyEdit]
+	json.Unmarshal(response, &action)
+
+	toolResultAction := actions.NewParsedAction(actions.ToolResultAction{
+		ToolResult: *chat.NewToolResultContent(content.ID, ""),
+		NextAction: actions.ToGeneric(action),
+	})
 	// tp.logger.Debug("Tool result", "json", string(response))
 	// var results ParsedAction
-	// json.Unmarshal(response, &results)
 	// logger.Debug("Tool result",
 	// 	"name", content.Name)
-	return chat.NewToolResultContent(content.ID, string(response)), nil
+	return &toolResultAction, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/y0ug/ai-helper/internal/coder/actions"
 	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
@@ -21,9 +22,10 @@ func NewActionTools(logger *slog.Logger) *ActionTools {
 func (c *ActionTools) ApplyEdits(
 	fm filemanager.FileManager,
 	dryrun bool,
-	edits ...responseextractor.Edit,
-) ([]responseextractor.ParsedAction, error) {
-	actions := []responseextractor.ParsedAction{}
+	edits ...actions.ApplyEdit,
+) ([]actions.Action[any], error) {
+	actions := make([]actions.Action[any], 0)
+
 	hasError := false
 	for _, edit := range edits {
 		content, isEditable, err := fm.Get(edit.Filename)
@@ -33,12 +35,12 @@ func (c *ActionTools) ApplyEdits(
 			content = ""
 			fm.Add(edit.Filename, false)
 		} else if !isEditable {
-			c.logger.Info("file is read-only we will not edit it", "filename", edit.Filename)
 			err := fmt.Errorf("file %s is read-only we will not edit it", edit.Filename)
-			actions = append(
-				actions,
-				*responseextractor.NewActionError(err),
-			)
+			c.logger.Error("file is read-only", "error", err)
+			// actions = append(
+			// 	actions,
+			// 	*responseextractor.NewActionError(err),
+			// )
 			hasError = true
 			continue
 		}
@@ -46,7 +48,9 @@ func (c *ActionTools) ApplyEdits(
 		newContent := responseextractor.ApplyEdit(string(content), edit.Original, edit.Updated)
 		if newContent == string(content) {
 			err = fmt.Errorf("new content is the same as the original content")
-			actions = append(actions, *responseextractor.NewActionError(err))
+			c.logger.Error("new content is the same as the original content", "error", err)
+			continue
+			// actions = append(actions, *responseextractor.NewActionError(err))
 		}
 
 		c.logger.Info(
@@ -66,11 +70,14 @@ func (c *ActionTools) ApplyEdits(
 			if !dryrun {
 				err := fm.Write(edit.Filename, newContent)
 				if err != nil {
-					actions = append(
-						actions,
-						*responseextractor.NewActionError(fmt.Errorf("failed to write file %s %+v", edit.Filename, err)),
-					)
+					// actions = append(
+					// 	actions,
+					// 	*responseextractor.NewActionError(fmt.Errorf("failed to write file %s %+v", edit.Filename, err)),
+					// )
+					err = fmt.Errorf("failed to write file %s %+v", edit.Filename, err)
+					c.logger.Error("failed to write file", "error", err)
 					hasError = true
+					continue
 				}
 			}
 		}

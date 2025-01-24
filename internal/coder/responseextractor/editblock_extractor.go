@@ -1,12 +1,12 @@
 package responseextractor
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
 
+	"github.com/y0ug/ai-helper/internal/coder/actions"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -58,35 +58,10 @@ func (c *BlockExtractor) GetChatTools() []chat.Tool {
 	return nil
 }
 
-func NewActionEdit(edit *Edit) *ParsedAction {
-	return NewAction(ActionApplyEdit, edit)
-}
-
-func NewAction(actionType ActionType, input interface{}) *ParsedAction {
-	inputPayload, err := json.Marshal(input)
-	if err != nil {
-		return nil
-	}
-	return &ParsedAction{
-		Type:  actionType,
-		Input: inputPayload,
-	}
-}
-
-func NewActionShellCommand(cmd string) *ParsedAction {
-	return NewAction(ActionShellCmd, &ShellCommand{
-		Command: cmd,
-	})
-}
-
-func NewActionError(err error) *ParsedAction {
-	return NewAction(ActionApplyError, err)
-}
-
 func (c *BlockExtractor) Extract(
 	msg *chat.ChatMessage,
-) ([]ParsedAction, error) {
-	results := make([]ParsedAction, 0)
+) ([]actions.Action[any], error) {
+	results := make([]actions.Action[any], 0)
 	for _, content := range msg.Content {
 		if content.Type == chat.ContentTypeText {
 			actions := c.getEdits(content.String())
@@ -96,8 +71,12 @@ func (c *BlockExtractor) Extract(
 	return results, nil
 }
 
-func (c *BlockExtractor) getEdits(content string) []ParsedAction {
-	var results []ParsedAction
+func NewActionEdit(edit actions.ApplyEdit) actions.Action[any] {
+	return actions.NewParsedAction(edit)
+}
+
+func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
+	var results []actions.Action[any]
 	lines := strings.Split(content, "\n")
 	i := 0
 
@@ -105,7 +84,8 @@ func (c *BlockExtractor) getEdits(content string) []ParsedAction {
 		line := lines[i]
 		if isShellBlockStart(line) {
 			cmd, newI := extractShellCommand(lines, i)
-			results = append(results, *NewActionShellCommand(cmd))
+			action := actions.NewParsedAction(actions.ShellCommand{Command: cmd})
+			results = append(results, action)
 			i = newI
 			continue
 		}
@@ -113,12 +93,13 @@ func (c *BlockExtractor) getEdits(content string) []ParsedAction {
 		if headRe.MatchString(strings.TrimSpace(line)) {
 			edit, newI, err := c.extractEditBlock(lines, i)
 			if err != nil {
-				results = append(
-					results,
-					*NewActionError(NewExtractorError(c.GetName(), c.GetFormat(), err, newI)),
-				)
+				// action := actions.NewParsedAction(actions.Error{Command: cmd})
+				// results = append(
+				// 	results,
+				// 	*NewActionError(NewExtractorError(c.GetName(), c.GetFormat(), err, newI)),
+				// )
 			} else {
-				results = append(results, *NewActionEdit(edit))
+				results = append(results, NewActionEdit(*edit))
 			}
 			i = newI
 			continue
@@ -128,11 +109,10 @@ func (c *BlockExtractor) getEdits(content string) []ParsedAction {
 	return results
 }
 
-// TODO: should return an EditResult
 func (c *BlockExtractor) extractEditBlock(
 	lines []string,
 	start int,
-) (*Edit, int, error) {
+) (*actions.ApplyEdit, int, error) {
 	// Find filename in preceding lines
 	filename := c.findFilename(lines, start)
 	if filename == "" {
@@ -160,7 +140,7 @@ func (c *BlockExtractor) extractEditBlock(
 	}
 	i++ // Skip replace marker
 
-	edit := &Edit{
+	edit := &actions.ApplyEdit{
 		Filename: filename,
 		Original: strings.Join(original, "\n"),
 		Updated:  strings.Join(updated, "\n"),
@@ -178,46 +158,3 @@ func (c *BlockExtractor) findFilename(lines []string, current int) string {
 	}
 	return ""
 }
-
-// func (c *EditBlockExtractor) ApplyEdits(
-// 	fm filemanager.FileManager,
-// 	edits []Edit,
-// 	dryrun bool,
-// ) error {
-// 	for _, edit := range edits {
-// 		content, isEditable, err := fm.Get(edit.Filename)
-// 		if err != nil {
-// 			c.logger.Error("error reading file ", "filename", edit.Filename, "error", err)
-// 			c.logger.Info("file is not in the file list adding it", "filename", edit.Filename)
-// 			content = ""
-// 			fm.Add(edit.Filename, false)
-// 		} else if !isEditable {
-// 			c.logger.Info("file is read-only we will not edit it", "filename", edit.Filename)
-// 			continue
-// 		}
-//
-// 		newContent := DoReplace(string(content), edit.Original, edit.Updated)
-// 		c.logger.Info(
-// 			"applying edit to file",
-// 			"filename",
-// 			edit.Filename,
-// 			"content",
-// 			string(content),
-// 			"new_content",
-// 			newContent,
-// 			"original",
-// 			edit.Original,
-// 			"updated",
-// 			edit.Updated,
-// 		)
-// 		if newContent != string(content) {
-// 			if !dryrun {
-// 				err := fm.Write(edit.Filename, newContent)
-// 				if err != nil {
-// 					return err
-// 				}
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }

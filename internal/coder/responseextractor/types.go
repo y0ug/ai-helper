@@ -1,10 +1,10 @@
 package responseextractor
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
+	"github.com/y0ug/ai-helper/internal/coder/actions"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -38,30 +38,6 @@ func NewExtractorError(
 	}
 }
 
-type ParsedAction struct {
-	Type  ActionType      // "apply_edit", "shell_cmd", "ask_user", etc. Should match a tool command that will be executed after
-	Input json.RawMessage // JSON object with details specific to the action type
-}
-
-// tool_result is just an array of ChatContent with a prefill tool_result type
-const (
-	ActionApplyError          ActionType = "error"
-	ActionApplyEdit           ActionType = "apply_edit"
-	ActionApplyEditToolResult ActionType = "tool_result"
-)
-
-type Edit struct {
-	Filename string
-	Original string
-	Updated  string
-}
-
-const ActionShellCmd ActionType = "shell_cmd"
-
-type ShellCommand struct {
-	Command string
-}
-
 const (
 	ExtractorEditDiff       ExtractorType = "editblock-diff"
 	ExtractorEditDiffFenced ExtractorType = "editblock-diff-fenced"
@@ -69,7 +45,7 @@ const (
 )
 
 type ResponseExtractor interface {
-	Extract(msg *chat.ChatMessage) ([]ParsedAction, error)
+	Extract(msg *chat.ChatMessage) ([]actions.Action[any], error)
 	GetChatTools() []chat.Tool
 	SetFence(Fence)
 	GetName() string
