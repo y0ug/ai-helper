@@ -59,14 +59,14 @@ func (mp *MessageProcessor) ProcessResponse(messages []*chat.ChatMessage) error 
 			c = append(c, &content)
 		}
 
-		respMsg := chat.NewMessage("user", c...)
-		mp.history.AddMessage(respMsg)
-
-	}
-	if state == repomanager.ProcessTypeEdit {
+		respMsg := chat.NewMessage("tool", c...)
+		mp.handleToolResult(respMsg)
+	} else if state == repomanager.ProcessTypeEdit {
 		if err := mp.handleSuccessfulEdit(); err != nil {
 			return err
 		}
+	} else {
+		mp.history.MoveCurrentToDone("")
 	}
 
 	return nil
@@ -86,5 +86,10 @@ func (mp *MessageProcessor) handleSuccessfulEdit() error {
 	responseMsg := mp.formatter.RenderPromptData(mp.prompts.GetFilesContentGPTEdits(), data)
 	mp.history.MoveCurrentToDone(responseMsg)
 
+	return nil
+}
+
+func (mp *MessageProcessor) handleToolResult(toolResultMsg *chat.ChatMessage) error {
+	mp.history.AddMessage(toolResultMsg)
 	return nil
 }

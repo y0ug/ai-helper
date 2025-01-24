@@ -61,16 +61,26 @@ func (c *SingleWholeFileFuncService) GetChatTools() []chat.Tool {
 	return tools
 }
 
+type WriteFileResult struct {
+	Msg  string `json:"msg"`
+	Edit Edit   `json:"edit"`
+}
+
 func (c *SingleWholeFileFuncService) WriteFileHandler(
 	ctx context.Context,
 	input WriteFileInput,
-) (interface{}, error) {
-	result := fmt.Sprintf("Wrote file %s with explanation '%s' and content length %d",
+) (WriteFile, error) {
+	result := fmt.Sprintf("Wrote file %s and content length %d",
 		input.Filename,
 		input.Explanation,
 		len(input.Content))
+	edit := Edit{
+		Filename: input.Filename,
+		Updated:  input.Content,
+		Format:   c.format,
+	}
 	c.logger.Info("WriteFileHandler", "input", input)
-	return result, nil
+	return WriteFileResult{Msg: result, Edit: edit}, nil
 }
 
 func (c *SingleWholeFileFuncService) GetName() string {
@@ -147,6 +157,27 @@ func (tp *SingleWholeFileFuncService) processToolCall(
 	return chat.NewToolResultContent(content.ID, string(b)), nil
 }
 
-func (*SingleWholeFileFuncService) ApplyEdits(filemanager.FileManager, []Edit, bool) error {
+func (c *SingleWholeFileFuncService) ApplyEdits(
+	fm filemanager.FileManager,
+	edits []Edit,
+	dryrun bool,
+) error {
+	for _, edit := range edits {
+		_, isEditable, err := fm.Get(edit.Filename)
+		if err != nil {
+			c.logger.Info("Adding new file", "filename", edit.Filename)
+			fm.Add(edit.Filename, false)
+		} else if !isEditable {
+			c.logger.Info("File is read-only", "filename", edit.Filename)
+			continue
+		}
+
+		if !dryrun {
+			if err := fm.Write(edit.Filename, edit.Updated); err != nil {
+				return fmt.Errorf("failed to write file %s: %w", edit.Filename, err)
+			}
+			c.logger.Info("Applied edit", "filename", edit.Filename)
+		}
+	}
 	return nil
 }

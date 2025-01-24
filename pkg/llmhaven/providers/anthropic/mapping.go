@@ -1,6 +1,10 @@
 package anthropic
 
-import "github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+import (
+	"fmt"
+
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+)
 
 func BaseChatMessageNewParamsToAnthropic(
 	params chat.ChatParams,
@@ -12,8 +16,14 @@ func BaseChatMessageNewParamsToAnthropic(
 			systemPromt = m.Content[0].String()
 			continue
 		}
+		role := m.Role
+		if role == "tool" {
+			fmt.Println("role is tool")
+			fmt.Println(m.Content)
+			role = "user"
+		}
 		msgs = append(msgs, MessageParam{
-			Role:    m.Role,
+			Role:    role,
 			Content: m.Content,
 		})
 	}

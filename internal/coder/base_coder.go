@@ -2,6 +2,7 @@ package coder
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/editservice"
@@ -124,30 +125,39 @@ func (c *BaseCoder) SendMessage(message string) error {
 	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
 
 	// Format messages with appropriate prompts
-	messages := c.FormatMessages()
+	i := 0
+	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
+		messages := c.FormatMessages()
 
-	for _, m := range messages.AllMessages() {
-		c.logger.Debug(
-			"msg",
-			"role",
-			m.Role,
-			"is_cacheable",
-			m.Content[0].IsCacheable(),
-			"content",
-			m.Content,
-		)
+		for _, m := range messages.AllMessages() {
+			c.logger.Debug(
+				"msg",
+				"role",
+				m.Role,
+				"is_cacheable",
+				m.Content[0].IsCacheable(),
+				"content",
+				m.Content,
+			)
+		}
+
+		tools := c.GetRM().GetEditServiceChatTools()
+		for _, tool := range tools {
+			c.logger.Debug("set tool", "name", tool.Name)
+		}
+		responses, err := c.llmClient.SendMessages(context.Background(), messages, tools)
+		if err != nil {
+			return err
+		}
+
+		err = c.processor.ProcessResponse(responses)
+		if err != nil {
+			return fmt.Errorf("error processing response: %w", err)
+		}
+		i += 1
 	}
 
-	tools := c.GetRM().GetEditServiceChatTools()
-	for _, tool := range tools {
-		c.logger.Debug("set tool", "name", tool.Name)
-	}
-	responses, err := c.llmClient.SendMessages(context.Background(), messages, tools)
-	if err != nil {
-		return err
-	}
-
-	return c.processor.ProcessResponse(responses)
+	return nil
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts

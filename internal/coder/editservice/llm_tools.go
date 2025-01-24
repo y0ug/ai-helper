@@ -26,25 +26,25 @@ func StrToPtr(s string) *string {
 }
 
 type Tooler interface {
-	Execute(ctx context.Context, input json.RawMessage) (interface{}, error)
+	Execute(ctx context.Context, input json.RawMessage) (json.RawMessage, error)
 	GetName() string
 	GetChatTool() chat.Tool
 }
 
-type ToolHandler[T any] func(ctx context.Context, input T) (interface{}, error)
+type ToolHandler[T any, O any] func(ctx context.Context, input T) (O, error)
 
-type ToolBase[T any] struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema interface{}    `json:"input_schema,omitempty"`
-	handler     ToolHandler[T] `json:"-"`
+type ToolBase[T any, O any] struct {
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	InputSchema interface{}       `json:"input_schema,omitempty"`
+	handler     ToolHandler[T, O] `json:"-"`
 }
 
-func (t ToolBase[T]) GetName() string {
+func (t ToolBase[T, O]) GetName() string {
 	return t.Name
 }
 
-func (t ToolBase[T]) GetChatTool() chat.Tool {
+func (t ToolBase[T, O]) GetChatTool() chat.Tool {
 	return chat.Tool{
 		Name:        t.Name,
 		Description: StrToPtr(t.Description),
@@ -52,27 +52,34 @@ func (t ToolBase[T]) GetChatTool() chat.Tool {
 	}
 }
 
-func (t ToolBase[T]) Execute(ctx context.Context, input json.RawMessage) (interface{}, error) {
+func (t ToolBase[T, O]) Execute(
+	ctx context.Context,
+	input json.RawMessage,
+) (json.RawMessage, error) {
 	var args T
 	err := json.Unmarshal(input, &args)
 	if err != nil {
 		return nil, fmt.Errorf("%s failed to unmarshal input: %w", t.Name, err)
 	}
 
-	result, err := t.handler(ctx, args)
+	output, err := t.handler(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("%s failed to execute: %w", t.Name, err)
+	}
+	result, err := json.Marshal(output)
+	if err != nil {
+		return nil, fmt.Errorf("%s failed to marshal output: %w", t.Name, err)
 	}
 	return result, nil
 }
 
-func NewTool[T any](
+func NewTool[T any, O any](
 	name string,
 	description string,
-	handler ToolHandler[T],
-) *ToolBase[T] {
+	handler ToolHandler[T, O],
+) *ToolBase[T, O] {
 	inputSchema := GenerateSchema[T]()
-	return &ToolBase[T]{
+	return &ToolBase[T, O]{
 		Name:        name,
 		Description: description,
 		InputSchema: inputSchema,
