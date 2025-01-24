@@ -10,7 +10,7 @@ import (
 
 var Fence = "`"
 
-func (c *Executor) ShellCommand(
+func (c *ExecutorLocal) ShellCommandHandler(
 	command string,
 ) ([]actions.Action[any], error) {
 	results := make([]actions.Action[any], 0)

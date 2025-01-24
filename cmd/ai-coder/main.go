@@ -9,7 +9,7 @@ import (
 
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/assistant"
-	modelinfocoder "github.com/y0ug/ai-helper/internal/assistant/models"
+	modelinfocoder "github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"

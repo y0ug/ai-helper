@@ -3,7 +3,7 @@ package prompts
 func NewWholeFilePrompts() *WholeFilePrompts {
 	prompts := &WholeFilePrompts{BasePrompts: *NewBasePrompts()}
 	prompts.Name = "WholeFile"
-	prompts.EditFormat = "whole"
+	prompts.EditFormat = "block-whole"
 	prompts.MainSystem = `Act as an expert software developer.
 Take requests for changes to the supplied code.
 If the request is ambiguous, ask questions.

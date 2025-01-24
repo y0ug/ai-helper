@@ -1,5 +1,8 @@
 package executors
 
+// Currently not used
+// That can generate function signature for you
+// that you can used with LLM function tool call
 import (
 	"context"
 	"encoding/json"

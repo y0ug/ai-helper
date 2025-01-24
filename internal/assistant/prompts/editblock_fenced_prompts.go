@@ -5,7 +5,7 @@ func NewEditBlockFencedPrompts() *EditBlockFencedPrompts {
 		EditBlockPrompts: *NewEditBlockPrompts(),
 	}
 	p.Name = "EditBlockFenced"
-	p.EditFormat = "editblock-diff-fenced"
+	p.EditFormat = "block-diff-fenced"
 	p.ExampleMessages = getEditBlockFencedExampleMessages()
 	return p
 }

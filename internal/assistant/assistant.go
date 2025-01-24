@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/assistant/extractor"
-	"github.com/y0ug/ai-helper/internal/assistant/models"
+	"github.com/y0ug/ai-helper/internal/assistant/executors"
+	"github.com/y0ug/ai-helper/internal/assistant/extractors"
+	"github.com/y0ug/ai-helper/internal/assistant/llm"
+	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
@@ -28,14 +30,14 @@ type AssistantOptions struct {
 
 type AssistantOrchestrator struct {
 	logger     *slog.Logger
-	llmClient  *LLMClient
+	llmClient  *llm.Client
 	prompts    prompts.Prompter
 	rm         repomanager.RepoManagerInterface
 	settings   *settings.CoderSettings
 	processor  *ActionExecutor
 	history    *ChatHistory
 	formatter  *PromptFormatter
-	extractors []extractor.ResponseExtractor
+	extractors []extractors.Extractor
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
@@ -51,13 +53,13 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	}
 
 	// Stream processor for the LLMClient wrapper
-	var streamProcessor *StreamProcessor
+	var streamProcessor *llm.StreamProcessor
 	if opts.Stream {
-		streamProcessor = NewStreamProcessor(opts.StreamWriter, opts.Logger)
+		streamProcessor = llm.NewStreamProcessor(opts.StreamWriter, opts.Logger)
 	}
 
 	// Generate the LLMClient wrapper
-	llmClient := NewLLMClient(
+	llmClient := llm.New(
 		opts.LlmClient,
 		opts.Settings,
 		opts.Logger,
@@ -66,6 +68,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 
 	c.llmClient = llmClient
 
+	executor := executors.New(opts.Logger)
 	// Should handle this better
 	c.SetPrompts(opts.Prompts)
 	processor := NewActionExecutor(
@@ -76,11 +79,18 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		opts.Settings,
 		opts.Prompts,
 		c.extractors,
+		executor,
 	)
 	c.processor = processor
+
 	re := make([]string, 0)
+	features := make([]string, 0)
 	for _, e := range c.extractors {
-		re = append(re, e.GetName())
+		re = append(re, e.Name())
+		actions := e.SupportedActions()
+		for _, action := range actions {
+			features = append(features, string(action))
+		}
 	}
 
 	c.logger.Info(
@@ -91,6 +101,8 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		opts.Prompts.GetName(),
 		"extractors",
 		re,
+		"extractor_features",
+		features,
 	)
 	return c
 }
@@ -100,7 +112,7 @@ func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
 
 	extractorNames := strings.Split(c.getPrompts().GetEditFormat(), "\n")
 	for _, name := range extractorNames {
-		extractorName := extractor.New(extractor.ExtractorType(name), c.logger)
+		extractorName := extractors.New(extractors.ExtractorType(name), c.logger)
 		if extractorName == nil {
 			c.logger.Error("Error creating extractor", "name", extractorName)
 			continue
@@ -170,7 +182,7 @@ func (c *AssistantOrchestrator) SendMessage(message string) error {
 				m.Content,
 			)
 		}
-		resp, err := c.llmClient.SendMessages(context.Background(), messages, tools)
+		resp, err := c.llmClient.SendMessages(context.Background(), messages.AllMessages(), tools)
 		if err != nil {
 			return err
 		}

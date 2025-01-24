@@ -24,7 +24,7 @@ func ActionHandler(level int, actions ...Action[any]) {
 			fmt.Printf("%sApplyEdit\t%s\n", tab, v.Filename)
 		case ToolResultAction: // Changed from ToolResultAction[interface{}]
 			fmt.Printf("%sToolResultAction\t%s\n", tab, v.ToolResult.ToolUseID)
-			ActionHandler(level+1, v.NextAction)
+			ActionHandler(level+1, v.NextAction...)
 		// case ToolResultAction[ApplyEdit]:
 		// 	fmt.Printf("%sToolResultAction[ApplyEdit]\t%s\n", tab, v.ToolResult.ID)
 		// 	ActionHandler(level+1, ToGenericAction(v.NextAction))
@@ -45,7 +45,7 @@ func TestAction(t *testing.T) {
 
 		toolResultAction := NewParsedAction(ToolResultAction{
 			ToolResult: *chat.NewToolResultContent("1234", ""),
-			NextAction: editAction,
+			NextAction: []Action[any]{editAction},
 		})
 
 		// fmt.Println(editAction)

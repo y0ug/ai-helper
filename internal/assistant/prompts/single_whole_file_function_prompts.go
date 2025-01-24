@@ -3,7 +3,7 @@ package prompts
 func NewSingleWholeFileFunctionPrompts() *SingleWholeFileFunctionPrompts {
 	p := &SingleWholeFileFunctionPrompts{BasePrompts: *NewBasePrompts()}
 	p.Name = "SingleWholeFileFunction"
-	p.EditFormat = "edit-func-whole"
+	p.EditFormat = "func-whole"
 	p.MainSystem = `Act as an expert software developer.
 Take requests for changes to the supplied code.
 If the request is ambiguous, ask questions.

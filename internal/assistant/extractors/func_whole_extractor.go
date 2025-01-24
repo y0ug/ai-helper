@@ -1,4 +1,4 @@
-package extractor
+package extractors
 
 import (
 	"context"
@@ -10,10 +10,8 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type FuncWholeExtractor struct {
+type FuncWholeFileExtractor struct {
 	logger *slog.Logger
-	format ExtractorType
-	name   string
 	tools  map[string]Tooler
 }
 
@@ -23,15 +21,13 @@ type WriteFileInput struct {
 	Content     string `json:"content"     jsonschema_description:"Content to write to the file"`
 }
 
-func NewFuncWholeExtractor(
+func NewFuncWholeFileExtractor(
 	logger *slog.Logger,
 	format ExtractorType,
 	fence Fence,
-) *FuncWholeExtractor {
-	c := &FuncWholeExtractor{
+) *FuncWholeFileExtractor {
+	c := &FuncWholeFileExtractor{
 		logger: logger,
-		format: format,
-		name:   "SingleWholeFileFuncService",
 		tools:  make(map[string]Tooler),
 	}
 	tool := NewTool(
@@ -43,7 +39,19 @@ func NewFuncWholeExtractor(
 	return c
 }
 
-func (c *FuncWholeExtractor) GetChatTools() []chat.Tool {
+func (c *FuncWholeFileExtractor) Name() string {
+	return "FuncWholeFileExtractor"
+}
+
+func (c *FuncWholeFileExtractor) SupportedActions() []actions.ActionType {
+	return []actions.ActionType{"apply_edit"}
+}
+
+func (c *FuncWholeFileExtractor) Type() ExtractorType {
+	return TypeFunc
+}
+
+func (c *FuncWholeFileExtractor) GetChatTools() []chat.Tool {
 	tools := make([]chat.Tool, 0)
 	for _, tool := range c.tools {
 		tools = append(tools, tool.GetChatTool())
@@ -51,30 +59,22 @@ func (c *FuncWholeExtractor) GetChatTools() []chat.Tool {
 	return tools
 }
 
-func (c *FuncWholeExtractor) WriteFileHandler(
+func (c *FuncWholeFileExtractor) SetFence(fence Fence) {
+}
+
+func (c *FuncWholeFileExtractor) WriteFileHandler(
 	ctx context.Context,
 	input WriteFileInput,
 ) (actions.Action[any], error) {
 	c.logger.Debug("WriteFileHandler", "Explanation", input.Explanation)
-	action := NewActionEdit(actions.ApplyEdit{
+	action := NewActionApplyEdit(actions.ApplyEdit{
 		Filename: input.Filename,
 		Updated:  input.Content,
 	})
 	return action, nil
 }
 
-func (c *FuncWholeExtractor) GetName() string {
-	return c.name
-}
-
-func (c *FuncWholeExtractor) GetFormat() ExtractorType {
-	return c.format
-}
-
-func (c *FuncWholeExtractor) SetFence(fence Fence) {
-}
-
-func (c *FuncWholeExtractor) Extract(
+func (c *FuncWholeFileExtractor) Extract(
 	msg *chat.ChatMessage,
 ) ([]actions.Action[any], error) {
 	results := make([]actions.Action[any], 0)
@@ -88,9 +88,9 @@ func (c *FuncWholeExtractor) Extract(
 				// 	content.ID,
 				// 	NewActionError(err),
 				// )
-				if err != nil {
-					c.logger.Error("Error processing tool call error", "error", err)
-				}
+				// if err != nil {
+				// 	c.logger.Error("Error processing tool call error", "error", err)
+				// }
 				// results = append(results, action)
 				// *NewAction(ActionApplyEditToolResult, toolsResultContentError),
 			} else {
@@ -103,7 +103,7 @@ func (c *FuncWholeExtractor) Extract(
 	return results, nil
 }
 
-func (tp *FuncWholeExtractor) processToolCall(
+func (tp *FuncWholeFileExtractor) processToolCall(
 	content *chat.MessageContent,
 ) (*actions.Action[any], error) {
 	ctx := context.TODO()
@@ -135,7 +135,7 @@ func (tp *FuncWholeExtractor) processToolCall(
 
 	toolResultAction := actions.NewParsedAction(actions.ToolResultAction{
 		ToolResult: *chat.NewToolResultContent(content.ID, ""),
-		NextAction: actions.ToGeneric(action),
+		NextAction: []actions.Action[any]{actions.ToGeneric(action)},
 	})
 	// tp.logger.Debug("Tool result", "json", string(response))
 	// var results ParsedAction

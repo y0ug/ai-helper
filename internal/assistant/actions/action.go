@@ -46,9 +46,17 @@ func (ApplyEdit) Type() ActionType {
 	return ActionType("apply_edit")
 }
 
+type UserInputType string
+
+var (
+	UserInputTypeText    UserInputType = "text"
+	UserInputTypeConfirm UserInputType = "confirm"
+)
+
 type AwaitUserInput struct {
-	Question   string      `json:"question"`
-	NextAction Action[any] `json:"next_action"`
+	Question   string        `json:"question"`
+	InputType  UserInputType `json:"input_type"`
+	NextAction []Action[any] `json:"next_action"`
 }
 
 func (AwaitUserInput) Type() ActionType {
@@ -57,7 +65,7 @@ func (AwaitUserInput) Type() ActionType {
 
 type ToolResultAction struct {
 	ToolResult chat.MessageContent `json:"tool_result"`
-	NextAction Action[any]         `json:"next_action"`
+	NextAction []Action[any]       `json:"next_action"`
 }
 
 func (ToolResultAction) Type() ActionType {

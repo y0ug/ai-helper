@@ -9,20 +9,20 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type LLMClient struct {
+type Client struct {
 	client    chat.Provider
 	settings  *settings.CoderSettings
 	logger    *slog.Logger
 	processor *StreamProcessor
 }
 
-func NewLLMClient(
+func New(
 	client chat.Provider,
 	settings *settings.CoderSettings,
 	logger *slog.Logger,
 	processor *StreamProcessor,
-) *LLMClient {
-	return &LLMClient{
+) *Client {
+	return &Client{
 		client:    client,
 		settings:  settings,
 		logger:    logger,
@@ -30,17 +30,15 @@ func NewLLMClient(
 	}
 }
 
-func (c *LLMClient) SendMessages(
+func (c *Client) SendMessages(
 	ctx context.Context,
-	messages *ChatChunks,
+	messages []*chat.ChatMessage,
 	tools []chat.Tool,
 ) (*chat.ChatResponse, error) {
-	messagesLLM := messages.AllMessages()
-
 	chatParams := chat.NewChatParams(
 		chat.WithMaxTokens(c.settings.GetMaxOutputToken()),
 		chat.WithModel(c.settings.GetModelName()),
-		chat.WithMessages(messagesLLM...),
+		chat.WithMessages(messages...),
 		chat.WithTools(tools...))
 
 	fn := c.handleNonStreamingResponse
@@ -57,7 +55,7 @@ func (c *LLMClient) SendMessages(
 	return resp, err
 }
 
-func (c *LLMClient) handleNonStreamingResponse(
+func (c *Client) handleNonStreamingResponse(
 	ctx context.Context,
 	chatParams *chat.ChatParams,
 ) (*chat.ChatResponse, error) {
@@ -69,7 +67,7 @@ func (c *LLMClient) handleNonStreamingResponse(
 	return c.processResponse(resp)
 }
 
-func (c *LLMClient) handleStreamingResponse(
+func (c *Client) handleStreamingResponse(
 	ctx context.Context,
 	chatParams *chat.ChatParams,
 ) (*chat.ChatResponse, error) {
@@ -86,7 +84,7 @@ func (c *LLMClient) handleStreamingResponse(
 	return c.processResponse(resp)
 }
 
-func (c *LLMClient) processResponse(resp *chat.ChatResponse) (*chat.ChatResponse, error) {
+func (c *Client) processResponse(resp *chat.ChatResponse) (*chat.ChatResponse, error) {
 	if resp == nil {
 		return nil, fmt.Errorf("error processing response, nil response")
 	}

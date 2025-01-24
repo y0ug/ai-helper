@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/extractor"
+	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
 
-func (c *Executor) ApplyEdits(
+func (c *ExecutorLocal) ApplyEditsHandler(
 	fm filemanager.FileManager,
 	dryrun bool,
 	edits ...actions.ApplyEdit,
@@ -34,7 +34,7 @@ func (c *Executor) ApplyEdits(
 			continue
 		}
 
-		newContent := extractor.ApplyEdit(string(content), edit.Original, edit.Updated)
+		newContent := extractors.ApplyEdit(string(content), edit.Original, edit.Updated)
 		if newContent == string(content) {
 			err = fmt.Errorf("new content is the same as the original content")
 			c.logger.Error("new content is the same as the original content", "error", err)

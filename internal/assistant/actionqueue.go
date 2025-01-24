@@ -4,10 +4,17 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 )
 
+type Queuer[T any] interface {
+	Enqueue(actions ...T)
+	Dequeue() (T, bool)
+	IsEmpty() bool
+}
+
+type ActionQueuer = Queuer[actions.Action[any]]
+
 // TODO: Implement mutex
 type ActionQueue struct {
 	items []actions.Action[any]
-	// Possibly a mutex if concurrency is a future concern
 }
 
 func NewActionQueue() *ActionQueue {

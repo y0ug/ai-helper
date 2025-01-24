@@ -3,10 +3,11 @@ package assistant
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/executors"
-	"github.com/y0ug/ai-helper/internal/assistant/extractor"
+	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
@@ -14,29 +15,31 @@ import (
 )
 
 type ActionExecutor struct {
-	logger      *slog.Logger
-	rm          repomanager.RepoManagerInterface
-	history     *ChatHistory
-	formatter   *MessageFormatter
-	settings    *settings.CoderSettings
-	extractors  []extractor.ResponseExtractor
-	prompts     prompts.Prompter
-	actionQueue *ActionQueue
+	logger     *slog.Logger
+	rm         repomanager.RepoManagerInterface
+	history    *ChatHistory
+	formatter  *PromptFormatter
+	settings   *settings.CoderSettings
+	extractors []extractors.Extractor
+	prompts    prompts.Prompter
+	executor   executors.Executor
+	queue      ActionQueuer
 }
 
 func NewActionExecutor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
-	history *ChatHistory, formatter *MessageFormatter, settings *settings.CoderSettings,
-	prompts prompts.Prompter, responseExtractor []extractor.ResponseExtractor,
+	history *ChatHistory, formatter *PromptFormatter, settings *settings.CoderSettings,
+	prompts prompts.Prompter, extractors []extractors.Extractor, executor executors.Executor,
 ) *ActionExecutor {
 	return &ActionExecutor{
-		logger:      logger,
-		rm:          rm,
-		history:     history,
-		formatter:   formatter,
-		settings:    settings,
-		prompts:     prompts,
-		extractors:  responseExtractor,
-		actionQueue: NewActionQueue(),
+		logger:     logger,
+		rm:         rm,
+		history:    history,
+		formatter:  formatter,
+		settings:   settings,
+		prompts:    prompts,
+		extractors: extractors,
+		executor:   executor,
+		queue:      NewActionQueue(),
 	}
 }
 
@@ -92,7 +95,7 @@ func (mp *ActionExecutor) ProcessResponseExtractor(
 	}
 
 	// Enqueue newly extracted actions
-	mp.actionQueue.Enqueue(allActions...)
+	mp.queue.Enqueue(allActions...)
 
 	// Process the queue
 	mp.processActionQueue()
@@ -124,7 +127,7 @@ func (mp *ActionExecutor) handleToolResult(toolResultMsg *chat.ChatMessage) erro
 
 func (mp *ActionExecutor) processActionQueue() {
 	for {
-		action, ok := mp.actionQueue.Dequeue()
+		action, ok := mp.queue.Dequeue()
 		if !ok {
 			break
 		}
@@ -160,12 +163,11 @@ func (mp *ActionExecutor) handleAction(action actions.Action[any]) error {
 func (mp *ActionExecutor) handleShellCommand(shellCommand actions.ShellCommand) error {
 	mp.logger.Info("Handling shellCommand", "command", shellCommand.Command)
 
-	actionTools := executors.NewActionTools(mp.logger)
-	actions, err := actionTools.ShellCommand(shellCommand.Command)
+	newActions, err := mp.executor.ShellCommandHandler(shellCommand.Command)
 	if err != nil {
 		return fmt.Errorf("error running shell command: %w", err)
 	}
-	mp.actionQueue.Enqueue(actions...)
+	mp.queue.Enqueue(newActions...)
 	return nil
 }
 
@@ -187,12 +189,16 @@ func (mp *ActionExecutor) handleToolResultAction(
 	// Should we enqueue the next action? or execute it here so we can craft the toolResult message
 	// mp.actionQueue.Enqueue(toolResultAction.NextAction)
 	toolResult := toolResultAction.ToolResult
-	err := mp.handleAction(toolResultAction.NextAction)
-	if err != nil {
-		toolResult.Content = fmt.Sprintf("Error: %s", err)
-	} else {
-		toolResult.Content = "Ok."
+
+	toolResultContent := "Ok."
+	for _, action := range toolResultAction.NextAction {
+		err := mp.handleAction(action)
+		if err != nil {
+			toolResultContent = fmt.Sprintf("Error: %s", err)
+		}
 	}
+
+	toolResult.Content = toolResultContent
 
 	mp.history.AddMessage(chat.NewMessage("tool", &toolResult))
 	return nil
@@ -201,18 +207,23 @@ func (mp *ActionExecutor) handleToolResultAction(
 func (mp *ActionExecutor) handleApplyEdit(edit actions.ApplyEdit) error {
 	mp.logger.Info("Handling applyEdit", "filename", edit.Filename)
 
-	// Possibly reuse the ActionTools
-	actionTools := executors.NewActionTools(mp.logger)
-	newActions, err := actionTools.ApplyEdits(mp.rm.GetFM(), false, edit)
+	newActions, err := mp.executor.ApplyEditsHandler(mp.rm.GetFM(), false, edit)
 	if err != nil {
 		mp.logger.Error("Error applying edits", "error", err)
 		// Could enqueue an error action or handle differently
 		return err
 	}
 
+	// push AwaitUserInput action
+	newAction := actions.NewParsedAction(actions.AwaitUserInput{
+		Question:  "Do you want to commit the changes?",
+		InputType: actions.UserInputTypeConfirm,
+	})
+	newActions = append(newActions, newAction)
+
 	// If `ApplyEdits` returns more actions, enqueue them
 	if len(newActions) > 0 {
-		mp.actionQueue.Enqueue(newActions...)
+		mp.queue.Enqueue(newActions...)
 	}
 
 	// We should handle the commit when all the files have been updated I think
@@ -221,12 +232,35 @@ func (mp *ActionExecutor) handleApplyEdit(edit actions.ApplyEdit) error {
 }
 
 func (mp *ActionExecutor) handleAwaitUserInput(userInputAction actions.AwaitUserInput) error {
-	mp.logger.Info("Awaiting user input", "question", userInputAction.Question)
-	// // 1) Output the question to user
-	// mp.history.AddMessage(chat.NewMessage("assistant",
-	// 	chat.NewTextContent(userInputAction.Question),
-	// ))
-	// // 2) Put the conversation in "waiting for user"
-	// mp.setAwaitingUserInput(userInputAction.NextAction)
+	mp.logger.Info(
+		"Awaiting user input",
+		"question",
+		userInputAction.Question,
+		"type",
+		userInputAction.InputType,
+	)
+
+	fmt.Println("QUESTION:", userInputAction.Question)
+	var userAnswer string
+	if _, err := fmt.Scanln(&userAnswer); err != nil {
+		mp.logger.Error("Failed reading input", "error", err)
+		return err
+	}
+
+	switch userInputAction.InputType {
+	case actions.UserInputTypeText:
+		mp.logger.Info("We should process the response")
+		// 1) Output the question to user
+		// mp.history.AddMessage(chat.NewMessage("assistant",
+		// 	chat.NewTextContent(userInputAction.Question),
+		// ))
+	case actions.UserInputTypeConfirm:
+		if strings.EqualFold(userAnswer, "yes") {
+			mp.queue.Enqueue(userInputAction.NextAction...)
+		} else {
+			mp.logger.Info("User did not confirm")
+		}
+	}
+
 	return nil
 }

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/assistant/extractor"
+	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
@@ -14,7 +14,7 @@ import (
 // Fence represents a pair of opening and closing delimiters for code blocks
 
 type RepoManager struct {
-	fence            extractor.Fence
+	fence            extractors.Fence
 	root             string
 	logger           *slog.Logger
 	fm               filemanager.FileManager
@@ -118,7 +118,7 @@ func (c *RepoManager) ChooseFence() {
 	allContent := c.getAllContent()
 
 	// Try each fence option until we find one that doesn't appear in the content
-	for _, fence := range extractor.DefaultFences {
+	for _, fence := range extractors.DefaultFences {
 		if !hasFenceConflict(allContent, fence) {
 			c.fence = fence
 			return
@@ -126,7 +126,7 @@ func (c *RepoManager) ChooseFence() {
 	}
 
 	// If all fences conflict (unlikely), use the default and warn
-	c.fence = extractor.DefaultFences[0]
+	c.fence = extractors.DefaultFences[0]
 	c.logger.Warn(
 		"Unable to find a non-conflicting fence strategy! Falling back", "fence", c.fence)
 }
@@ -147,7 +147,7 @@ func (c *RepoManager) getAllContent() string {
 }
 
 // hasFenceConflict checks if fence markers appear in the content
-func hasFenceConflict(content string, fence extractor.Fence) bool {
+func hasFenceConflict(content string, fence extractors.Fence) bool {
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)

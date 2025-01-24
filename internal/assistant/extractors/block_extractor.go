@@ -1,4 +1,4 @@
-package extractor
+package extractors
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type EditBlockExtractor struct {
+type BlockExtractor struct {
 	fence  Fence
 	logger *slog.Logger
 	format ExtractorType
@@ -29,36 +29,39 @@ var (
 	replaceRe = regexp.MustCompile(`^>{5,9} REPLACE\s*$`)
 )
 
-func NewEditBlockExtractor(
+func NewBlockExtractor(
 	logger *slog.Logger,
 	format ExtractorType,
 	fence Fence,
-) *EditBlockExtractor {
-	return &EditBlockExtractor{
+) *BlockExtractor {
+	return &BlockExtractor{
 		fence:  fence,
 		logger: logger,
 		format: format,
-		name:   "EditBlockExtractor",
 	}
 }
 
-func (c *EditBlockExtractor) GetName() string {
-	return c.name
+func (c *BlockExtractor) Name() string {
+	return "BlockExtractor"
 }
 
-func (c *EditBlockExtractor) GetFormat() ExtractorType {
+func (c *BlockExtractor) SupportedActions() []actions.ActionType {
+	return []actions.ActionType{"apply_edit", "shell_command"}
+}
+
+func (c *BlockExtractor) Type() ExtractorType {
 	return c.format
 }
 
-func (c *EditBlockExtractor) SetFence(fence Fence) {
-	c.fence = fence
-}
-
-func (c *EditBlockExtractor) GetChatTools() []chat.Tool {
+func (c *BlockExtractor) GetChatTools() []chat.Tool {
 	return nil
 }
 
-func (c *EditBlockExtractor) Extract(
+func (c *BlockExtractor) SetFence(fence Fence) {
+	c.fence = fence
+}
+
+func (c *BlockExtractor) Extract(
 	msg *chat.ChatMessage,
 ) ([]actions.Action[any], error) {
 	results := make([]actions.Action[any], 0)
@@ -71,11 +74,20 @@ func (c *EditBlockExtractor) Extract(
 	return results, nil
 }
 
-func NewActionEdit(edit actions.ApplyEdit) actions.Action[any] {
-	return actions.NewParsedAction(edit)
+func NewShellExecActionWithConfirm(command string) []actions.Action[any] {
+	msg := fmt.Sprintf(
+		"Are you sure you want to run the following command?\n\n```\n%s\n```",
+		command,
+	)
+	return []actions.Action[any]{
+		actions.NewParsedAction(
+			actions.AwaitUserInput{Question: msg, InputType: actions.UserInputTypeConfirm},
+		),
+		actions.NewParsedAction(actions.ShellCommand{Command: command}),
+	}
 }
 
-func (c *EditBlockExtractor) getEdits(content string) []actions.Action[any] {
+func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
 	var results []actions.Action[any]
 	lines := strings.Split(content, "\n")
 	i := 0
@@ -84,8 +96,8 @@ func (c *EditBlockExtractor) getEdits(content string) []actions.Action[any] {
 		line := lines[i]
 		if isShellBlockStart(line) {
 			cmd, newI := extractShellCommand(lines, i)
-			action := actions.NewParsedAction(actions.ShellCommand{Command: cmd})
-			results = append(results, action)
+			action := NewShellExecActionWithConfirm(cmd)
+			results = append(results, action...)
 			i = newI
 			continue
 		}
@@ -99,7 +111,7 @@ func (c *EditBlockExtractor) getEdits(content string) []actions.Action[any] {
 				// 	*NewActionError(NewExtractorError(c.GetName(), c.GetFormat(), err, newI)),
 				// )
 			} else {
-				results = append(results, NewActionEdit(*edit))
+				results = append(results, NewActionApplyEdit(*edit))
 			}
 			i = newI
 			continue
@@ -109,7 +121,7 @@ func (c *EditBlockExtractor) getEdits(content string) []actions.Action[any] {
 	return results
 }
 
-func (c *EditBlockExtractor) extractEditBlock(
+func (c *BlockExtractor) extractEditBlock(
 	lines []string,
 	start int,
 ) (*actions.ApplyEdit, int, error) {
@@ -148,7 +160,7 @@ func (c *EditBlockExtractor) extractEditBlock(
 	return edit, i, nil
 }
 
-func (c *EditBlockExtractor) findFilename(lines []string, current int) string {
+func (c *BlockExtractor) findFilename(lines []string, current int) string {
 	// Look in previous 3 lines for filename
 	for i := current - 1; i >= 0 && i >= current-3; i-- {
 		fname := strings.TrimSpace(lines[i])

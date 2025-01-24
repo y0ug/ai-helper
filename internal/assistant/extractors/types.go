@@ -1,4 +1,4 @@
-package extractor
+package extractors
 
 import (
 	"fmt"
@@ -10,7 +10,6 @@ import (
 
 type (
 	ExtractorType string
-	ActionType    string
 )
 
 type ExtractorError struct {
@@ -39,28 +38,29 @@ func NewExtractorError(
 }
 
 const (
-	ExtractorEditDiff       ExtractorType = "editblock-diff"
-	ExtractorEditDiffFenced ExtractorType = "editblock-diff-fenced"
-	ExtractorEditFuncWhole  ExtractorType = "edit-func-whole"
+	TypeDiff       ExtractorType = "block-diff"
+	TypeDiffFenced ExtractorType = "block-diff-fenced"
+	TypeFunc       ExtractorType = "func-whole"
 )
 
-type ResponseExtractor interface {
+type Extractor interface {
 	Extract(msg *chat.ChatMessage) ([]actions.Action[any], error)
 	GetChatTools() []chat.Tool
 	SetFence(Fence)
-	GetName() string
-	GetFormat() ExtractorType
+	Name() string
+	Type() ExtractorType
+	SupportedActions() []actions.ActionType
 }
 
-func New(editFormat ExtractorType, logger *slog.Logger) ResponseExtractor {
+func New(editFormat ExtractorType, logger *slog.Logger) Extractor {
 	fence := DefaultFences[0]
 	switch editFormat {
-	case ExtractorEditDiff:
-		return NewEditBlockExtractor(logger, editFormat, fence)
-	case ExtractorEditDiffFenced:
-		return NewEditBlockExtractor(logger, editFormat, fence)
-	case ExtractorEditFuncWhole:
-		return NewFuncWholeExtractor(logger, editFormat, fence)
+	case TypeDiff:
+		return NewBlockExtractor(logger, editFormat, fence)
+	case TypeDiffFenced:
+		return NewBlockExtractor(logger, editFormat, fence)
+	case TypeFunc:
+		return NewFuncWholeFileExtractor(logger, editFormat, fence)
 	default:
 		return nil
 	}
