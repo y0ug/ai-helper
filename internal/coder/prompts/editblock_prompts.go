@@ -5,7 +5,7 @@ const Fence = "`"
 func NewEditBlockPrompts() *EditBlockPrompts {
 	prompts := &EditBlockPrompts{BasePrompts: *NewBasePrompts()}
 	prompts.Name = "EditBlock"
-	prompts.EditFormat = "diff"
+	prompts.EditFormat = "editblock-diff"
 	prompts.MainSystem = `Act as an expert software developer.
 Always use best practices when coding.
 Respect and use existing conventions, libraries, etc that are already present in the code base.

@@ -1,4 +1,4 @@
-package editservice
+package responseextractor
 
 import (
 	"math"
@@ -26,7 +26,7 @@ func extractShellCommand(lines []string, i int) (string, int) {
 	return strings.Join(cmdLines, "\n"), i
 }
 
-func DoReplace(content, original, updated string) string {
+func ApplyEdit(content, original, updated string) string {
 	original = stripQuotedWrapping(original)
 	updated = stripQuotedWrapping(updated)
 

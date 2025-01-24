@@ -70,6 +70,7 @@ func (tp *MCPToolService) processToolCall(
 		logger.Debug("Error unmarshalling input",
 			"name", content.Name,
 			"input", string(content.Input))
+
 		return nil, fmt.Errorf("error unmarshalling input: %w", err)
 	}
 	logger.Debug("Tool call",

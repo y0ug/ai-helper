@@ -129,6 +129,18 @@ func NewToolUseContent(id, name string, args json.RawMessage) *MessageContent {
 	}
 }
 
+func NewToolResultContentInterface(toolUseID string, content interface{}) (*MessageContent, error) {
+	contentBytes, err := json.Marshal(content)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling tool result content: %w", err)
+	}
+	return &MessageContent{
+		Type:      ContentTypeToolResult,
+		ToolUseID: toolUseID,
+		Content:   string(contentBytes),
+	}, nil
+}
+
 // NewToolResultContent creates a tool result content message
 func NewToolResultContent(toolUseID, content string) *MessageContent {
 	return &MessageContent{

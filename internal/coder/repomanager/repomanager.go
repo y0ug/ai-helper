@@ -1,12 +1,11 @@
 package repomanager
 
 import (
-	"fmt"
 	"log/slog"
 	"path/filepath"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/coder/editservice"
+	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
@@ -15,12 +14,11 @@ import (
 // Fence represents a pair of opening and closing delimiters for code blocks
 
 type RepoManager struct {
-	fence            editservice.Fence
+	fence            responseextractor.Fence
 	root             string
 	logger           *slog.Logger
 	fm               filemanager.FileManager
 	git              gitrepo.GitRepoInterface
-	editSvc          editservice.EditService
 	absRootPathCache map[string]string
 }
 
@@ -35,10 +33,6 @@ type RepoManagerInterface interface {
 	GetFilesContent() string
 	GetReadOnlyFilesContent() string
 	GetRepoMap() string
-	SetEditService(svc editservice.EditService)
-	GetEditServiceFormat() string
-	GetEditServiceName() string
-	GetEditServiceChatTools() []chat.Tool
 	Process(*chat.ChatMessage) (ProcessType, []chat.MessageContent, error)
 }
 type ProcessType string
@@ -68,63 +62,38 @@ func (c *RepoManager) GetRoot() string {
 	return c.root
 }
 
-func (c *RepoManager) GetEditServiceChatTools() []chat.Tool {
-	if c.editSvc == nil {
-		return nil
-	}
-	return c.editSvc.GetChatTools()
-}
-
-func (c *RepoManager) GetEditServiceFormat() string {
-	if c.editSvc == nil {
-		return ""
-	}
-	return string(c.editSvc.GetFormat())
-}
-
-func (c *RepoManager) GetEditServiceName() string {
-	if c.editSvc == nil {
-		return ""
-	}
-	return c.editSvc.GetName()
-}
-
-func (c *RepoManager) SetEditService(svc editservice.EditService) {
-	c.editSvc = svc
-}
-
 func (c *RepoManager) Process(msg *chat.ChatMessage) (ProcessType, []chat.MessageContent, error) {
-	if c.editSvc == nil {
-		return ProcessTypeNone, nil, nil
-	}
-
-	// TODO: set it here or when we ChooseFence
-	c.editSvc.SetFence(c.fence)
-
-	results, msgs := c.editSvc.GetEditsMsg(msg)
-	// if len(msgs) > 0 {
-	// 	return ProcessTypeEdit, msgs, nil
+	// if c.editSvc == nil {
+	return ProcessTypeNone, nil, nil
 	// }
-	// if len(results) == 0 {
-	// 	return ProcessTypeNone, nil, nil
-	// }
-	var edits []editservice.Edit
-	for _, result := range results {
-		if result.Edit != nil {
-			edits = append(edits, *result.Edit)
-		}
-	}
 
-	// err := c.editSvc.ApplyEdits(c.fm, edits, true)
+	// // TODO: set it here or when we ChooseFence
+	// c.editSvc.SetFence(c.fence)
+	//
+	// results, msgs := c.editSvc.Extract(msg)
+	// // if len(msgs) > 0 {
+	// // 	return ProcessTypeEdit, msgs, nil
+	// // }
+	// // if len(results) == 0 {
+	// // 	return ProcessTypeNone, nil, nil
+	// // }
+	// var edits []responseextractor.Edit
+	// for _, result := range results {
+	// 	if result.Edit != nil {
+	// 		edits = append(edits, *result.Edit)
+	// 	}
+	// }
+	//
+	// // err := c.editSvc.ApplyEdits(c.fm, edits, true)
+	// // if err != nil {
+	// // 	return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits dry run %w", err)
+	// // }
+	// err := c.editSvc.ApplyEdits(c.fm, edits, false)
 	// if err != nil {
-	// 	return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits dry run %w", err)
+	// 	return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits %w", err)
 	// }
-	err := c.editSvc.ApplyEdits(c.fm, edits, false)
-	if err != nil {
-		return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits %w", err)
-	}
-
-	return ProcessTypeNone, msgs, nil
+	//
+	// return ProcessTypeNone, msgs, nil
 }
 
 func (c *RepoManager) GetRepoMap() string {
@@ -149,7 +118,7 @@ func (c *RepoManager) ChooseFence() {
 	allContent := c.getAllContent()
 
 	// Try each fence option until we find one that doesn't appear in the content
-	for _, fence := range editservice.DefaultFences {
+	for _, fence := range responseextractor.DefaultFences {
 		if !hasFenceConflict(allContent, fence) {
 			c.fence = fence
 			return
@@ -157,13 +126,9 @@ func (c *RepoManager) ChooseFence() {
 	}
 
 	// If all fences conflict (unlikely), use the default and warn
-	c.fence = editservice.DefaultFences[0]
+	c.fence = responseextractor.DefaultFences[0]
 	c.logger.Warn(
 		"Unable to find a non-conflicting fence strategy! Falling back", "fence", c.fence)
-
-	if c.editSvc != nil {
-		c.editSvc.SetFence(c.fence)
-	}
 }
 
 // getAllContent combines content from all files being handled
@@ -182,7 +147,7 @@ func (c *RepoManager) getAllContent() string {
 }
 
 // hasFenceConflict checks if fence markers appear in the content
-func hasFenceConflict(content string, fence editservice.Fence) bool {
+func hasFenceConflict(content string, fence responseextractor.Fence) bool {
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)

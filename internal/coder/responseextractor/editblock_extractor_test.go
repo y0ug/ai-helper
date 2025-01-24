@@ -1,4 +1,4 @@
-package editservice
+package responseextractor
 
 import (
 	"log/slog"
@@ -70,7 +70,7 @@ ls -la
 		},
 	}
 
-	coder := &EditBlockService{
+	coder := &BlockExtractor{
 		fence: [2]string{"```", "```"},
 	}
 
@@ -123,7 +123,7 @@ ls -la
 }
 
 func TestExtractEditBlock(t *testing.T) {
-	coder := &EditBlockService{fence: [2]string{"```", "```"}}
+	coder := &BlockExtractor{fence: [2]string{"```", "```"}}
 
 	t.Run("valid block", func(t *testing.T) {
 		lines := []string{
@@ -166,7 +166,7 @@ func TestExtractEditBlock(t *testing.T) {
 }
 
 func TestFindFilename(t *testing.T) {
-	coder := &EditBlockService{fence: [2]string{"```", "```"}}
+	coder := &BlockExtractor{fence: [2]string{"```", "```"}}
 
 	tests := []struct {
 		name     string
@@ -207,7 +207,7 @@ func TestDoReplace(t *testing.T) {
 		original := "Hello world"
 		updated := "Hello Go"
 
-		result := DoReplace(content, original, updated)
+		result := ApplyEdit(content, original, updated)
 		expected := "Hello Go\nSecond line"
 		if result != expected {
 			t.Errorf("expected %q, got %q", expected, result)
@@ -219,7 +219,7 @@ func TestDoReplace(t *testing.T) {
 		original := "Hello world"
 		updated := "Hello Go"
 
-		result := DoReplace(content, original, updated)
+		result := ApplyEdit(content, original, updated)
 		expected := "  Hello Go  \nSecond line"
 		if result != expected {
 			t.Errorf("expected %q, got %q", expected, result)
@@ -229,7 +229,7 @@ func TestDoReplace(t *testing.T) {
 
 func TestApplyEdits(t *testing.T) {
 	tempDir := t.TempDir()
-	coder := &EditBlockService{
+	coder := &BlockExtractor{
 		fence:  [2]string{"```", "```"},
 		logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
 	}

@@ -1,4 +1,4 @@
-package editservice
+package responseextractor
 
 import (
 	"testing"

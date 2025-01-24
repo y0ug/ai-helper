@@ -4,36 +4,30 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
-	"github.com/y0ug/ai-helper/internal/coder/editservice"
 	"github.com/y0ug/ai-helper/internal/coder/prompts"
 	"github.com/y0ug/ai-helper/internal/coder/repomanager"
+	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
 	"github.com/y0ug/ai-helper/internal/coder/settings"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 type BaseCoder struct {
-	logger    *slog.Logger
-	llmClient *LLMClient
-	prompts   prompts.Prompter
-	rm        repomanager.RepoManagerInterface
-	settings  *settings.CoderSettings
-	processor *MessageProcessor
-	history   *ChatHistory
-	formatter *MessageFormatter
+	logger        *slog.Logger
+	llmClient     *LLMClient
+	prompts       prompts.Prompter
+	rm            repomanager.RepoManagerInterface
+	settings      *settings.CoderSettings
+	processor     *MessageProcessor
+	history       *ChatHistory
+	formatter     *MessageFormatter
+	respExtractor []responseextractor.ResponseExtractor
 }
 
 func NewBaseCoder(opts CoderOptions) *BaseCoder {
 	history := NewChatHistory()
 	formatter := NewMessageFormatter(opts.Logger, opts.RepoManager, opts.Prompts, opts.Settings)
-	processor := NewMessageProcessor(
-		opts.Logger,
-		opts.RepoManager,
-		history,
-		formatter,
-		opts.Settings,
-		opts.Prompts,
-	)
 
 	c := &BaseCoder{
 		rm:        opts.RepoManager,
@@ -41,7 +35,6 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 		settings:  opts.Settings,
 		history:   history,
 		formatter: formatter,
-		processor: processor,
 	}
 
 	// Stream processor for the LLMClient wrapper
@@ -62,6 +55,20 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 
 	// Should handle this better
 	c.SetPrompts(opts.Prompts)
+	processor := NewMessageProcessor(
+		opts.Logger,
+		opts.RepoManager,
+		history,
+		formatter,
+		opts.Settings,
+		opts.Prompts,
+		c.respExtractor,
+	)
+	c.processor = processor
+	re := make([]string, 0)
+	for _, e := range c.respExtractor {
+		re = append(re, e.GetName())
+	}
 
 	c.logger.Info(
 		"setting ",
@@ -69,23 +76,24 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 		"model_name", c.settings.GetModelName(),
 		"prompt_name",
 		opts.Prompts.GetName(),
-		"edit_format",
-		opts.RepoManager.GetEditServiceFormat(),
-		"edit_svc",
-		opts.RepoManager.GetEditServiceName(),
+		"extractors",
+		re,
 	)
 	return c
 }
 
 func (c *BaseCoder) SetPrompts(pts prompts.Prompter) {
 	c.prompts = pts
-	editFormat := editservice.EditFormat(c.getPrompts().GetEditFormat())
-	editSvc := editservice.New(editFormat, c.logger)
-	if editSvc == nil {
-		c.logger.Error("Error creating edit service", "edit_format", editFormat)
-	}
 
-	c.rm.SetEditService(editSvc)
+	extractors := strings.Split(c.getPrompts().GetEditFormat(), "\n")
+	for _, name := range extractors {
+		extractor := responseextractor.New(responseextractor.ExtractorType(name), c.logger)
+		if extractor == nil {
+			c.logger.Error("Error creating extractor", "name", extractor)
+			continue
+		}
+		c.respExtractor = append(c.respExtractor, extractor)
+	}
 
 	// c.templateHandler = prompts.NewTemplateHandler(
 	// 	c.prompts,
@@ -141,7 +149,11 @@ func (c *BaseCoder) SendMessage(message string) error {
 	}
 	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
 		messages.Cur = c.history.GetCurrentMessages()
-		tools := c.GetRM().GetEditServiceChatTools()
+		tools := make([]chat.Tool, 0)
+		for _, e := range c.respExtractor {
+			tools = append(tools, e.GetChatTools()...)
+		}
+
 		for _, tool := range tools {
 			c.logger.Debug("set tool", "name", tool.Name)
 		}

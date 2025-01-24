@@ -160,9 +160,9 @@ func (cc *ChatCompletion) Accumulate(chunk ChatCompletionChunk) bool {
 		for _, deltaTool := range deltaChoice.Delta.ToolCalls {
 			choice.Message.ToolCalls = expandToFit(
 				choice.Message.ToolCalls,
-				int(deltaChoice.Index),
+				int(deltaTool.Index),
 			)
-			tool := &choice.Message.ToolCalls[deltaChoice.Index]
+			tool := &choice.Message.ToolCalls[deltaTool.Index]
 			if deltaTool.ID != "" {
 				tool.ID = deltaTool.ID
 			}
@@ -308,6 +308,7 @@ type FunctionCall struct {
 }
 
 type ToolCall struct {
+	Index    int64        `json:"index,omitempty"`
 	ID       string       `json:"id"`
 	Type     string       `json:"type"`
 	Function FunctionCall `json:"function"`
