@@ -15,7 +15,6 @@ import (
 	"github.com/y0ug/ai-helper/internal/coder/settings"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
-	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmhaven"
@@ -85,8 +84,8 @@ func main() {
 	}
 	logger.Info("rootPath", "rootPath", rootPath)
 	requestOpts := []options.RequestOption{
-		options.WithMiddleware(middleware.LoggingMiddleware()),
-		options.WithMiddleware(middleware.TimeitMiddleware(logger)),
+		// options.WithMiddleware(middleware.LoggingMiddleware()),
+		// options.WithMiddleware(middleware.TimeitMiddleware(logger)),
 	}
 	llmClient, err := llmhaven.New(modelInfo.Provider, requestOpts...)
 	if err != nil {

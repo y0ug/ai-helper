@@ -126,31 +126,31 @@ func (c *BaseCoder) SendMessage(message string) error {
 
 	// Format messages with appropriate prompts
 	i := 0
+	messages := c.FormatMessages()
+
+	for _, m := range messages.AllMessages() {
+		c.logger.Debug(
+			"msg",
+			"role",
+			m.Role,
+			"is_cacheable",
+			m.Content[0].IsCacheable(),
+			"content",
+			m.Content,
+		)
+	}
 	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
-		messages := c.FormatMessages()
-
-		for _, m := range messages.AllMessages() {
-			c.logger.Debug(
-				"msg",
-				"role",
-				m.Role,
-				"is_cacheable",
-				m.Content[0].IsCacheable(),
-				"content",
-				m.Content,
-			)
-		}
-
+		messages.Cur = c.history.GetCurrentMessages()
 		tools := c.GetRM().GetEditServiceChatTools()
 		for _, tool := range tools {
 			c.logger.Debug("set tool", "name", tool.Name)
 		}
-		responses, err := c.llmClient.SendMessages(context.Background(), messages, tools)
+		resp, err := c.llmClient.SendMessages(context.Background(), messages, tools)
 		if err != nil {
 			return err
 		}
 
-		err = c.processor.ProcessResponse(responses)
+		err = c.processor.ProcessResponse(resp)
 		if err != nil {
 			return fmt.Errorf("error processing response: %w", err)
 		}

@@ -33,14 +33,15 @@ func NewMessageProcessor(logger *slog.Logger, rm repomanager.RepoManagerInterfac
 	}
 }
 
-func (mp *MessageProcessor) ProcessResponse(messages []*chat.ChatMessage) error {
+func (mp *MessageProcessor) ProcessResponse(resp *chat.ChatResponse) error {
 	// Should we handle the response of the message only?
 	// Where should we extract the usage that is in the chat.ChatResponse USage
-	if len(messages) == 0 {
-		return fmt.Errorf("no messages returned from LLM")
+	if len(resp.Choice) == 0 {
+		return fmt.Errorf("no choice returned from LLM")
 	}
+	choice := resp.Choice[0]
+	msg := resp.ToMessageParams()
 
-	msg := messages[len(messages)-1]
 	if msg.Role != "assistant" {
 		return fmt.Errorf("last message should be from assistant")
 	}
@@ -48,12 +49,13 @@ func (mp *MessageProcessor) ProcessResponse(messages []*chat.ChatMessage) error 
 	mp.history.AddMessage(msg)
 
 	state, contents, err := mp.rm.Process(msg)
+	mp.logger.Info("Processing response", "stop", choice.StopReason, "len(content)", len(contents))
 	if err != nil {
 		mp.logger.Error("Error processing edit", "error", err)
 		return err
 	}
-
 	if len(contents) > 0 {
+
 		c := make([]*chat.MessageContent, 0)
 		for _, content := range contents {
 			c = append(c, &content)
@@ -67,6 +69,7 @@ func (mp *MessageProcessor) ProcessResponse(messages []*chat.ChatMessage) error 
 		}
 	} else {
 		mp.history.MoveCurrentToDone("")
+		mp.logger.Info("MoveCurrentToDone")
 	}
 
 	return nil

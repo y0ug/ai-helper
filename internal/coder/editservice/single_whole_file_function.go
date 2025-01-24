@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
@@ -69,11 +70,9 @@ type WriteFileResult struct {
 func (c *SingleWholeFileFuncService) WriteFileHandler(
 	ctx context.Context,
 	input WriteFileInput,
-) (WriteFile, error) {
-	result := fmt.Sprintf("Wrote file %s and content length %d",
-		input.Filename,
-		input.Explanation,
-		len(input.Content))
+) (WriteFileResult, error) {
+	result := fmt.Sprintf("Wrote content to file %s",
+		input.Filename)
 	edit := Edit{
 		Filename: input.Filename,
 		Updated:  input.Content,
@@ -98,19 +97,20 @@ func (c *SingleWholeFileFuncService) GetEditsMsg(
 	msg *chat.ChatMessage,
 ) ([]EditResult, []chat.MessageContent) {
 	edits := make([]EditResult, 0)
-	msgs := make([]chat.MessageContent, 0)
+	toolResults := make([]chat.MessageContent, 0)
 	for _, content := range msg.Content {
 		if content.Type == chat.ContentTypeToolUse {
-			m, err := c.processToolCall(content)
+			edit, toolResult, err := c.processToolCall(content)
 			if err != nil {
 				c.logger.Error("Error processing tool call", "error", err)
 			}
-			msgs = append(msgs, *m)
+			toolResults = append(toolResults, *toolResult)
+			edits = append(edits, EditResult{Edit: edit})
 			// results := c.GetEdits(content.String())
 			// edits = append(edits, results...)
 		}
 	}
-	return edits, msgs
+	return edits, toolResults
 }
 
 func (c *SingleWholeFileFuncService) GetEdits(content string) []EditResult {
@@ -119,16 +119,16 @@ func (c *SingleWholeFileFuncService) GetEdits(content string) []EditResult {
 
 func (tp *SingleWholeFileFuncService) processToolCall(
 	content *chat.MessageContent,
-) (*chat.MessageContent, error) {
+) (*Edit, *chat.MessageContent, error) {
 	ctx := context.TODO()
 	if content.GetType() != string(chat.ContentTypeToolUse) {
-		return nil, fmt.Errorf("invalid tool call: no tool call data")
+		return nil, nil, fmt.Errorf("invalid tool call: no tool call data")
 	}
 
 	logger := tp.logger.With("content", content.Name)
 	tool, exists := tp.tools[content.Name]
 	if !exists {
-		return nil, fmt.Errorf("unknown tool: %s", content.Name)
+		return nil, nil, fmt.Errorf("unknown tool: %s", content.Name)
 	}
 
 	logger.Debug("Tool call",
@@ -140,21 +140,24 @@ func (tp *SingleWholeFileFuncService) processToolCall(
 		logger.Error("Error executing tool",
 			"error", err,
 			"name", content.Name)
-		return nil, fmt.Errorf("error executing tool: %w", err)
+		return nil, nil, fmt.Errorf("error executing tool: %w", err)
 	}
 
-	b, err := json.Marshal(response)
-	if err != nil {
-		logger.Error("Failed to Marshall response",
-			"error", err,
-			"name", content.Name)
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
+	var results WriteFileResult
+	json.Unmarshal(response, &results)
+
+	// b, err := json.Marshal(response)
+	// if err != nil {
+	// 	logger.Error("Failed to Marshall response",
+	// 		"error", err,
+	// 		"name", content.Name)
+	// 	return nil, fmt.Errorf("failed to marshal response: %w", err)
+	// }
 
 	logger.Debug("Tool result",
 		"name", content.Name,
-		"result", response)
-	return chat.NewToolResultContent(content.ID, string(b)), nil
+		"content", string(results.Msg))
+	return &results.Edit, chat.NewToolResultContent(content.ID, results.Msg), nil
 }
 
 func (c *SingleWholeFileFuncService) ApplyEdits(
@@ -163,15 +166,18 @@ func (c *SingleWholeFileFuncService) ApplyEdits(
 	dryrun bool,
 ) error {
 	for _, edit := range edits {
-		_, isEditable, err := fm.Get(edit.Filename)
+		content, isEditable, err := fm.Get(edit.Filename)
 		if err != nil {
 			c.logger.Info("Adding new file", "filename", edit.Filename)
 			fm.Add(edit.Filename, false)
+			content = ""
 		} else if !isEditable {
 			c.logger.Info("File is read-only", "filename", edit.Filename)
 			continue
 		}
-
+		dmp := diffmatchpatch.New()
+		diffs := dmp.DiffMain(content, edit.Updated, false)
+		fmt.Println(dmp.DiffPrettyText(diffs))
 		if !dryrun {
 			if err := fm.Write(edit.Filename, edit.Updated); err != nil {
 				return fmt.Errorf("failed to write file %s: %w", edit.Filename, err)

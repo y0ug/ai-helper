@@ -115,11 +115,11 @@ func (c *RepoManager) Process(msg *chat.ChatMessage) (ProcessType, []chat.Messag
 		}
 	}
 
-	err := c.editSvc.ApplyEdits(c.fm, edits, true)
-	if err != nil {
-		return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits dry run %w", err)
-	}
-	err = c.editSvc.ApplyEdits(c.fm, edits, false)
+	// err := c.editSvc.ApplyEdits(c.fm, edits, true)
+	// if err != nil {
+	// 	return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits dry run %w", err)
+	// }
+	err := c.editSvc.ApplyEdits(c.fm, edits, false)
 	if err != nil {
 		return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits %w", err)
 	}

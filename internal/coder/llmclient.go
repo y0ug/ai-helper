@@ -34,7 +34,7 @@ func (c *LLMClient) SendMessages(
 	ctx context.Context,
 	messages *ChatChunks,
 	tools []chat.Tool,
-) ([]*chat.ChatMessage, error) {
+) (*chat.ChatResponse, error) {
 	messagesLLM := messages.AllMessages()
 
 	chatParams := chat.NewChatParams(
@@ -49,22 +49,18 @@ func (c *LLMClient) SendMessages(
 		fn = c.handleStreamingResponse
 	}
 
-	msg, err := fn(ctx, chatParams)
+	resp, err := fn(ctx, chatParams)
 	if err != nil {
 		return nil, err
 	}
 
-	// Process tool/turn here?
-
-	chatMessages := make([]*chat.ChatMessage, 0)
-	chatMessages = append(chatMessages, msg)
-	return chatMessages, err
+	return resp, err
 }
 
 func (c *LLMClient) handleNonStreamingResponse(
 	ctx context.Context,
 	chatParams *chat.ChatParams,
-) (*chat.ChatMessage, error) {
+) (*chat.ChatResponse, error) {
 	resp, err := c.client.Send(ctx, *chatParams)
 	if err != nil {
 		return nil, fmt.Errorf("error chatting: %w", err)
@@ -76,7 +72,7 @@ func (c *LLMClient) handleNonStreamingResponse(
 func (c *LLMClient) handleStreamingResponse(
 	ctx context.Context,
 	chatParams *chat.ChatParams,
-) (*chat.ChatMessage, error) {
+) (*chat.ChatResponse, error) {
 	respChan, err := c.client.Stream(ctx, *chatParams)
 	if err != nil {
 		return nil, fmt.Errorf("error streaming response: %w", err)
@@ -90,7 +86,7 @@ func (c *LLMClient) handleStreamingResponse(
 	return c.processResponse(resp)
 }
 
-func (c *LLMClient) processResponse(resp *chat.ChatResponse) (*chat.ChatMessage, error) {
+func (c *LLMClient) processResponse(resp *chat.ChatResponse) (*chat.ChatResponse, error) {
 	if resp == nil {
 		return nil, fmt.Errorf("error processing response, nil response")
 	}
@@ -114,5 +110,5 @@ func (c *LLMClient) processResponse(resp *chat.ChatResponse) (*chat.ChatMessage,
 		"output_reasoning_tokens",
 		resp.Usage.OutputReasoningTokens,
 	)
-	return msgParams, nil
+	return resp, nil
 }
