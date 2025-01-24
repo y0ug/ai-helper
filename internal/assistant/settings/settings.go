@@ -1,9 +1,9 @@
 package settings
 
 import (
+	"github.com/y0ug/ai-helper/internal/assistant/extractor"
 	"github.com/y0ug/ai-helper/internal/assistant/models"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
-	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
 )
 
 type CoderSettings struct {
@@ -21,7 +21,7 @@ type CoderSettings struct {
 	lastCommitHash string
 	platformInfo   string
 	isGit          bool
-	fence          responseextractor.Fence
+	fence          extractor.Fence
 	rootPath       string
 }
 

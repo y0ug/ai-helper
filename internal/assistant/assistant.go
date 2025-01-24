@@ -3,33 +3,46 @@ package assistant
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 
+	"github.com/y0ug/ai-helper/internal/assistant/extractor"
+	"github.com/y0ug/ai-helper/internal/assistant/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
-	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type BaseCoder struct {
-	logger        *slog.Logger
-	llmClient     *LLMClient
-	prompts       prompts.Prompter
-	rm            repomanager.RepoManagerInterface
-	settings      *settings.CoderSettings
-	processor     *MessageProcessor
-	history       *ChatHistory
-	formatter     *MessageFormatter
-	respExtractor []responseextractor.ResponseExtractor
+type AssistantOptions struct {
+	MainModel    *models.Model
+	RepoManager  repomanager.RepoManagerInterface
+	LlmClient    chat.Provider
+	Logger       *slog.Logger
+	Prompts      prompts.Prompter
+	Settings     *settings.CoderSettings
+	StreamWriter io.Writer
+	Stream       bool
 }
 
-func NewBaseCoder(opts CoderOptions) *BaseCoder {
-	history := NewChatHistory()
-	formatter := NewMessageFormatter(opts.Logger, opts.RepoManager, opts.Prompts, opts.Settings)
+type AssistantOrchestrator struct {
+	logger     *slog.Logger
+	llmClient  *LLMClient
+	prompts    prompts.Prompter
+	rm         repomanager.RepoManagerInterface
+	settings   *settings.CoderSettings
+	processor  *ActionExecutor
+	history    *ChatHistory
+	formatter  *PromptFormatter
+	extractors []extractor.ResponseExtractor
+}
 
-	c := &BaseCoder{
+func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
+	history := NewChatHistory()
+	formatter := NewPromptFormatter(opts.Logger, opts.RepoManager, opts.Prompts, opts.Settings)
+
+	c := &AssistantOrchestrator{
 		rm:        opts.RepoManager,
 		logger:    opts.Logger,
 		settings:  opts.Settings,
@@ -55,18 +68,18 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 
 	// Should handle this better
 	c.SetPrompts(opts.Prompts)
-	processor := NewMessageProcessor(
+	processor := NewActionExecutor(
 		opts.Logger,
 		opts.RepoManager,
 		history,
 		formatter,
 		opts.Settings,
 		opts.Prompts,
-		c.respExtractor,
+		c.extractors,
 	)
 	c.processor = processor
 	re := make([]string, 0)
-	for _, e := range c.respExtractor {
+	for _, e := range c.extractors {
 		re = append(re, e.GetName())
 	}
 
@@ -82,17 +95,17 @@ func NewBaseCoder(opts CoderOptions) *BaseCoder {
 	return c
 }
 
-func (c *BaseCoder) SetPrompts(pts prompts.Prompter) {
+func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
 	c.prompts = pts
 
-	extractors := strings.Split(c.getPrompts().GetEditFormat(), "\n")
-	for _, name := range extractors {
-		extractor := responseextractor.New(responseextractor.ExtractorType(name), c.logger)
-		if extractor == nil {
-			c.logger.Error("Error creating extractor", "name", extractor)
+	extractorNames := strings.Split(c.getPrompts().GetEditFormat(), "\n")
+	for _, name := range extractorNames {
+		extractorName := extractor.New(extractor.ExtractorType(name), c.logger)
+		if extractorName == nil {
+			c.logger.Error("Error creating extractor", "name", extractorName)
 			continue
 		}
-		c.respExtractor = append(c.respExtractor, extractor)
+		c.extractors = append(c.extractors, extractorName)
 	}
 
 	// c.templateHandler = prompts.NewTemplateHandler(
@@ -102,15 +115,15 @@ func (c *BaseCoder) SetPrompts(pts prompts.Prompter) {
 	// )
 }
 
-func (c *BaseCoder) GetRM() repomanager.RepoManagerInterface {
+func (c *AssistantOrchestrator) GetRM() repomanager.RepoManagerInterface {
 	return c.rm
 }
 
-func (c *BaseCoder) getPrompts() prompts.Prompter {
+func (c *AssistantOrchestrator) getPrompts() prompts.Prompter {
 	return c.prompts
 }
 
-func (c *BaseCoder) initBeforeMessage() {
+func (c *AssistantOrchestrator) initBeforeMessage() {
 	// Reset state before processing a new message
 	// if c.rm.GetGit() != nil {
 	// 	// Should commit before message
@@ -123,12 +136,12 @@ func (c *BaseCoder) initBeforeMessage() {
 	// }
 }
 
-func (c *BaseCoder) Run(message string) error {
+func (c *AssistantOrchestrator) Run(message string) error {
 	c.initBeforeMessage()
 	return c.SendMessage(message)
 }
 
-func (c *BaseCoder) SendMessage(message string) error {
+func (c *AssistantOrchestrator) SendMessage(message string) error {
 	// Add user message
 	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
 
@@ -139,7 +152,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
 		messages.Cur = c.history.GetCurrentMessages()
 		tools := make([]chat.Tool, 0)
-		for _, e := range c.respExtractor {
+		for _, e := range c.extractors {
 			tools = append(tools, e.GetChatTools()...)
 		}
 
@@ -173,7 +186,7 @@ func (c *BaseCoder) SendMessage(message string) error {
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
-func (c *BaseCoder) FormatMessages() *ChatChunks {
+func (c *AssistantOrchestrator) FormatMessages() *PromptChunks {
 	chunks := c.formatter.FormatMessages(c.history)
 
 	return chunks

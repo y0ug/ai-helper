@@ -1,4 +1,4 @@
-package responseextractor
+package extractor
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type BlockExtractor struct {
+type EditBlockExtractor struct {
 	fence  Fence
 	logger *slog.Logger
 	format ExtractorType
@@ -29,12 +29,12 @@ var (
 	replaceRe = regexp.MustCompile(`^>{5,9} REPLACE\s*$`)
 )
 
-func NewBlockExtractor(
+func NewEditBlockExtractor(
 	logger *slog.Logger,
 	format ExtractorType,
 	fence Fence,
-) *BlockExtractor {
-	return &BlockExtractor{
+) *EditBlockExtractor {
+	return &EditBlockExtractor{
 		fence:  fence,
 		logger: logger,
 		format: format,
@@ -42,23 +42,23 @@ func NewBlockExtractor(
 	}
 }
 
-func (c *BlockExtractor) GetName() string {
+func (c *EditBlockExtractor) GetName() string {
 	return c.name
 }
 
-func (c *BlockExtractor) GetFormat() ExtractorType {
+func (c *EditBlockExtractor) GetFormat() ExtractorType {
 	return c.format
 }
 
-func (c *BlockExtractor) SetFence(fence Fence) {
+func (c *EditBlockExtractor) SetFence(fence Fence) {
 	c.fence = fence
 }
 
-func (c *BlockExtractor) GetChatTools() []chat.Tool {
+func (c *EditBlockExtractor) GetChatTools() []chat.Tool {
 	return nil
 }
 
-func (c *BlockExtractor) Extract(
+func (c *EditBlockExtractor) Extract(
 	msg *chat.ChatMessage,
 ) ([]actions.Action[any], error) {
 	results := make([]actions.Action[any], 0)
@@ -75,7 +75,7 @@ func NewActionEdit(edit actions.ApplyEdit) actions.Action[any] {
 	return actions.NewParsedAction(edit)
 }
 
-func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
+func (c *EditBlockExtractor) getEdits(content string) []actions.Action[any] {
 	var results []actions.Action[any]
 	lines := strings.Split(content, "\n")
 	i := 0
@@ -109,7 +109,7 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action[any] {
 	return results
 }
 
-func (c *BlockExtractor) extractEditBlock(
+func (c *EditBlockExtractor) extractEditBlock(
 	lines []string,
 	start int,
 ) (*actions.ApplyEdit, int, error) {
@@ -148,7 +148,7 @@ func (c *BlockExtractor) extractEditBlock(
 	return edit, i, nil
 }
 
-func (c *BlockExtractor) findFilename(lines []string, current int) string {
+func (c *EditBlockExtractor) findFilename(lines []string, current int) string {
 	// Look in previous 3 lines for filename
 	for i := current - 1; i >= 0 && i >= current-3; i-- {
 		fname := strings.TrimSpace(lines[i])

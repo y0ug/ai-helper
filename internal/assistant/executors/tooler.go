@@ -1,4 +1,4 @@
-package responseextractor
+package executors
 
 import (
 	"context"

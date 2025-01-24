@@ -1,14 +1,14 @@
-package actiontools
+package executors
 
 import (
 	"fmt"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
+	"github.com/y0ug/ai-helper/internal/assistant/extractor"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
 
-func (c *ActionTools) ApplyEdits(
+func (c *Executor) ApplyEdits(
 	fm filemanager.FileManager,
 	dryrun bool,
 	edits ...actions.ApplyEdit,
@@ -34,7 +34,7 @@ func (c *ActionTools) ApplyEdits(
 			continue
 		}
 
-		newContent := responseextractor.ApplyEdit(string(content), edit.Original, edit.Updated)
+		newContent := extractor.ApplyEdit(string(content), edit.Original, edit.Updated)
 		if newContent == string(content) {
 			err = fmt.Errorf("new content is the same as the original content")
 			c.logger.Error("new content is the same as the original content", "error", err)

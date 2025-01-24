@@ -4,7 +4,11 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type ChatChunks struct {
+// This struct is used to store a PromptChunks state
+// this allow to do turn with the LLM and new response messages
+// without regenrating the whole prompt where that would
+// update the file added  content for examples
+type PromptChunks struct {
 	System        []*chat.ChatMessage
 	Examples      []*chat.ChatMessage
 	Done          []*chat.ChatMessage
@@ -15,7 +19,7 @@ type ChatChunks struct {
 	Reminder      []*chat.ChatMessage
 }
 
-func (c *ChatChunks) AllMessages() []*chat.ChatMessage {
+func (c *PromptChunks) AllMessages() []*chat.ChatMessage {
 	var messages []*chat.ChatMessage
 	messages = append(messages, c.System...)
 	messages = append(messages, c.Examples...)
@@ -28,7 +32,7 @@ func (c *ChatChunks) AllMessages() []*chat.ChatMessage {
 	return messages
 }
 
-func (c *ChatChunks) AddCacheControlHeaders() {
+func (c *PromptChunks) AddCacheControlHeaders() {
 	// c.AddCacheControl(c.System)
 	// c.AddCacheControl(c.ReadOnlyFiles)
 	// c.AddCacheControl(c.ChatFiles)
@@ -51,7 +55,7 @@ func (c *ChatChunks) AddCacheControlHeaders() {
 	c.AddCacheControl(c.ChatFiles)
 }
 
-func (c *ChatChunks) AddCacheControl(messages []*chat.ChatMessage) {
+func (c *PromptChunks) AddCacheControl(messages []*chat.ChatMessage) {
 	for _, msg := range messages {
 		msg.SetCache()
 	}

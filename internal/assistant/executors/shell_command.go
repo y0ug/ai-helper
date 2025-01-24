@@ -1,4 +1,4 @@
-package actiontools
+package executors
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 var Fence = "`"
 
-func (c *ActionTools) ShellCommand(
+func (c *Executor) ShellCommand(
 	command string,
 ) ([]actions.Action[any], error) {
 	results := make([]actions.Action[any], 0)

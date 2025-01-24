@@ -1,4 +1,4 @@
-package responseextractor
+package extractor
 
 import (
 	"math"

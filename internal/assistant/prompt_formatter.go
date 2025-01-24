@@ -11,7 +11,7 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type MessageFormatter struct {
+type PromptFormatter struct {
 	logger          *slog.Logger
 	templateHandler *prompts.TemplateHandler
 	rm              repomanager.RepoManagerInterface
@@ -19,10 +19,10 @@ type MessageFormatter struct {
 	settings        *settings.CoderSettings
 }
 
-func (mf *MessageFormatter) FormatMessages(history *ChatHistory) *ChatChunks {
+func (mf *PromptFormatter) FormatMessages(history *ChatHistory) *PromptChunks {
 	mf.rm.ChooseFence()
 	mf.settings.Update(mf.rm)
-	chunks := &ChatChunks{}
+	chunks := &PromptChunks{}
 
 	// Add system messages
 	exampleMessages := make([]*chat.ChatMessage, 0)
@@ -102,10 +102,10 @@ func (mf *MessageFormatter) FormatMessages(history *ChatHistory) *ChatChunks {
 	return chunks
 }
 
-func NewMessageFormatter(logger *slog.Logger, rm repomanager.RepoManagerInterface,
+func NewPromptFormatter(logger *slog.Logger, rm repomanager.RepoManagerInterface,
 	p prompts.Prompter, settings *settings.CoderSettings,
-) *MessageFormatter {
-	return &MessageFormatter{
+) *PromptFormatter {
+	return &PromptFormatter{
 		logger:          logger,
 		rm:              rm,
 		prompts:         p,
@@ -114,15 +114,15 @@ func NewMessageFormatter(logger *slog.Logger, rm repomanager.RepoManagerInterfac
 	}
 }
 
-func (mf *MessageFormatter) RenderPrompt(tmpl string) string {
+func (mf *PromptFormatter) RenderPrompt(tmpl string) string {
 	return mf.templateHandler.Render(tmpl)
 }
 
-func (mf *MessageFormatter) RenderPromptData(tmpl string, data map[string]interface{}) string {
+func (mf *PromptFormatter) RenderPromptData(tmpl string, data map[string]interface{}) string {
 	return mf.templateHandler.RenderData(tmpl, data)
 }
 
-func (mf *MessageFormatter) GetRepoMessages() []*chat.ChatMessage {
+func (mf *PromptFormatter) GetRepoMessages() []*chat.ChatMessage {
 	repoContent := mf.rm.GetRepoMap()
 	if repoContent == "" {
 		return nil
@@ -137,7 +137,7 @@ func (mf *MessageFormatter) GetRepoMessages() []*chat.ChatMessage {
 	}
 }
 
-func (mf *MessageFormatter) GetReadOnlyFilesMessages() []*chat.ChatMessage {
+func (mf *PromptFormatter) GetReadOnlyFilesMessages() []*chat.ChatMessage {
 	content := mf.rm.GetReadOnlyFilesContent()
 	if content == "" {
 		return nil
@@ -155,7 +155,7 @@ func (mf *MessageFormatter) GetReadOnlyFilesMessages() []*chat.ChatMessage {
 	}
 }
 
-func (mf *MessageFormatter) GetChatFilesMessages() []*chat.ChatMessage {
+func (mf *PromptFormatter) GetChatFilesMessages() []*chat.ChatMessage {
 	if len(mf.rm.GetFM().List(0)) == 0 {
 		if mf.rm.GetRepoMap() != "" && mf.prompts.GetFilesNoFullFilesWithRepoMap() != "" {
 			return []*chat.ChatMessage{

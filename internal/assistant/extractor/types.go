@@ -1,4 +1,4 @@
-package responseextractor
+package extractor
 
 import (
 	"fmt"
@@ -56,9 +56,9 @@ func New(editFormat ExtractorType, logger *slog.Logger) ResponseExtractor {
 	fence := DefaultFences[0]
 	switch editFormat {
 	case ExtractorEditDiff:
-		return NewBlockExtractor(logger, editFormat, fence)
+		return NewEditBlockExtractor(logger, editFormat, fence)
 	case ExtractorEditDiffFenced:
-		return NewBlockExtractor(logger, editFormat, fence)
+		return NewEditBlockExtractor(logger, editFormat, fence)
 	case ExtractorEditFuncWhole:
 		return NewFuncWholeExtractor(logger, editFormat, fence)
 	default:

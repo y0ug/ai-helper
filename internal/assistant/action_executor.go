@@ -5,42 +5,42 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/actiontools"
+	"github.com/y0ug/ai-helper/internal/assistant/executors"
+	"github.com/y0ug/ai-helper/internal/assistant/extractor"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
-	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
-type MessageProcessor struct {
-	logger            *slog.Logger
-	rm                repomanager.RepoManagerInterface
-	history           *ChatHistory
-	formatter         *MessageFormatter
-	settings          *settings.CoderSettings
-	responseExtractor []responseextractor.ResponseExtractor
-	prompts           prompts.Prompter
-	actionQueue       *ActionQueue
+type ActionExecutor struct {
+	logger      *slog.Logger
+	rm          repomanager.RepoManagerInterface
+	history     *ChatHistory
+	formatter   *MessageFormatter
+	settings    *settings.CoderSettings
+	extractors  []extractor.ResponseExtractor
+	prompts     prompts.Prompter
+	actionQueue *ActionQueue
 }
 
-func NewMessageProcessor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
+func NewActionExecutor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
 	history *ChatHistory, formatter *MessageFormatter, settings *settings.CoderSettings,
-	prompts prompts.Prompter, responseExtractor []responseextractor.ResponseExtractor,
-) *MessageProcessor {
-	return &MessageProcessor{
-		logger:            logger,
-		rm:                rm,
-		history:           history,
-		formatter:         formatter,
-		settings:          settings,
-		prompts:           prompts,
-		responseExtractor: responseExtractor,
-		actionQueue:       NewActionQueue(),
+	prompts prompts.Prompter, responseExtractor []extractor.ResponseExtractor,
+) *ActionExecutor {
+	return &ActionExecutor{
+		logger:      logger,
+		rm:          rm,
+		history:     history,
+		formatter:   formatter,
+		settings:    settings,
+		prompts:     prompts,
+		extractors:  responseExtractor,
+		actionQueue: NewActionQueue(),
 	}
 }
 
-func (mp *MessageProcessor) ProcessResponse(resp *chat.ChatResponse) error {
+func (mp *ActionExecutor) ProcessResponse(resp *chat.ChatResponse) error {
 	if len(resp.Choice) == 0 {
 		return fmt.Errorf("no choice returned from LLM")
 	}
@@ -78,12 +78,12 @@ func (mp *MessageProcessor) ProcessResponse(resp *chat.ChatResponse) error {
 	return nil
 }
 
-func (mp *MessageProcessor) ProcessResponseExtractor(
+func (mp *ActionExecutor) ProcessResponseExtractor(
 	msg *chat.ChatMessage,
 ) []actions.Action[any] {
 	allActions := make([]actions.Action[any], 0)
 
-	for _, extractor := range mp.responseExtractor {
+	for _, extractor := range mp.extractors {
 		results, err := extractor.Extract(msg)
 		if err != nil {
 			mp.logger.Error("Error extracting response", "error", err)
@@ -100,7 +100,7 @@ func (mp *MessageProcessor) ProcessResponseExtractor(
 }
 
 // This handle should be used to commit after all the changed
-func (mp *MessageProcessor) handleSuccessfulEdit() error {
+func (mp *ActionExecutor) handleSuccessfulEdit() error {
 	commitMsg := "apply diff"
 	if err := mp.rm.GetFM().Commit(commitMsg); err != nil {
 		mp.logger.Error("Error committing", "error", err)
@@ -117,12 +117,12 @@ func (mp *MessageProcessor) handleSuccessfulEdit() error {
 	return nil
 }
 
-func (mp *MessageProcessor) handleToolResult(toolResultMsg *chat.ChatMessage) error {
+func (mp *ActionExecutor) handleToolResult(toolResultMsg *chat.ChatMessage) error {
 	mp.history.AddMessage(toolResultMsg)
 	return nil
 }
 
-func (mp *MessageProcessor) processActionQueue() {
+func (mp *ActionExecutor) processActionQueue() {
 	for {
 		action, ok := mp.actionQueue.Dequeue()
 		if !ok {
@@ -136,7 +136,7 @@ func (mp *MessageProcessor) processActionQueue() {
 	}
 }
 
-func (mp *MessageProcessor) handleAction(action actions.Action[any]) error {
+func (mp *ActionExecutor) handleAction(action actions.Action[any]) error {
 	mp.logger.Debug("HandleAction invoked", "type", action.Type)
 
 	payload := action.Payload
@@ -157,10 +157,10 @@ func (mp *MessageProcessor) handleAction(action actions.Action[any]) error {
 	return nil
 }
 
-func (mp *MessageProcessor) handleShellCommand(shellCommand actions.ShellCommand) error {
+func (mp *ActionExecutor) handleShellCommand(shellCommand actions.ShellCommand) error {
 	mp.logger.Info("Handling shellCommand", "command", shellCommand.Command)
 
-	actionTools := actiontools.NewActionTools(mp.logger)
+	actionTools := executors.NewActionTools(mp.logger)
 	actions, err := actionTools.ShellCommand(shellCommand.Command)
 	if err != nil {
 		return fmt.Errorf("error running shell command: %w", err)
@@ -169,13 +169,13 @@ func (mp *MessageProcessor) handleShellCommand(shellCommand actions.ShellCommand
 	return nil
 }
 
-func (mp *MessageProcessor) handleSendChatMessage(sendChatMessage actions.SendChatMessage) error {
+func (mp *ActionExecutor) handleSendChatMessage(sendChatMessage actions.SendChatMessage) error {
 	mp.logger.Info("Handling sendChatMessage", "message", sendChatMessage.Msg)
 	mp.history.AddMessage(&sendChatMessage.Msg)
 	return nil
 }
 
-func (mp *MessageProcessor) handleToolResultAction(
+func (mp *ActionExecutor) handleToolResultAction(
 	toolResultAction actions.ToolResultAction,
 ) error {
 	mp.logger.Info(
@@ -198,11 +198,11 @@ func (mp *MessageProcessor) handleToolResultAction(
 	return nil
 }
 
-func (mp *MessageProcessor) handleApplyEdit(edit actions.ApplyEdit) error {
+func (mp *ActionExecutor) handleApplyEdit(edit actions.ApplyEdit) error {
 	mp.logger.Info("Handling applyEdit", "filename", edit.Filename)
 
 	// Possibly reuse the ActionTools
-	actionTools := actiontools.NewActionTools(mp.logger)
+	actionTools := executors.NewActionTools(mp.logger)
 	newActions, err := actionTools.ApplyEdits(mp.rm.GetFM(), false, edit)
 	if err != nil {
 		mp.logger.Error("Error applying edits", "error", err)
@@ -220,7 +220,7 @@ func (mp *MessageProcessor) handleApplyEdit(edit actions.ApplyEdit) error {
 	return nil
 }
 
-func (mp *MessageProcessor) handleAwaitUserInput(userInputAction actions.AwaitUserInput) error {
+func (mp *ActionExecutor) handleAwaitUserInput(userInputAction actions.AwaitUserInput) error {
 	mp.logger.Info("Awaiting user input", "question", userInputAction.Question)
 	// // 1) Output the question to user
 	// mp.history.AddMessage(chat.NewMessage("assistant",

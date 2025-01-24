@@ -12,7 +12,7 @@ import (
 )
 
 type Console struct {
-	coder       *assistant.BaseCoder
+	coder       *assistant.AssistantOrchestrator
 	h           *highlighter.Highlighter
 	commands    map[string]Command
 	pt          *prompt.Prompt
@@ -27,7 +27,7 @@ func getHistoryFilePath() string {
 	return filepath.Join(usr.HomeDir, ".ai-coder-history")
 }
 
-func New(coder *assistant.BaseCoder, h *highlighter.Highlighter) *Console {
+func New(coder *assistant.AssistantOrchestrator, h *highlighter.Highlighter) *Console {
 	c := &Console{
 		coder:       coder,
 		h:           h,

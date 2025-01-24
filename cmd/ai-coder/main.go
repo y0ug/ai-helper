@@ -109,7 +109,7 @@ func main() {
 	h := highlighter.NewHighlighter(os.Stdout)
 	coderSettings := settings.NewCoderSettings(modelCoder)
 
-	coderOpts := assistant.CoderOptions{
+	coderOpts := assistant.AssistantOptions{
 		Logger:       logger,
 		LlmClient:    llmClient,
 		RepoManager:  rm,
@@ -119,7 +119,7 @@ func main() {
 		Stream:       true,
 	}
 
-	coder := assistant.NewBaseCoder(coderOpts)
+	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
 	console := consolecoder.New(coder, h)
 	console.Run()
