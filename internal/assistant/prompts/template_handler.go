@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"text/template"
 
-	"github.com/y0ug/ai-helper/internal/coder/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/settings"
 )
 
 type TemplateHandler struct {

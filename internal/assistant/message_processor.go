@@ -1,15 +1,15 @@
-package coder
+package assistant
 
 import (
 	"fmt"
 	"log/slog"
 
-	"github.com/y0ug/ai-helper/internal/coder/actions"
-	"github.com/y0ug/ai-helper/internal/coder/actiontools"
-	"github.com/y0ug/ai-helper/internal/coder/prompts"
-	"github.com/y0ug/ai-helper/internal/coder/repomanager"
-	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
-	"github.com/y0ug/ai-helper/internal/coder/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/actiontools"
+	"github.com/y0ug/ai-helper/internal/assistant/prompts"
+	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
+	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
+	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 

@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"github.com/c-bata/go-prompt"
-	"github.com/y0ug/ai-helper/internal/coder"
+	"github.com/y0ug/ai-helper/internal/assistant"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 )
 
 type Console struct {
-	coder       *coder.BaseCoder
+	coder       *assistant.BaseCoder
 	h           *highlighter.Highlighter
 	commands    map[string]Command
 	pt          *prompt.Prompt
@@ -27,7 +27,7 @@ func getHistoryFilePath() string {
 	return filepath.Join(usr.HomeDir, ".ai-coder-history")
 }
 
-func New(coder *coder.BaseCoder, h *highlighter.Highlighter) *Console {
+func New(coder *assistant.BaseCoder, h *highlighter.Highlighter) *Console {
 	c := &Console{
 		coder:       coder,
 		h:           h,

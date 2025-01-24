@@ -1,9 +1,9 @@
 package settings
 
 import (
-	"github.com/y0ug/ai-helper/internal/coder/models"
-	"github.com/y0ug/ai-helper/internal/coder/repomanager"
-	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
+	"github.com/y0ug/ai-helper/internal/assistant/models"
+	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
+	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
 )
 
 type CoderSettings struct {

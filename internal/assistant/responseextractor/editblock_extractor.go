@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/coder/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 

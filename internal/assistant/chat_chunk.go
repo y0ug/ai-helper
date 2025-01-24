@@ -1,4 +1,4 @@
-package coder
+package assistant
 
 import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"

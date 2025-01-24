@@ -1,7 +1,7 @@
-package coder
+package assistant
 
 import (
-	"github.com/y0ug/ai-helper/internal/coder/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
 )
 
 // TODO: Implement mutex

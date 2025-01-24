@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/lmittmann/tint"
-	"github.com/y0ug/ai-helper/internal/coder"
-	modelinfocoder "github.com/y0ug/ai-helper/internal/coder/models"
-	"github.com/y0ug/ai-helper/internal/coder/prompts"
-	"github.com/y0ug/ai-helper/internal/coder/repomanager"
-	"github.com/y0ug/ai-helper/internal/coder/settings"
+	"github.com/y0ug/ai-helper/internal/assistant"
+	modelinfocoder "github.com/y0ug/ai-helper/internal/assistant/models"
+	"github.com/y0ug/ai-helper/internal/assistant/prompts"
+	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
+	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
@@ -109,7 +109,7 @@ func main() {
 	h := highlighter.NewHighlighter(os.Stdout)
 	coderSettings := settings.NewCoderSettings(modelCoder)
 
-	coderOpts := coder.CoderOptions{
+	coderOpts := assistant.CoderOptions{
 		Logger:       logger,
 		LlmClient:    llmClient,
 		RepoManager:  rm,
@@ -119,7 +119,7 @@ func main() {
 		Stream:       true,
 	}
 
-	coder := coder.NewBaseCoder(coderOpts)
+	coder := assistant.NewBaseCoder(coderOpts)
 
 	console := consolecoder.New(coder, h)
 	console.Run()

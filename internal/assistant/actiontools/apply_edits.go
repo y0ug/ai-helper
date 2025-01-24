@@ -3,8 +3,8 @@ package actiontools
 import (
 	"fmt"
 
-	"github.com/y0ug/ai-helper/internal/coder/actions"
-	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
 

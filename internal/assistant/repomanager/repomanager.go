@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
+	"github.com/y0ug/ai-helper/internal/assistant/responseextractor"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"

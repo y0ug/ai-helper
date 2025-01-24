@@ -1,11 +1,11 @@
-package coder
+package assistant
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
 
-	"github.com/y0ug/ai-helper/internal/coder/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 

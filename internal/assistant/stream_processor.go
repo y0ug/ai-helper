@@ -1,4 +1,4 @@
-package coder
+package assistant
 
 import (
 	"context"
