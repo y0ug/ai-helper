@@ -2,29 +2,18 @@ package actiontools
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/coder/actions"
 	"github.com/y0ug/ai-helper/internal/coder/responseextractor"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 )
 
-type ActionTools struct {
-	logger *slog.Logger
-}
-
-func NewActionTools(logger *slog.Logger) *ActionTools {
-	return &ActionTools{
-		logger: logger,
-	}
-}
-
 func (c *ActionTools) ApplyEdits(
 	fm filemanager.FileManager,
 	dryrun bool,
 	edits ...actions.ApplyEdit,
 ) ([]actions.Action[any], error) {
-	actions := make([]actions.Action[any], 0)
+	results := make([]actions.Action[any], 0)
 
 	hasError := false
 	for _, edit := range edits {
@@ -83,7 +72,7 @@ func (c *ActionTools) ApplyEdits(
 		}
 	}
 	if hasError {
-		return actions, fmt.Errorf("failed to apply some edits check result actions")
+		return results, fmt.Errorf("failed to apply some edits check result actions")
 	}
-	return actions, nil
+	return results, nil
 }

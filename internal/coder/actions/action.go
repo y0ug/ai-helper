@@ -27,6 +27,15 @@ func NewParsedAction[T ActionPayload](payload T) Action[any] {
 	}
 }
 
+type SendChatMessage struct {
+	Msg        chat.ChatMessage `json:"msg"`
+	NeedRender bool             `json:"need_render"`
+}
+
+func (SendChatMessage) Type() ActionType {
+	return ActionType("send_chat_message")
+}
+
 type ApplyEdit struct {
 	Filename string `json:"filename"`
 	Original string `json:"original"`

@@ -147,10 +147,31 @@ func (mp *MessageProcessor) handleAction(action actions.Action[any]) error {
 		return mp.handleApplyEdit(v)
 	case actions.ToolResultAction:
 		return mp.handleToolResultAction(v)
-
+	case actions.SendChatMessage:
+		return mp.handleSendChatMessage(v)
+	case actions.ShellCommand:
+		return mp.handleShellCommand(v)
 	default:
 		mp.logger.Warn("Unknown action type", "actionType", action.Type, "type", fmt.Sprintf("%T", payload))
 	}
+	return nil
+}
+
+func (mp *MessageProcessor) handleShellCommand(shellCommand actions.ShellCommand) error {
+	mp.logger.Info("Handling shellCommand", "command", shellCommand.Command)
+
+	actionTools := actiontools.NewActionTools(mp.logger)
+	actions, err := actionTools.ShellCommand(shellCommand.Command)
+	if err != nil {
+		return fmt.Errorf("error running shell command: %w", err)
+	}
+	mp.actionQueue.Enqueue(actions...)
+	return nil
+}
+
+func (mp *MessageProcessor) handleSendChatMessage(sendChatMessage actions.SendChatMessage) error {
+	mp.logger.Info("Handling sendChatMessage", "message", sendChatMessage.Msg)
+	mp.history.AddMessage(&sendChatMessage.Msg)
 	return nil
 }
 

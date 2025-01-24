@@ -136,17 +136,6 @@ func (c *BaseCoder) SendMessage(message string) error {
 	i := 0
 	messages := c.FormatMessages()
 
-	for _, m := range messages.AllMessages() {
-		c.logger.Debug(
-			"msg",
-			"role",
-			m.Role,
-			"is_cacheable",
-			m.Content[0].IsCacheable(),
-			"content",
-			m.Content,
-		)
-	}
 	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
 		messages.Cur = c.history.GetCurrentMessages()
 		tools := make([]chat.Tool, 0)
@@ -155,7 +144,18 @@ func (c *BaseCoder) SendMessage(message string) error {
 		}
 
 		for _, tool := range tools {
-			c.logger.Debug("set tool", "name", tool.Name)
+			c.logger.Debug("SendMessage: tool", "name", tool.Name)
+		}
+		for _, m := range messages.AllMessages() {
+			c.logger.Debug(
+				"SendMessage: msg",
+				"role",
+				m.Role,
+				"is_cacheable",
+				m.Content[0].IsCacheable(),
+				"content",
+				m.Content,
+			)
 		}
 		resp, err := c.llmClient.SendMessages(context.Background(), messages, tools)
 		if err != nil {
