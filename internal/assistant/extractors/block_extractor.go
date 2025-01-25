@@ -78,27 +78,32 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 	var results []actions.Action
 	lines := strings.Split(content, "\n")
 	i := 0
+	var parentAction *actions.Action
 
 	for i < len(lines) {
+		// ... existing edit detection code ...
+
 		line := lines[i]
-		if isShellBlockStart(line) {
-			cmd, newI := extractShellCommand(lines, i)
-			results = append(results, actions.NewShellCommand(nil, cmd, false))
+		if headRe.MatchString(line) {
+			edit, newI, err := c.extractEditBlock(lines, i)
+			if err == nil {
+				if parentAction == nil {
+					parentAction = &edit // Store as parent for subsequent actions
+				}
+				results = append(results, edit)
+			}
 			i = newI
 			continue
 		}
 
-		if headRe.MatchString(strings.TrimSpace(line)) {
-			edit, newI, err := c.extractEditBlock(lines, i)
-			if err != nil {
-				// action := actions.NewParsedAction(actions.Error{Command: cmd})
-				// results = append(
-				// 	results,
-				// 	*NewActionError(NewExtractorError(c.GetName(), c.GetFormat(), err, newI)),
-				// )
-			} else {
-				results = append(results, edit)
+		if isShellBlockStart(line) {
+			cmd, newI := extractShellCommand(lines, i)
+			// Use parent action for shell command
+			action := actions.NewShellCommand(parentAction, cmd, false)
+			if parentAction == nil {
+				parentAction = &action
 			}
+			results = append(results, action)
 			i = newI
 			continue
 		}
@@ -144,12 +149,25 @@ func (c *BlockExtractor) extractEditBlock(
 }
 
 func (c *BlockExtractor) findFilename(lines []string, current int) string {
-	// Look in previous 3 lines for filename
+	codeBlockLanguages := map[string]bool{
+		"python": true, "bash": true, "sh": true,
+		"javascript": true, "go": true, "typescript": true,
+	}
+
 	for i := current - 1; i >= 0 && i >= current-3; i-- {
-		fname := strings.TrimSpace(lines[i])
-		if fname != "" && !strings.HasPrefix(fname, c.fence[0]) {
-			return fname
+		line := strings.TrimSpace(lines[i])
+
+		// Skip empty lines and code fences
+		if line == "" || strings.HasPrefix(line, c.fence[0]) {
+			continue
 		}
+
+		// Skip lines that are just code block language declarations
+		if _, isLang := codeBlockLanguages[strings.ToLower(line)]; isLang {
+			continue
+		}
+
+		return line
 	}
 	return ""
 }

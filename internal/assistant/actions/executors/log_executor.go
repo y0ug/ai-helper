@@ -30,5 +30,5 @@ func (e *LogExecutor) Handle(
 ) ([]actions.Action, error) {
 	log := action.Payload.(actions.LogAction)
 	e.logger.Info("Log", "Message", log.Message)
-	return []actions.Action{}, nil
+	return nil, nil
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/queue"
@@ -16,31 +18,34 @@ import (
 )
 
 type ActionExecutor struct {
-	logger     *slog.Logger
-	rm         repomanager.RepoManagerInterface
-	history    *ChatHistory
-	formatter  *PromptFormatter
-	settings   *settings.CoderSettings
-	extractors []extractors.Extractor
-	prompts    prompts.Prompter
-	executor   executors.Executor
-	queue      queue.ActionQueuer
+	logger        *slog.Logger
+	rm            repomanager.RepoManagerInterface
+	history       *ChatHistory
+	formatter     *PromptFormatter
+	settings      *settings.CoderSettings
+	extractors    []extractors.Extractor
+	prompts       prompts.Prompter
+	executor      executors.Executor
+	queue         queue.ActionQueuer
+	actionManager *actions.ActionManager
 }
 
 func NewActionExecutor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
 	history *ChatHistory, formatter *PromptFormatter, settings *settings.CoderSettings,
 	prompts prompts.Prompter, extractors []extractors.Extractor, executor executors.Executor,
 ) *ActionExecutor {
+	actionManager := actions.NewActionManager(logger)
 	return &ActionExecutor{
-		logger:     logger,
-		rm:         rm,
-		history:    history,
-		formatter:  formatter,
-		settings:   settings,
-		prompts:    prompts,
-		extractors: extractors,
-		executor:   executor,
-		queue:      queue.NewActionQueue(),
+		logger:        logger,
+		rm:            rm,
+		history:       history,
+		formatter:     formatter,
+		settings:      settings,
+		prompts:       prompts,
+		extractors:    extractors,
+		executor:      executor,
+		queue:         queue.NewActionQueue(),
+		actionManager: actionManager,
 	}
 }
 
@@ -58,6 +63,8 @@ func (mp *ActionExecutor) ProcessResponse(resp *chat.ChatResponse) error {
 	mp.history.AddMessage(msg)
 
 	_ = mp.ProcessResponseExtractor(msg)
+
+	mp.DumpActionChains()
 
 	if choice.StopReason == "end_turn" {
 		mp.history.MoveCurrentToDone("")
@@ -110,30 +117,77 @@ func (mp *ActionExecutor) processActionQueue() {
 	ctx := context.TODO()
 	for !mp.queue.IsEmpty() {
 		action, _ := mp.queue.Dequeue()
+
+		// Register action with manager before processing
+		mp.actionManager.RegisterAction(action)
+
+		// Log registration
+		mp.logger.Debug("Processing action",
+			"type", action.Type,
+			"chainID", action.Context.ChainID,
+			"parentID", action.Context.ParentID)
 		handler := mp.executor.GetHandler(action)
+
 		if handler == nil {
-			mp.logger.Error("No handler found for action type", "type", action.Type)
+			errMsg := fmt.Sprintf("No handler for %s action", action.Type)
+			mp.logger.Error(errMsg)
+			mp.actionManager.AddError(action.Context.ChainID, action, fmt.Errorf(errMsg))
+
+			// Create error followup action
+			errorAction := actions.NewLogAction(&action, errMsg)
+			mp.actionManager.RegisterAction(errorAction)
+			mp.queue.Enqueue(errorAction)
 			continue
 		}
 		results, err := handler.Handle(ctx, action)
 		if err != nil {
 			mp.logger.Error("Error handling action", "error", err)
 		}
-		// for _, result := range results {
-		// 	mp.logger.Debug("Result Handle", "result", result)
-		// }
 
-		// Enqueue any resulting actions
-		if len(results) > 0 {
-			mp.logger.Debug("Enqueuing follow-up actions", "count", len(results))
-			mp.queue.Enqueue(results...)
+		// Register results and follow-up actions
+		for _, result := range results {
+			result.Completed = true
+			mp.actionManager.RegisterAction(result)
+			// mp.actionManager.AddResult(result.Context.ChainID, result.String())
+			mp.actionManager.AddResult(action.Context.ChainID,
+				fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
+			mp.logger.Debug("Registered result action",
+				"type", result.Type,
+				"chainID", result.Context.ChainID)
 		}
 
-		// // Track results
-		// if action.Context.ToolCallID != "" {
-		// 	for _, result := range results {
-		// 		toolCallManager.AddResult(action.Context.ToolCallID, result)
-		// 	}
-		// }
+		if len(results) > 0 {
+			mp.queue.Enqueue(results...)
+		}
 	}
+}
+
+// Enhance DumpActionChains to show errors
+func (mp *ActionExecutor) DumpActionChains() {
+	for _, chain := range mp.actionManager.GetAllChains() {
+		fmt.Printf("Action Chain: %s\n", chain.ChainID)
+		fmt.Println("Execution Timeline:")
+		for i, action := range chain.Actions {
+			status := "✓"
+			if containsError(chain.Results, action.ID) {
+				status = "✗"
+			}
+			fmt.Printf("%s [%d] %s\n", status, i+1, action.String())
+		}
+		fmt.Println("\nDetailed Results:")
+		for _, result := range chain.Results {
+			fmt.Println("-", result)
+		}
+		fmt.Println("--------------------")
+	}
+}
+
+func containsError(results []string, actionID uuid.UUID) bool {
+	for _, result := range results {
+		if strings.Contains(result, actionID.String()) &&
+			(strings.Contains(result, "ERROR") || strings.Contains(result, "failed")) {
+			return true
+		}
+	}
+	return false
 }

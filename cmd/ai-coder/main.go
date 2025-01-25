@@ -2,13 +2,17 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/assistant"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	modelinfocoder "github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
@@ -109,6 +113,33 @@ func main() {
 	h := highlighter.NewHighlighter(os.Stdout)
 	coderSettings := settings.NewCoderSettings(modelCoder)
 
+	// Create channels
+	responseChan := make(chan executors.UserResponse, 10)
+	confirmChan := make(chan actions.Action, 10)
+
+	// Start user input handler
+	go func() {
+		for confirmAction := range confirmChan {
+			// Present confirmation to user
+			fmt.Printf(
+				"Allow command: %s? (y/n): ",
+				confirmAction.Payload.(actions.UserConfirmAction).Question,
+			)
+
+			// Get user response
+			var response string
+			fmt.Scanln(&response)
+
+			// Send response
+			responseChan <- executors.UserResponse{
+				Allowed:    strings.ToLower(response) == "y",
+				ParentID:   confirmAction.Context.ParentID.String(),
+				ChainID:    confirmAction.Context.ChainID.String(),
+				ToolCallID: confirmAction.Context.ToolCallID,
+			}
+		}
+	}()
+
 	coderOpts := assistant.AssistantOptions{
 		Logger:       logger,
 		LlmClient:    llmClient,
@@ -117,8 +148,9 @@ func main() {
 		StreamWriter: h,
 		Settings:     coderSettings,
 		Stream:       true,
+		ResponseChan: responseChan,
+		ConfirmChan:  confirmChan,
 	}
-
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
 	console := consolecoder.New(coder, h)

@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,10 +25,11 @@ type ActionContext struct {
 }
 
 type Action struct {
-	ID      uuid.UUID
-	Type    ActionType
-	Payload interface{}
-	Context ActionContext
+	ID        uuid.UUID
+	Type      ActionType
+	Payload   interface{}
+	Context   ActionContext
+	Completed bool
 }
 
 type ApplyEdit struct {
@@ -41,6 +43,8 @@ type ShellCommandAction struct {
 	NeedsConfirm bool
 	Confirmed    bool
 	Output       string
+	Executed     bool // Add execution state
+	Success      bool // Add success stat
 }
 
 func (s *ShellCommandAction) WithConfirmed(parentAction *Action) Action {
@@ -70,6 +74,59 @@ type UserResponseAction struct {
 	Context ActionContext
 }
 
+// func (a Action) String() string {
+// 	switch payload := a.Payload.(type) {
+// 	case ApplyEdit:
+// 		return fmt.Sprintf("Edit %s: %d chars replaced",
+// 			payload.Filename,
+// 			len(payload.Updated))
+// 	case ShellCommandAction:
+// 		return fmt.Sprintf("Command executed: %s (confirmed: %v)",
+// 			payload.Command,
+// 			payload.Confirmed)
+// 	case LogAction:
+// 		return fmt.Sprintf("LOG: %s", payload.Message)
+// 	default:
+// 		return fmt.Sprintf("Action %s (%s)", a.Type, a.ID)
+// 	}
+// }
+
+// In actions/action.go
+func (a Action) String() string {
+	switch v := a.Payload.(type) {
+	case ApplyEdit:
+		return fmt.Sprintf("EDIT %s: %q → %q",
+			v.Filename,
+			shorten(v.Original),
+			shorten(v.Updated))
+	case CommitAction:
+		return fmt.Sprintf("COMMIT: %s", v.Message)
+	case ShellCommandAction:
+		return fmt.Sprintf("CMD: %s (confirmed:%v)",
+			v.Command, v.Confirmed)
+	case LogAction:
+		return fmt.Sprintf("LOG: %s", v.Message)
+	default:
+		return fmt.Sprintf("ACTION-%s", a.Type)
+	}
+}
+
+// New helper method to maintain chain IDs
+func (a Action) WithChainID(parent *Action) Action {
+	if parent != nil {
+		a.Context.ChainID = parent.Context.ChainID
+		a.Context.ParentID = parent.ID
+	}
+	return a
+}
+
+func shorten(s string) string {
+	if len(s) > 20 {
+		return s[:17] + "..."
+	}
+	return s
+}
+
 // Helper to convert an action to an Array of actions
 func Slice(action ...Action) []Action {
 	return action
@@ -92,6 +149,11 @@ func NewActionWithParent(actionType ActionType, payload interface{}, parentActio
 			ToolCallID: parentAction.Context.ToolCallID,
 			CreatedAt:  time.Now(),
 		}
+	} else {
+		a.Context = ActionContext{
+			ChainID:   uuid.New(),
+			CreatedAt: time.Now(),
+		}
 	}
 	return a
 }
@@ -101,31 +163,39 @@ func NewApplyEdit(parentAction *Action, filename, original, updated string) Acti
 		Filename: filename,
 		Original: original,
 		Updated:  updated,
-	}, parentAction)
+	}, parentAction).WithChainID(parentAction) // Add this method
 }
+
+// func NewApplyEdit(parentAction *Action, filename, original, updated string) Action {
+// 	return NewActionWithParent(ActionTypeEdit, ApplyEdit{
+// 		Filename: filename,
+// 		Original: original,
+// 		Updated:  updated,
+// 	}, parentAction)
+// }
 
 func NewShellCommand(parentAction *Action, command string, needsConfirm bool) Action {
 	return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
 		Command:      command,
 		NeedsConfirm: needsConfirm,
-	}, parentAction)
+	}, parentAction).WithChainID(parentAction)
 }
 
 func NewUserConfirmAction(parentAction *Action, question string) Action {
 	return NewActionWithParent(ActionTypeUserConfirm, UserConfirmAction{
 		Question: question,
 		Context:  parentAction.Context,
-	}, parentAction)
+	}, parentAction).WithChainID(parentAction)
 }
 
 func NewCommitAction(parentAction *Action, message string) Action {
 	return NewActionWithParent(ActionTypeCommit, CommitAction{
 		Message: message,
-	}, parentAction)
+	}, parentAction).WithChainID(parentAction)
 }
 
 func NewLogAction(parentAction *Action, message string) Action {
 	return NewActionWithParent(ActionTypeLog, LogAction{
 		Message: message,
-	}, parentAction)
+	}, parentAction).WithChainID(parentAction)
 }

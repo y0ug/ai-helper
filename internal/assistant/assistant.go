@@ -28,6 +28,8 @@ type AssistantOptions struct {
 	Settings     *settings.CoderSettings
 	StreamWriter io.Writer
 	Stream       bool
+	ConfirmChan  chan actions.Action
+	ResponseChan chan executors.UserResponse
 }
 
 type AssistantOrchestrator struct {
@@ -73,18 +75,14 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	validator := validation.NewValidationPipeline(c.logger)
 	// validator.AddStep(validation.NewDryRunValidator())
 
-	responseChan := make(chan executors.UserResponse, 10)
-	confirmChan := make(chan actions.Action, 10)
-	registry := executors.NewRegistry()
-	registry.Register(executors.NewShellExecutor(
-		[]string{`.*`}, // Example safe patterns
-		// []string{`^ls$`, `^go test .*`}, // Example safe patterns
-		confirmChan,
+	registry := executors.NewRegistryFull(
 		c.logger,
-	))
-	registry.Register(executors.NewEditExecutor(c.rm, validator, c.logger))
-	registry.Register(executors.NewUserInteractionExecutor(responseChan, confirmChan, c.logger))
-	registry.Register(executors.NewLogExecutor(c.logger))
+		c.rm,
+		validator,
+		opts.ConfirmChan,
+		opts.ResponseChan,
+	)
+
 	// Should handle this better
 	c.SetPrompts(opts.Prompts)
 	processor := NewActionExecutor(

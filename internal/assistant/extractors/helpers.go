@@ -30,6 +30,11 @@ func ApplyEdit(content, original, updated string) string {
 	original = stripQuotedWrapping(original)
 	updated = stripQuotedWrapping(updated)
 
+	// Handle new file creation
+	if original == "" && content == "" {
+		return updated
+	}
+
 	// First try exact match
 	if idx := strings.Index(content, original); idx != -1 {
 		return content[:idx] + updated + content[idx+len(original):]
