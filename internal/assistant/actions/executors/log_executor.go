@@ -2,21 +2,14 @@ package executors
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 )
 
-type LogExecutor struct {
-	logger *slog.Logger
-}
+type LogExecutor struct{}
 
-func NewLogExecutor(
-	logger *slog.Logger,
-) *LogExecutor {
-	return &LogExecutor{
-		logger: logger,
-	}
+func NewLogExecutor() *LogExecutor {
+	return &LogExecutor{}
 }
 
 func (e *LogExecutor) CanHandle(action actions.Action) bool {
@@ -28,7 +21,8 @@ func (e *LogExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
 ) ([]actions.Action, error) {
+	logger := actions.GetLogger(ctx)
 	log := action.Payload.(actions.LogAction)
-	e.logger.Info("Log", "Message", log.Message)
+	logger.Info("Log", "Message", log.Message)
 	return nil, nil
 }

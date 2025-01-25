@@ -28,139 +28,139 @@ type Prompter interface {
 }
 
 
-// Implementing interface Prompter for EditorEditBlockPrompts
-func (p *EditorEditBlockPrompts) GetName() string {
+// Implementing interface Prompter for BasePrompts
+func (p *BasePrompts) GetName() string {
     return p.Name
 }
-func (p *EditorEditBlockPrompts) GetSystemReminder() string {
+func (p *BasePrompts) GetSystemReminder() string {
     return p.SystemReminder
 }
-func (p *EditorEditBlockPrompts) GetFilesContentGPTEdits() string {
+func (p *BasePrompts) GetFilesContentGPTEdits() string {
     return p.FilesContentGPTEdits
 }
-func (p *EditorEditBlockPrompts) GetFilesContentGPTEditsNoRepo() string {
+func (p *BasePrompts) GetFilesContentGPTEditsNoRepo() string {
     return p.FilesContentGPTEditsNoRepo
 }
-func (p *EditorEditBlockPrompts) GetFilesContentGPTNoEdits() string {
+func (p *BasePrompts) GetFilesContentGPTNoEdits() string {
     return p.FilesContentGPTNoEdits
 }
-func (p *EditorEditBlockPrompts) GetFilesContentLocalEdits() string {
+func (p *BasePrompts) GetFilesContentLocalEdits() string {
     return p.FilesContentLocalEdits
 }
-func (p *EditorEditBlockPrompts) GetLazyPrompt() string {
+func (p *BasePrompts) GetLazyPrompt() string {
     return p.LazyPrompt
 }
-func (p *EditorEditBlockPrompts) GetExampleMessages() []Message {
+func (p *BasePrompts) GetExampleMessages() []Message {
     return p.ExampleMessages
 }
-func (p *EditorEditBlockPrompts) GetFilesContentPrefix() string {
+func (p *BasePrompts) GetFilesContentPrefix() string {
     return p.FilesContentPrefix
 }
-func (p *EditorEditBlockPrompts) GetFilesContentAssistantReply() string {
+func (p *BasePrompts) GetFilesContentAssistantReply() string {
     return p.FilesContentAssistantReply
 }
-func (p *EditorEditBlockPrompts) GetFilesNoFullFiles() string {
+func (p *BasePrompts) GetFilesNoFullFiles() string {
     return p.FilesNoFullFiles
 }
-func (p *EditorEditBlockPrompts) GetFilesNoFullFilesWithRepoMap() string {
+func (p *BasePrompts) GetFilesNoFullFilesWithRepoMap() string {
     return p.FilesNoFullFilesWithRepoMap
 }
-func (p *EditorEditBlockPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
+func (p *BasePrompts) GetFilesNoFullFilesWithRepoMapReply() string {
     return p.FilesNoFullFilesWithRepoMapReply
 }
-func (p *EditorEditBlockPrompts) GetRepoContentPrefix() string {
+func (p *BasePrompts) GetRepoContentPrefix() string {
     return p.RepoContentPrefix
 }
-func (p *EditorEditBlockPrompts) GetReadOnlyFilesPrefix() string {
+func (p *BasePrompts) GetReadOnlyFilesPrefix() string {
     return p.ReadOnlyFilesPrefix
 }
-func (p *EditorEditBlockPrompts) GetShellCmdPrompt() string {
+func (p *BasePrompts) GetShellCmdPrompt() string {
     return p.ShellCmdPrompt
 }
-func (p *EditorEditBlockPrompts) GetShellCmdReminder() string {
+func (p *BasePrompts) GetShellCmdReminder() string {
     return p.ShellCmdReminder
 }
-func (p *EditorEditBlockPrompts) GetNoShellCmdPrompt() string {
+func (p *BasePrompts) GetNoShellCmdPrompt() string {
     return p.NoShellCmdPrompt
 }
-func (p *EditorEditBlockPrompts) GetNoShellCmdReminder() string {
+func (p *BasePrompts) GetNoShellCmdReminder() string {
     return p.NoShellCmdReminder
 }
-func (p *EditorEditBlockPrompts) GetMainSystem() string {
+func (p *BasePrompts) GetMainSystem() string {
     return p.MainSystem
 }
-func (p *EditorEditBlockPrompts) GetRedactedEditMessage() string {
+func (p *BasePrompts) GetRedactedEditMessage() string {
     return p.RedactedEditMessage
 }
-func (p *EditorEditBlockPrompts) GetEditFormat() string {
+func (p *BasePrompts) GetEditFormat() string {
     return p.EditFormat
 }
 
-// Implementing interface Prompter for EditorWholeFilePrompts
-func (p *EditorWholeFilePrompts) GetName() string {
+// Implementing interface Prompter for EditBlockFencedPrompts
+func (p *EditBlockFencedPrompts) GetName() string {
     return p.Name
 }
-func (p *EditorWholeFilePrompts) GetSystemReminder() string {
+func (p *EditBlockFencedPrompts) GetSystemReminder() string {
     return p.SystemReminder
 }
-func (p *EditorWholeFilePrompts) GetFilesContentGPTEdits() string {
+func (p *EditBlockFencedPrompts) GetFilesContentGPTEdits() string {
     return p.FilesContentGPTEdits
 }
-func (p *EditorWholeFilePrompts) GetFilesContentGPTEditsNoRepo() string {
+func (p *EditBlockFencedPrompts) GetFilesContentGPTEditsNoRepo() string {
     return p.FilesContentGPTEditsNoRepo
 }
-func (p *EditorWholeFilePrompts) GetFilesContentGPTNoEdits() string {
+func (p *EditBlockFencedPrompts) GetFilesContentGPTNoEdits() string {
     return p.FilesContentGPTNoEdits
 }
-func (p *EditorWholeFilePrompts) GetFilesContentLocalEdits() string {
+func (p *EditBlockFencedPrompts) GetFilesContentLocalEdits() string {
     return p.FilesContentLocalEdits
 }
-func (p *EditorWholeFilePrompts) GetLazyPrompt() string {
+func (p *EditBlockFencedPrompts) GetLazyPrompt() string {
     return p.LazyPrompt
 }
-func (p *EditorWholeFilePrompts) GetExampleMessages() []Message {
+func (p *EditBlockFencedPrompts) GetExampleMessages() []Message {
     return p.ExampleMessages
 }
-func (p *EditorWholeFilePrompts) GetFilesContentPrefix() string {
+func (p *EditBlockFencedPrompts) GetFilesContentPrefix() string {
     return p.FilesContentPrefix
 }
-func (p *EditorWholeFilePrompts) GetFilesContentAssistantReply() string {
+func (p *EditBlockFencedPrompts) GetFilesContentAssistantReply() string {
     return p.FilesContentAssistantReply
 }
-func (p *EditorWholeFilePrompts) GetFilesNoFullFiles() string {
+func (p *EditBlockFencedPrompts) GetFilesNoFullFiles() string {
     return p.FilesNoFullFiles
 }
-func (p *EditorWholeFilePrompts) GetFilesNoFullFilesWithRepoMap() string {
+func (p *EditBlockFencedPrompts) GetFilesNoFullFilesWithRepoMap() string {
     return p.FilesNoFullFilesWithRepoMap
 }
-func (p *EditorWholeFilePrompts) GetFilesNoFullFilesWithRepoMapReply() string {
+func (p *EditBlockFencedPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
     return p.FilesNoFullFilesWithRepoMapReply
 }
-func (p *EditorWholeFilePrompts) GetRepoContentPrefix() string {
+func (p *EditBlockFencedPrompts) GetRepoContentPrefix() string {
     return p.RepoContentPrefix
 }
-func (p *EditorWholeFilePrompts) GetReadOnlyFilesPrefix() string {
+func (p *EditBlockFencedPrompts) GetReadOnlyFilesPrefix() string {
     return p.ReadOnlyFilesPrefix
 }
-func (p *EditorWholeFilePrompts) GetShellCmdPrompt() string {
+func (p *EditBlockFencedPrompts) GetShellCmdPrompt() string {
     return p.ShellCmdPrompt
 }
-func (p *EditorWholeFilePrompts) GetShellCmdReminder() string {
+func (p *EditBlockFencedPrompts) GetShellCmdReminder() string {
     return p.ShellCmdReminder
 }
-func (p *EditorWholeFilePrompts) GetNoShellCmdPrompt() string {
+func (p *EditBlockFencedPrompts) GetNoShellCmdPrompt() string {
     return p.NoShellCmdPrompt
 }
-func (p *EditorWholeFilePrompts) GetNoShellCmdReminder() string {
+func (p *EditBlockFencedPrompts) GetNoShellCmdReminder() string {
     return p.NoShellCmdReminder
 }
-func (p *EditorWholeFilePrompts) GetMainSystem() string {
+func (p *EditBlockFencedPrompts) GetMainSystem() string {
     return p.MainSystem
 }
-func (p *EditorWholeFilePrompts) GetRedactedEditMessage() string {
+func (p *EditBlockFencedPrompts) GetRedactedEditMessage() string {
     return p.RedactedEditMessage
 }
-func (p *EditorWholeFilePrompts) GetEditFormat() string {
+func (p *EditBlockFencedPrompts) GetEditFormat() string {
     return p.EditFormat
 }
 
@@ -232,6 +232,74 @@ func (p *HelpPrompts) GetEditFormat() string {
     return p.EditFormat
 }
 
+// Implementing interface Prompter for EditorWholeFilePrompts
+func (p *EditorWholeFilePrompts) GetName() string {
+    return p.Name
+}
+func (p *EditorWholeFilePrompts) GetSystemReminder() string {
+    return p.SystemReminder
+}
+func (p *EditorWholeFilePrompts) GetFilesContentGPTEdits() string {
+    return p.FilesContentGPTEdits
+}
+func (p *EditorWholeFilePrompts) GetFilesContentGPTEditsNoRepo() string {
+    return p.FilesContentGPTEditsNoRepo
+}
+func (p *EditorWholeFilePrompts) GetFilesContentGPTNoEdits() string {
+    return p.FilesContentGPTNoEdits
+}
+func (p *EditorWholeFilePrompts) GetFilesContentLocalEdits() string {
+    return p.FilesContentLocalEdits
+}
+func (p *EditorWholeFilePrompts) GetLazyPrompt() string {
+    return p.LazyPrompt
+}
+func (p *EditorWholeFilePrompts) GetExampleMessages() []Message {
+    return p.ExampleMessages
+}
+func (p *EditorWholeFilePrompts) GetFilesContentPrefix() string {
+    return p.FilesContentPrefix
+}
+func (p *EditorWholeFilePrompts) GetFilesContentAssistantReply() string {
+    return p.FilesContentAssistantReply
+}
+func (p *EditorWholeFilePrompts) GetFilesNoFullFiles() string {
+    return p.FilesNoFullFiles
+}
+func (p *EditorWholeFilePrompts) GetFilesNoFullFilesWithRepoMap() string {
+    return p.FilesNoFullFilesWithRepoMap
+}
+func (p *EditorWholeFilePrompts) GetFilesNoFullFilesWithRepoMapReply() string {
+    return p.FilesNoFullFilesWithRepoMapReply
+}
+func (p *EditorWholeFilePrompts) GetRepoContentPrefix() string {
+    return p.RepoContentPrefix
+}
+func (p *EditorWholeFilePrompts) GetReadOnlyFilesPrefix() string {
+    return p.ReadOnlyFilesPrefix
+}
+func (p *EditorWholeFilePrompts) GetShellCmdPrompt() string {
+    return p.ShellCmdPrompt
+}
+func (p *EditorWholeFilePrompts) GetShellCmdReminder() string {
+    return p.ShellCmdReminder
+}
+func (p *EditorWholeFilePrompts) GetNoShellCmdPrompt() string {
+    return p.NoShellCmdPrompt
+}
+func (p *EditorWholeFilePrompts) GetNoShellCmdReminder() string {
+    return p.NoShellCmdReminder
+}
+func (p *EditorWholeFilePrompts) GetMainSystem() string {
+    return p.MainSystem
+}
+func (p *EditorWholeFilePrompts) GetRedactedEditMessage() string {
+    return p.RedactedEditMessage
+}
+func (p *EditorWholeFilePrompts) GetEditFormat() string {
+    return p.EditFormat
+}
+
 // Implementing interface Prompter for SingleWholeFileFunctionPrompts
 func (p *SingleWholeFileFunctionPrompts) GetName() string {
     return p.Name
@@ -300,71 +368,71 @@ func (p *SingleWholeFileFunctionPrompts) GetEditFormat() string {
     return p.EditFormat
 }
 
-// Implementing interface Prompter for BasePrompts
-func (p *BasePrompts) GetName() string {
+// Implementing interface Prompter for UdiffPrompts
+func (p *UdiffPrompts) GetName() string {
     return p.Name
 }
-func (p *BasePrompts) GetSystemReminder() string {
+func (p *UdiffPrompts) GetSystemReminder() string {
     return p.SystemReminder
 }
-func (p *BasePrompts) GetFilesContentGPTEdits() string {
+func (p *UdiffPrompts) GetFilesContentGPTEdits() string {
     return p.FilesContentGPTEdits
 }
-func (p *BasePrompts) GetFilesContentGPTEditsNoRepo() string {
+func (p *UdiffPrompts) GetFilesContentGPTEditsNoRepo() string {
     return p.FilesContentGPTEditsNoRepo
 }
-func (p *BasePrompts) GetFilesContentGPTNoEdits() string {
+func (p *UdiffPrompts) GetFilesContentGPTNoEdits() string {
     return p.FilesContentGPTNoEdits
 }
-func (p *BasePrompts) GetFilesContentLocalEdits() string {
+func (p *UdiffPrompts) GetFilesContentLocalEdits() string {
     return p.FilesContentLocalEdits
 }
-func (p *BasePrompts) GetLazyPrompt() string {
+func (p *UdiffPrompts) GetLazyPrompt() string {
     return p.LazyPrompt
 }
-func (p *BasePrompts) GetExampleMessages() []Message {
+func (p *UdiffPrompts) GetExampleMessages() []Message {
     return p.ExampleMessages
 }
-func (p *BasePrompts) GetFilesContentPrefix() string {
+func (p *UdiffPrompts) GetFilesContentPrefix() string {
     return p.FilesContentPrefix
 }
-func (p *BasePrompts) GetFilesContentAssistantReply() string {
+func (p *UdiffPrompts) GetFilesContentAssistantReply() string {
     return p.FilesContentAssistantReply
 }
-func (p *BasePrompts) GetFilesNoFullFiles() string {
+func (p *UdiffPrompts) GetFilesNoFullFiles() string {
     return p.FilesNoFullFiles
 }
-func (p *BasePrompts) GetFilesNoFullFilesWithRepoMap() string {
+func (p *UdiffPrompts) GetFilesNoFullFilesWithRepoMap() string {
     return p.FilesNoFullFilesWithRepoMap
 }
-func (p *BasePrompts) GetFilesNoFullFilesWithRepoMapReply() string {
+func (p *UdiffPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
     return p.FilesNoFullFilesWithRepoMapReply
 }
-func (p *BasePrompts) GetRepoContentPrefix() string {
+func (p *UdiffPrompts) GetRepoContentPrefix() string {
     return p.RepoContentPrefix
 }
-func (p *BasePrompts) GetReadOnlyFilesPrefix() string {
+func (p *UdiffPrompts) GetReadOnlyFilesPrefix() string {
     return p.ReadOnlyFilesPrefix
 }
-func (p *BasePrompts) GetShellCmdPrompt() string {
+func (p *UdiffPrompts) GetShellCmdPrompt() string {
     return p.ShellCmdPrompt
 }
-func (p *BasePrompts) GetShellCmdReminder() string {
+func (p *UdiffPrompts) GetShellCmdReminder() string {
     return p.ShellCmdReminder
 }
-func (p *BasePrompts) GetNoShellCmdPrompt() string {
+func (p *UdiffPrompts) GetNoShellCmdPrompt() string {
     return p.NoShellCmdPrompt
 }
-func (p *BasePrompts) GetNoShellCmdReminder() string {
+func (p *UdiffPrompts) GetNoShellCmdReminder() string {
     return p.NoShellCmdReminder
 }
-func (p *BasePrompts) GetMainSystem() string {
+func (p *UdiffPrompts) GetMainSystem() string {
     return p.MainSystem
 }
-func (p *BasePrompts) GetRedactedEditMessage() string {
+func (p *UdiffPrompts) GetRedactedEditMessage() string {
     return p.RedactedEditMessage
 }
-func (p *BasePrompts) GetEditFormat() string {
+func (p *UdiffPrompts) GetEditFormat() string {
     return p.EditFormat
 }
 
@@ -433,6 +501,74 @@ func (p *ArchitectPrompts) GetRedactedEditMessage() string {
     return p.RedactedEditMessage
 }
 func (p *ArchitectPrompts) GetEditFormat() string {
+    return p.EditFormat
+}
+
+// Implementing interface Prompter for AskPrompts
+func (p *AskPrompts) GetName() string {
+    return p.Name
+}
+func (p *AskPrompts) GetSystemReminder() string {
+    return p.SystemReminder
+}
+func (p *AskPrompts) GetFilesContentGPTEdits() string {
+    return p.FilesContentGPTEdits
+}
+func (p *AskPrompts) GetFilesContentGPTEditsNoRepo() string {
+    return p.FilesContentGPTEditsNoRepo
+}
+func (p *AskPrompts) GetFilesContentGPTNoEdits() string {
+    return p.FilesContentGPTNoEdits
+}
+func (p *AskPrompts) GetFilesContentLocalEdits() string {
+    return p.FilesContentLocalEdits
+}
+func (p *AskPrompts) GetLazyPrompt() string {
+    return p.LazyPrompt
+}
+func (p *AskPrompts) GetExampleMessages() []Message {
+    return p.ExampleMessages
+}
+func (p *AskPrompts) GetFilesContentPrefix() string {
+    return p.FilesContentPrefix
+}
+func (p *AskPrompts) GetFilesContentAssistantReply() string {
+    return p.FilesContentAssistantReply
+}
+func (p *AskPrompts) GetFilesNoFullFiles() string {
+    return p.FilesNoFullFiles
+}
+func (p *AskPrompts) GetFilesNoFullFilesWithRepoMap() string {
+    return p.FilesNoFullFilesWithRepoMap
+}
+func (p *AskPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
+    return p.FilesNoFullFilesWithRepoMapReply
+}
+func (p *AskPrompts) GetRepoContentPrefix() string {
+    return p.RepoContentPrefix
+}
+func (p *AskPrompts) GetReadOnlyFilesPrefix() string {
+    return p.ReadOnlyFilesPrefix
+}
+func (p *AskPrompts) GetShellCmdPrompt() string {
+    return p.ShellCmdPrompt
+}
+func (p *AskPrompts) GetShellCmdReminder() string {
+    return p.ShellCmdReminder
+}
+func (p *AskPrompts) GetNoShellCmdPrompt() string {
+    return p.NoShellCmdPrompt
+}
+func (p *AskPrompts) GetNoShellCmdReminder() string {
+    return p.NoShellCmdReminder
+}
+func (p *AskPrompts) GetMainSystem() string {
+    return p.MainSystem
+}
+func (p *AskPrompts) GetRedactedEditMessage() string {
+    return p.RedactedEditMessage
+}
+func (p *AskPrompts) GetEditFormat() string {
     return p.EditFormat
 }
 
@@ -572,207 +708,71 @@ func (p *EditBlockFunctionPrompts) GetEditFormat() string {
     return p.EditFormat
 }
 
-// Implementing interface Prompter for AskPrompts
-func (p *AskPrompts) GetName() string {
+// Implementing interface Prompter for EditorEditBlockPrompts
+func (p *EditorEditBlockPrompts) GetName() string {
     return p.Name
 }
-func (p *AskPrompts) GetSystemReminder() string {
+func (p *EditorEditBlockPrompts) GetSystemReminder() string {
     return p.SystemReminder
 }
-func (p *AskPrompts) GetFilesContentGPTEdits() string {
+func (p *EditorEditBlockPrompts) GetFilesContentGPTEdits() string {
     return p.FilesContentGPTEdits
 }
-func (p *AskPrompts) GetFilesContentGPTEditsNoRepo() string {
+func (p *EditorEditBlockPrompts) GetFilesContentGPTEditsNoRepo() string {
     return p.FilesContentGPTEditsNoRepo
 }
-func (p *AskPrompts) GetFilesContentGPTNoEdits() string {
+func (p *EditorEditBlockPrompts) GetFilesContentGPTNoEdits() string {
     return p.FilesContentGPTNoEdits
 }
-func (p *AskPrompts) GetFilesContentLocalEdits() string {
+func (p *EditorEditBlockPrompts) GetFilesContentLocalEdits() string {
     return p.FilesContentLocalEdits
 }
-func (p *AskPrompts) GetLazyPrompt() string {
+func (p *EditorEditBlockPrompts) GetLazyPrompt() string {
     return p.LazyPrompt
 }
-func (p *AskPrompts) GetExampleMessages() []Message {
+func (p *EditorEditBlockPrompts) GetExampleMessages() []Message {
     return p.ExampleMessages
 }
-func (p *AskPrompts) GetFilesContentPrefix() string {
+func (p *EditorEditBlockPrompts) GetFilesContentPrefix() string {
     return p.FilesContentPrefix
 }
-func (p *AskPrompts) GetFilesContentAssistantReply() string {
+func (p *EditorEditBlockPrompts) GetFilesContentAssistantReply() string {
     return p.FilesContentAssistantReply
 }
-func (p *AskPrompts) GetFilesNoFullFiles() string {
+func (p *EditorEditBlockPrompts) GetFilesNoFullFiles() string {
     return p.FilesNoFullFiles
 }
-func (p *AskPrompts) GetFilesNoFullFilesWithRepoMap() string {
+func (p *EditorEditBlockPrompts) GetFilesNoFullFilesWithRepoMap() string {
     return p.FilesNoFullFilesWithRepoMap
 }
-func (p *AskPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
+func (p *EditorEditBlockPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
     return p.FilesNoFullFilesWithRepoMapReply
 }
-func (p *AskPrompts) GetRepoContentPrefix() string {
+func (p *EditorEditBlockPrompts) GetRepoContentPrefix() string {
     return p.RepoContentPrefix
 }
-func (p *AskPrompts) GetReadOnlyFilesPrefix() string {
+func (p *EditorEditBlockPrompts) GetReadOnlyFilesPrefix() string {
     return p.ReadOnlyFilesPrefix
 }
-func (p *AskPrompts) GetShellCmdPrompt() string {
+func (p *EditorEditBlockPrompts) GetShellCmdPrompt() string {
     return p.ShellCmdPrompt
 }
-func (p *AskPrompts) GetShellCmdReminder() string {
+func (p *EditorEditBlockPrompts) GetShellCmdReminder() string {
     return p.ShellCmdReminder
 }
-func (p *AskPrompts) GetNoShellCmdPrompt() string {
+func (p *EditorEditBlockPrompts) GetNoShellCmdPrompt() string {
     return p.NoShellCmdPrompt
 }
-func (p *AskPrompts) GetNoShellCmdReminder() string {
+func (p *EditorEditBlockPrompts) GetNoShellCmdReminder() string {
     return p.NoShellCmdReminder
 }
-func (p *AskPrompts) GetMainSystem() string {
+func (p *EditorEditBlockPrompts) GetMainSystem() string {
     return p.MainSystem
 }
-func (p *AskPrompts) GetRedactedEditMessage() string {
+func (p *EditorEditBlockPrompts) GetRedactedEditMessage() string {
     return p.RedactedEditMessage
 }
-func (p *AskPrompts) GetEditFormat() string {
-    return p.EditFormat
-}
-
-// Implementing interface Prompter for EditBlockFencedPrompts
-func (p *EditBlockFencedPrompts) GetName() string {
-    return p.Name
-}
-func (p *EditBlockFencedPrompts) GetSystemReminder() string {
-    return p.SystemReminder
-}
-func (p *EditBlockFencedPrompts) GetFilesContentGPTEdits() string {
-    return p.FilesContentGPTEdits
-}
-func (p *EditBlockFencedPrompts) GetFilesContentGPTEditsNoRepo() string {
-    return p.FilesContentGPTEditsNoRepo
-}
-func (p *EditBlockFencedPrompts) GetFilesContentGPTNoEdits() string {
-    return p.FilesContentGPTNoEdits
-}
-func (p *EditBlockFencedPrompts) GetFilesContentLocalEdits() string {
-    return p.FilesContentLocalEdits
-}
-func (p *EditBlockFencedPrompts) GetLazyPrompt() string {
-    return p.LazyPrompt
-}
-func (p *EditBlockFencedPrompts) GetExampleMessages() []Message {
-    return p.ExampleMessages
-}
-func (p *EditBlockFencedPrompts) GetFilesContentPrefix() string {
-    return p.FilesContentPrefix
-}
-func (p *EditBlockFencedPrompts) GetFilesContentAssistantReply() string {
-    return p.FilesContentAssistantReply
-}
-func (p *EditBlockFencedPrompts) GetFilesNoFullFiles() string {
-    return p.FilesNoFullFiles
-}
-func (p *EditBlockFencedPrompts) GetFilesNoFullFilesWithRepoMap() string {
-    return p.FilesNoFullFilesWithRepoMap
-}
-func (p *EditBlockFencedPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
-    return p.FilesNoFullFilesWithRepoMapReply
-}
-func (p *EditBlockFencedPrompts) GetRepoContentPrefix() string {
-    return p.RepoContentPrefix
-}
-func (p *EditBlockFencedPrompts) GetReadOnlyFilesPrefix() string {
-    return p.ReadOnlyFilesPrefix
-}
-func (p *EditBlockFencedPrompts) GetShellCmdPrompt() string {
-    return p.ShellCmdPrompt
-}
-func (p *EditBlockFencedPrompts) GetShellCmdReminder() string {
-    return p.ShellCmdReminder
-}
-func (p *EditBlockFencedPrompts) GetNoShellCmdPrompt() string {
-    return p.NoShellCmdPrompt
-}
-func (p *EditBlockFencedPrompts) GetNoShellCmdReminder() string {
-    return p.NoShellCmdReminder
-}
-func (p *EditBlockFencedPrompts) GetMainSystem() string {
-    return p.MainSystem
-}
-func (p *EditBlockFencedPrompts) GetRedactedEditMessage() string {
-    return p.RedactedEditMessage
-}
-func (p *EditBlockFencedPrompts) GetEditFormat() string {
-    return p.EditFormat
-}
-
-// Implementing interface Prompter for UdiffPrompts
-func (p *UdiffPrompts) GetName() string {
-    return p.Name
-}
-func (p *UdiffPrompts) GetSystemReminder() string {
-    return p.SystemReminder
-}
-func (p *UdiffPrompts) GetFilesContentGPTEdits() string {
-    return p.FilesContentGPTEdits
-}
-func (p *UdiffPrompts) GetFilesContentGPTEditsNoRepo() string {
-    return p.FilesContentGPTEditsNoRepo
-}
-func (p *UdiffPrompts) GetFilesContentGPTNoEdits() string {
-    return p.FilesContentGPTNoEdits
-}
-func (p *UdiffPrompts) GetFilesContentLocalEdits() string {
-    return p.FilesContentLocalEdits
-}
-func (p *UdiffPrompts) GetLazyPrompt() string {
-    return p.LazyPrompt
-}
-func (p *UdiffPrompts) GetExampleMessages() []Message {
-    return p.ExampleMessages
-}
-func (p *UdiffPrompts) GetFilesContentPrefix() string {
-    return p.FilesContentPrefix
-}
-func (p *UdiffPrompts) GetFilesContentAssistantReply() string {
-    return p.FilesContentAssistantReply
-}
-func (p *UdiffPrompts) GetFilesNoFullFiles() string {
-    return p.FilesNoFullFiles
-}
-func (p *UdiffPrompts) GetFilesNoFullFilesWithRepoMap() string {
-    return p.FilesNoFullFilesWithRepoMap
-}
-func (p *UdiffPrompts) GetFilesNoFullFilesWithRepoMapReply() string {
-    return p.FilesNoFullFilesWithRepoMapReply
-}
-func (p *UdiffPrompts) GetRepoContentPrefix() string {
-    return p.RepoContentPrefix
-}
-func (p *UdiffPrompts) GetReadOnlyFilesPrefix() string {
-    return p.ReadOnlyFilesPrefix
-}
-func (p *UdiffPrompts) GetShellCmdPrompt() string {
-    return p.ShellCmdPrompt
-}
-func (p *UdiffPrompts) GetShellCmdReminder() string {
-    return p.ShellCmdReminder
-}
-func (p *UdiffPrompts) GetNoShellCmdPrompt() string {
-    return p.NoShellCmdPrompt
-}
-func (p *UdiffPrompts) GetNoShellCmdReminder() string {
-    return p.NoShellCmdReminder
-}
-func (p *UdiffPrompts) GetMainSystem() string {
-    return p.MainSystem
-}
-func (p *UdiffPrompts) GetRedactedEditMessage() string {
-    return p.RedactedEditMessage
-}
-func (p *UdiffPrompts) GetEditFormat() string {
+func (p *EditorEditBlockPrompts) GetEditFormat() string {
     return p.EditFormat
 }
 

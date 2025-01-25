@@ -1,6 +1,9 @@
-package assistant
+package prompt
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -59,4 +62,21 @@ func (c *PromptChunks) AddCacheControl(messages []*chat.ChatMessage) {
 	for _, msg := range messages {
 		msg.SetCache()
 	}
+}
+
+func (c *PromptChunks) ToMarkdown(msgs []*chat.ChatMessage) string {
+	buf := strings.Builder{}
+	buf.WriteString(fmt.Sprintf("# Current Messages\n"))
+	for _, msg := range msgs {
+		buf.WriteString(fmt.Sprintf("## %s:\n\n", msg.Role))
+
+		for i, content := range msg.Content {
+			buf.WriteString(fmt.Sprintf("### Content %d (type %s)\n\n", i+1, content.Type))
+			if content.Type == "text" {
+				buf.WriteString(content.String())
+			}
+			buf.WriteString("\n")
+		}
+	}
+	return buf.String()
 }

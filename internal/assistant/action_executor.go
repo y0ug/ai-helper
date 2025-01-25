@@ -12,7 +12,8 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/actions/middleware"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/queue"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
-	"github.com/y0ug/ai-helper/internal/assistant/prompts"
+	"github.com/y0ug/ai-helper/internal/assistant/prompt"
+	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
@@ -21,8 +22,8 @@ import (
 type ActionExecutor struct {
 	logger        *slog.Logger
 	rm            repomanager.RepoManagerInterface
-	history       *ChatHistory
-	formatter     *PromptFormatter
+	history       *prompt.ChatHistory
+	formatter     *prompt.PromptFormatter
 	settings      *settings.CoderSettings
 	extractors    []extractors.Extractor
 	prompts       prompts.Prompter
@@ -31,9 +32,15 @@ type ActionExecutor struct {
 	actionManager *actions.ActionManager
 }
 
-func NewActionExecutor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
-	history *ChatHistory, formatter *PromptFormatter, settings *settings.CoderSettings,
-	prompts prompts.Prompter, extractors []extractors.Extractor, executor executors.Executor,
+func NewActionExecutor(
+	logger *slog.Logger,
+	rm repomanager.RepoManagerInterface,
+	history *prompt.ChatHistory,
+	formatter *prompt.PromptFormatter,
+	settings *settings.CoderSettings,
+	prompts prompts.Prompter,
+	extractors []extractors.Extractor,
+	executor executors.Executor,
 ) *ActionExecutor {
 	actionManager := actions.NewActionManager(logger)
 	return &ActionExecutor{
@@ -50,7 +57,11 @@ func NewActionExecutor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
 	}
 }
 
-func (mp *ActionExecutor) ProcessResponse(ctx context.Context, resp *chat.ChatResponse) error {
+func (mp *ActionExecutor) ProcessResponse(
+	ctx context.Context,
+	resp *chat.ChatResponse,
+	parentAction *actions.Action,
+) error {
 	if len(resp.Choice) == 0 {
 		return fmt.Errorf("no choice returned from LLM")
 	}
@@ -61,9 +72,35 @@ func (mp *ActionExecutor) ProcessResponse(ctx context.Context, resp *chat.ChatRe
 		return fmt.Errorf("last message should be from assistant")
 	}
 
+	// Create an LLMResponseAction, child of parentAction
+	var rawText string
+	if len(msg.Content) > 0 {
+		rawText = msg.Content[0].String()
+	}
+
+	llmRespAction := actions.NewLLMResponseAction(rawText).WithParent(parentAction)
+	mp.actionManager.RegisterAction(llmRespAction)
+
+	// Add to curernt chat history
 	mp.history.AddMessage(msg)
 
-	_ = mp.ProcessResponseExtractor(ctx, msg)
+	// Extract and process new tasks
+	newActs := mp.ProcessResponseExtractor(ctx, msg)
+
+	// Re-parent them to LLMResponseAction
+	for _, na := range newActs {
+		reparented := na.WithParent(&llmRespAction)
+
+		// TODO: define if we register the action here or when dequeued
+		// We don't have to register them here they will be registered when dequeued
+		// mp.actionManager.RegisterAction(reparented)
+
+		// Enqueue the new reparented actions we just extract
+		mp.queue.Enqueue(reparented)
+	}
+
+	// Process the queue
+	mp.processActionQueue(ctx)
 
 	mp.DumpActionChains()
 
@@ -97,20 +134,13 @@ func (mp *ActionExecutor) ProcessResponseExtractor(ctx context.Context,
 
 	for _, extractor := range mp.extractors {
 		results, err := extractor.Extract(msg)
-		mp.logger.Info("Results", "results", results, "namne", extractor.Name())
+		mp.logger.Debug("Results", "results", results, "namne", extractor.Name())
 
 		if err != nil {
 			mp.logger.Error("Error extracting response", "error", err)
 		}
 		allActions = append(allActions, results...)
 	}
-
-	// Enqueue newly extracted actions
-	mp.queue.Enqueue(allActions...)
-
-	mp.logger.Info("queue", "isEmpty", mp.queue.IsEmpty(), "Length", mp.queue.Len())
-	// Process the queue
-	mp.processActionQueue(ctx)
 	return allActions
 }
 
@@ -145,13 +175,6 @@ func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
 	for !mp.queue.IsEmpty() {
 		action, _ := mp.queue.Dequeue()
 
-		mp.actionManager.RegisterAction(action)
-
-		// Mark action as completed after processing
-		defer func(a *actions.Action) {
-			a.Completed = true
-		}(&action)
-		// Register action with manager before processing
 		mp.actionManager.RegisterAction(action)
 
 		results, err := chain.Process(ctx, action)

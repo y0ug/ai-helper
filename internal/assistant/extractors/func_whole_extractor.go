@@ -11,7 +11,7 @@ import (
 
 type FuncWholeFileExtractor struct {
 	logger *slog.Logger
-	tools  map[string]Tooler
+	tools  map[string]ToolerOuput[actions.Action]
 }
 
 type WriteFileInput struct {
@@ -27,9 +27,9 @@ func NewFuncWholeFileExtractor(
 ) *FuncWholeFileExtractor {
 	c := &FuncWholeFileExtractor{
 		logger: logger,
-		tools:  make(map[string]Tooler),
+		tools:  make(map[string]ToolerOuput[actions.Action]),
 	}
-	tool := NewTool(
+	tool := NewToolAction(
 		"write_file",
 		"Write content to a file",
 		c.WriteFileHandler,
@@ -91,7 +91,7 @@ func (c *FuncWholeFileExtractor) Extract(
 				// results = append(results, action)
 				// *NewAction(ActionApplyEditToolResult, toolsResultContentError),
 			} else {
-				results = append(results, *action)
+				results = append(results, action)
 			}
 			// results := c.GetEdits(content.String())
 			// edits = append(edits, results...)
@@ -102,16 +102,17 @@ func (c *FuncWholeFileExtractor) Extract(
 
 func (tp *FuncWholeFileExtractor) processToolCall(
 	content *chat.MessageContent,
-) (*actions.Action, error) {
+) (actions.Action, error) {
 	ctx := context.TODO()
+	var null actions.Action
 	if content.GetType() != string(chat.ContentTypeToolUse) {
-		return nil, fmt.Errorf("invalid tool call: no tool call data")
+		return null, fmt.Errorf("invalid tool call: no tool call data")
 	}
 
 	logger := tp.logger.With("content", content.Name)
 	tool, exists := tp.tools[content.Name]
 	if !exists {
-		return nil, fmt.Errorf("unknown tool: %s", content.Name)
+		return null, fmt.Errorf("unknown tool: %s", content.Name)
 	}
 
 	logger.Debug("Tool call",
@@ -119,24 +120,13 @@ func (tp *FuncWholeFileExtractor) processToolCall(
 		"id", content.ID,
 		"input", string(content.Input))
 
-	_, err := tool.Execute(ctx, content.Input)
+	action, err := tool.ExecuteTyped(ctx, content.Input)
 	if err != nil {
 		logger.Error("Error executing tool",
 			"error", err,
 			"name", content.Name)
-		return nil, fmt.Errorf("error executing tool: %w", err)
+		return null, fmt.Errorf("error executing tool: %w", err)
 	}
 
-	// var action actions.Action
-	// json.Unmarshal(response, &action)
-
-	// toolResultAction := actions.NewParsedAction(actions.ToolResultAction{
-	// 	ToolResult: *chat.NewToolResultContent(content.ID, ""),
-	// 	NextAction: []actions.Action{actions.ToGeneric(action)},
-	// })
-	// tp.logger.Debug("Tool result", "json", string(response))
-	// var results ParsedAction
-	// logger.Debug("Tool result",
-	// 	"name", content.Name)
-	return nil, nil
+	return action.WithToolCallID(content.ID), nil
 }

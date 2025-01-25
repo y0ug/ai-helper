@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 type ActionType string
@@ -16,6 +17,9 @@ const (
 	ActionTypeUserConfirm  ActionType = "user_confirm"
 	ActionTypeCommit       ActionType = "commit"
 	ActionTypeLog          ActionType = "log"
+	ActionTypeLLMRequest   ActionType = "llm_request"
+	ActionTypeLLMResponse  ActionType = "llm_response"
+	ActionTypeAddMessage   ActionType = "add_message"
 )
 
 type ActionContext struct {
@@ -31,6 +35,10 @@ type Action struct {
 	Payload   interface{}
 	Context   ActionContext
 	Completed bool
+}
+
+func (a *Action) IsToolCall() bool {
+	return a.Context.ToolCallID != ""
 }
 
 type ApplyEdit struct {
@@ -119,11 +127,20 @@ func (a Action) LogValue() slog.Value {
 
 // New helper method to maintain chain IDs
 
+func (a Action) WithToolCallID(id string) Action {
+	a.Context.ToolCallID = id
+	return a
+}
+
 func (a Action) WithParent(parent *Action) Action {
 	if parent != nil {
 		a.Context.ChainID = parent.Context.ChainID
 		a.Context.ParentID = parent.ID
-		a.Context.ToolCallID = parent.Context.ToolCallID
+		// TODO: check if we want this
+		// we only copy the tool call ID if the parent is a tool call
+		if parent.IsToolCall() {
+			a.Context.ToolCallID = parent.Context.ToolCallID
+		}
 	}
 	return a
 }
@@ -206,4 +223,27 @@ func NewLogAction(parentAction *Action, message string) Action {
 	return NewAction(ActionTypeLog, LogAction{
 		Message: message,
 	}).WithParent(parentAction)
+}
+
+type LLMRequestAction struct {
+	Prompt string
+}
+type LLMResponseAction struct {
+	Response string
+}
+
+type AddMessageAction struct {
+	Msg chat.ChatMessage
+}
+
+func NewLLMRequestAction(prompt string) Action {
+	return NewAction(ActionTypeLLMRequest, LLMRequestAction{Prompt: prompt})
+}
+
+func NewLLMResponseAction(response string) Action {
+	return NewAction(ActionTypeLLMResponse, LLMResponseAction{Response: response})
+}
+
+func NewAddMessageAction(msg chat.ChatMessage) Action {
+	return NewAction(ActionTypeAddMessage, AddMessageAction{Msg: msg})
 }

@@ -58,6 +58,7 @@ func NewModel(
 	model := &Model{
 		ModelSettings: ModelSettings{
 			Model:           modelBase,
+			Name:            modelBase.Name,
 			EditFormat:      "whole",
 			UseSystemPrompt: true,
 			UseTemperature:  true,

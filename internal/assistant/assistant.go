@@ -13,7 +13,8 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/metrics"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
-	"github.com/y0ug/ai-helper/internal/assistant/prompts"
+	"github.com/y0ug/ai-helper/internal/assistant/prompt"
+	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
@@ -40,15 +41,20 @@ type AssistantOrchestrator struct {
 	rm         repomanager.RepoManagerInterface
 	settings   *settings.CoderSettings
 	processor  *ActionExecutor
-	history    *ChatHistory
-	formatter  *PromptFormatter
+	history    *prompt.ChatHistory
+	formatter  *prompt.PromptFormatter
 	extractors []extractors.Extractor
 	metrics    llm.MetricsRecorder
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
-	history := NewChatHistory()
-	formatter := NewPromptFormatter(opts.Logger, opts.RepoManager, opts.Prompts, opts.Settings)
+	history := prompt.NewChatHistory()
+	formatter := prompt.NewPromptFormatter(
+		opts.Logger,
+		opts.RepoManager,
+		opts.Prompts,
+		opts.Settings,
+	)
 	metricsTracker := metrics.NewMetricsTracker(opts.Logger, *opts.Settings.MainModel())
 	c := &AssistantOrchestrator{
 		rm:        opts.RepoManager,
@@ -83,6 +89,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		validator,
 		opts.ConfirmChan,
 		opts.ResponseChan,
+		history,
 	)
 
 	// Should handle this better
@@ -169,6 +176,18 @@ func (c *AssistantOrchestrator) Run(ctx context.Context, message string) error {
 	return c.SendMessage(ctx, message)
 }
 
+func (c *AssistantOrchestrator) collectTools() []chat.Tool {
+	tools := make([]chat.Tool, 0)
+	for _, e := range c.extractors {
+		tools = append(tools, e.GetChatTools()...)
+	}
+
+	for _, tool := range tools {
+		c.logger.Debug("SendMessage: tool", "name", tool.Name)
+	}
+	return tools
+}
+
 func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string) error {
 	// Add user message
 	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
@@ -178,34 +197,42 @@ func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string)
 	messages := c.FormatMessages()
 
 	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
+		// Update the current messages Slice of the PromptChunks
+		// We only want to update those during turn
+		// we want to keep the prompt and files context the same
 		messages.Cur = c.history.GetCurrentMessages()
-		tools := make([]chat.Tool, 0)
-		for _, e := range c.extractors {
-			tools = append(tools, e.GetChatTools()...)
-		}
 
-		for _, tool := range tools {
-			c.logger.Debug("SendMessage: tool", "name", tool.Name)
-		}
-		for _, m := range messages.AllMessages() {
-			c.logger.Debug(
-				"SendMessage: msg",
-				"role",
-				m.Role,
-				"is_cacheable",
-				m.Content[0].IsCacheable(),
-				"content",
-				m.Content,
-			)
-		}
+		tools := c.collectTools()
+
+		// Build current messages to put it in the requests
+		promptText := messages.ToMarkdown(messages.Cur)
+
+		// Create and register a new LLmRequestAction
+		llmReqAction := actions.NewLLMRequestAction(promptText)
+		c.processor.actionManager.RegisterAction(llmReqAction)
+
+		c.logger.Debug("SendMessage: currentMessges", "text", promptText)
+		// for _, m := range messages.AllMessages() {
+		// 	c.logger.Debug(
+		// 		"SendMessage: msg",
+		// 		"role",
+		// 		m.Role,
+		// 		"is_cacheable",
+		// 		m.Content[0].IsCacheable(),
+		// 		"content",
+		// 		m.Content,
+		// 	)
+		// }
+		//
 		resp, err := c.llm.SendMessages(ctx, messages.AllMessages(), tools)
 		if err != nil {
-			return err
+			return fmt.Errorf("error sending messages: %w", err)
 		}
 
-		c.logger.Info("metrics", "total", c.metrics)
+		// c.logger.Info("metrics", "total", c.metrics)
 
-		err = c.processor.ProcessResponse(ctx, resp)
+		// Process the response , linkijng it to llmReqAction
+		err = c.processor.ProcessResponse(ctx, resp, &llmReqAction)
 		if err != nil {
 			return fmt.Errorf("error processing response: %w", err)
 		}
@@ -216,7 +243,7 @@ func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string)
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts
-func (c *AssistantOrchestrator) FormatMessages() *PromptChunks {
+func (c *AssistantOrchestrator) FormatMessages() *prompt.PromptChunks {
 	chunks := c.formatter.FormatMessages(c.history)
 
 	return chunks

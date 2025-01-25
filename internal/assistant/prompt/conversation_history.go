@@ -1,4 +1,4 @@
-package assistant
+package prompt
 
 import "github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 

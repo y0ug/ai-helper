@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/invopop/jsonschema"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -23,6 +24,12 @@ func StrToPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+type ToolerOuput[O any] interface {
+	ExecuteTyped(ctx context.Context, input json.RawMessage) (O, error)
+	GetName() string
+	GetChatTool() chat.Tool
 }
 
 type Tooler interface {
@@ -52,6 +59,24 @@ func (t ToolBase[T, O]) GetChatTool() chat.Tool {
 	}
 }
 
+func (t ToolBase[T, O]) ExecuteTyped(
+	ctx context.Context,
+	input json.RawMessage,
+) (O, error) {
+	var args T
+	var out O
+	err := json.Unmarshal(input, &args)
+	if err != nil {
+		return out, fmt.Errorf("%s failed to unmarshal input: %w", t.Name, err)
+	}
+
+	output, err := t.handler(ctx, args)
+	if err != nil {
+		return out, fmt.Errorf("%s failed to execute: %w", t.Name, err)
+	}
+	return output, nil
+}
+
 func (t ToolBase[T, O]) Execute(
 	ctx context.Context,
 	input json.RawMessage,
@@ -73,7 +98,7 @@ func (t ToolBase[T, O]) Execute(
 	return result, nil
 }
 
-func NewTool[T any, O any](
+func NewToolAction[T any, O actions.Action](
 	name string,
 	description string,
 	handler ToolHandler[T, O],
