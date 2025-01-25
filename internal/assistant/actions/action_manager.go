@@ -44,19 +44,29 @@ func NewActionManager(logger *slog.Logger) *ActionManager {
 func (m *ActionManager) RegisterAction(action Action) {
 	chainID := action.Context.ChainID
 
-	// load or create the chain tree
 	raw, loaded := m.activeChains.LoadOrStore(chainID, &ActionChainTree{
 		ChainID:   chainID,
 		CreatedAt: time.Now(),
 		Nodes:     make(map[uuid.UUID]*ActionNode),
-		Results:   []string{}, // Initialize Results
 	})
+
 	chain := raw.(*ActionChainTree)
 	if loaded {
 		chain.UpdatedAt = time.Now()
 	}
 
-	// create the node
+	// Update existing node if present
+	if existing, exists := chain.Nodes[action.ID]; exists {
+		m.logger.Debug("RegisterAction, Action already exists we update it", "context", action)
+		existing.Action = action
+		return
+	}
+
+	m.logger.Debug(
+		"RegisterAction, Action does not exist we create it",
+		"context", action,
+	)
+
 	node := &ActionNode{
 		Action:   action,
 		ParentID: action.Context.ParentID,
@@ -64,17 +74,22 @@ func (m *ActionManager) RegisterAction(action Action) {
 	}
 	chain.Nodes[action.ID] = node
 
-	// link to the parent's children if we have a parent
 	if action.Context.ParentID != uuid.Nil {
 		if parentNode, ok := chain.Nodes[action.Context.ParentID]; ok {
-			parentNode.Children = append(parentNode.Children, node)
-		} else {
-			m.logger.Warn("Parent action not found in chain when registering child",
-				"parent_id", action.Context.ParentID, "action_id", action.ID)
+			// Check if child already exists before appending
+			exists := false
+			for _, child := range parentNode.Children {
+				if child.Action.ID == action.ID {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				parentNode.Children = append(parentNode.Children, node)
+			}
 		}
 	}
 
-	// store back
 	m.activeChains.Store(chainID, chain)
 }
 
@@ -111,7 +126,6 @@ func (m *ActionManager) DumpActionChainTree(chainID uuid.UUID) {
 	}
 }
 
-// In action_manager.go
 func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int) {
 	indent := strings.Repeat("  ", depth)
 	status := " "
@@ -119,14 +133,10 @@ func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int) {
 		status = "✓ "
 	}
 	fmt.Printf(
-		"%s- %s%s \nnode.ParentID %s  Action.ID %s  Action.ParentID %s Action.ChainID %s\n",
+		"%s- %s%s \n",
 		indent,
 		status,
 		node.Action.String(),
-		node.ParentID,
-		node.Action.ID,
-		node.Action.Context.ParentID,
-		node.Action.Context.ChainID,
 	)
 
 	// Sort children by creation time for consistent output

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -28,6 +29,7 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
 	verbose := flag.Bool("v", false, "Show verbose output")
 	flag.Parse()
 
@@ -48,12 +50,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Setup the model info provider with a cache json file
 	infoProviderCacheFile := filepath.Join(configDir, "provider_cache.json")
-	infoProviders, err := modelinfo.New(infoProviderCacheFile)
+	modelInfoProvider, err := modelinfo.New(ctx, infoProviderCacheFile)
 	if err != nil {
 		logger.Error("Error creating model info providers", "error", err)
 		os.Exit(1)
 	}
+
+	// Get settings from environment variables
 	model := os.Getenv("AI_MODEL")
 	if model == "" {
 		logger.Error("AI_MODEL environment variable not set")
@@ -65,14 +70,15 @@ func main() {
 		promptName = "EditBlock"
 	}
 
-	modelInfo, err := modelinfo.Parse(model, infoProviders)
+	// Find model info and provider from the model string
+	modelInfo, err := modelinfo.Get(model, modelInfoProvider)
 	if err != nil {
 		logger.Error("Error parsing model info", "error", err)
 		os.Exit(1)
 	}
-	// modelInfoCoderRegistry := modelinfocoder.InitializeDefaultRegistry()
-	//  modelInfoCoderRegistry.GetModelSettings()
-	modelCoder, err := modelinfocoder.NewModel(modelInfo.Name, nil, nil, "")
+
+	// Define the model with the settings need for the assistant
+	modelCoder, err := modelinfocoder.NewModel(*modelInfo, nil, nil, "")
 	if err != nil {
 		logger.Error("Error creating model coder", "error", err)
 		os.Exit(1)

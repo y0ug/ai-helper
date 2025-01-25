@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
+	"github.com/y0ug/ai-helper/internal/assistant/actions/middleware"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/queue"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
@@ -113,18 +114,36 @@ func (mp *ActionExecutor) ProcessResponseExtractor(ctx context.Context,
 	return allActions
 }
 
+func (mp *ActionExecutor) baseHandler(
+	ctx context.Context,
+	action actions.Action,
+) ([]actions.Action, error) {
+	handler := mp.executor.GetHandler(action)
+	if handler == nil {
+
+		errMsg := fmt.Errorf("no handler for %s action", action.Type)
+		mp.logger.Error("No handler", "error", errMsg, "context", action)
+		mp.actionManager.AddError(action.Context.ChainID, action, errMsg)
+
+		// Create error followup action
+		errorAction := actions.NewLogAction(&action, errMsg.Error())
+		mp.actionManager.RegisterAction(errorAction)
+		mp.queue.Enqueue(errorAction)
+
+		// we don't return the error we handle it here
+		return nil, nil // fmt.Errorf("no handler for action type %s", action.Type)
+	}
+	return handler.Handle(ctx, action)
+}
+
 func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
+	chain := middleware.NewMiddlewareChain(
+		mp.baseHandler,
+		middleware.NewLoggerMiddleware(mp.logger),
+	)
+
 	for !mp.queue.IsEmpty() {
 		action, _ := mp.queue.Dequeue()
-
-		// Skip already completed actions
-
-		if action.Completed {
-			mp.logger.Warn("Skipping completed action", "ID", action.ID,
-				"ChainID", action.Context.ChainID, "ParentID", action.Context.ParentID,
-				"Type", action.Type)
-			continue
-		}
 
 		mp.actionManager.RegisterAction(action)
 
@@ -135,39 +154,17 @@ func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
 		// Register action with manager before processing
 		mp.actionManager.RegisterAction(action)
 
-		// Log registration
-		mp.logger.Debug("Processing action",
-			"type", action.Type,
-			"chainID", action.Context.ChainID,
-			"parentID", action.Context.ParentID)
-		handler := mp.executor.GetHandler(action)
-
-		if handler == nil {
-			errMsg := fmt.Sprintf("No handler for %s action", action.Type)
-			mp.logger.Error(errMsg)
-			mp.actionManager.AddError(action.Context.ChainID, action, fmt.Errorf(errMsg))
-
-			// Create error followup action
-			errorAction := actions.NewLogAction(&action, errMsg)
-			mp.actionManager.RegisterAction(errorAction)
-			mp.queue.Enqueue(errorAction)
-			continue
-		}
-		results, err := handler.Handle(ctx, action)
+		results, err := chain.Process(ctx, action)
 		if err != nil {
-			mp.logger.Error("Error handling action", "error", err)
+			mp.logger.Error("Error handling action", "error", err, "context", action)
 		}
 
 		// Register results and follow-up actions
 		for _, result := range results {
 			result.Completed = true
 			mp.actionManager.RegisterAction(result)
-			// mp.actionManager.AddResult(result.Context.ChainID, result.String())
 			mp.actionManager.AddResult(action.Context.ChainID,
 				fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
-			mp.logger.Debug("Registered result action",
-				"type", result.Type,
-				"chainID", result.Context.ChainID)
 		}
 
 		if len(results) > 0 {

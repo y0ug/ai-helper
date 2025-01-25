@@ -65,7 +65,7 @@ func main() {
 	}
 
 	cachePath := "/tmp"
-	modelInfoProvider, err := modelinfo.New(filepath.Join(cachePath, "modelinfo.json"))
+	modelInfoProvider, err := modelinfo.New(ctx, filepath.Join(cachePath, "modelinfo.json"))
 	if err != nil {
 		logger.Error("failed to create model info provider", "error", err)
 		return

@@ -1,16 +1,13 @@
 package models
 
 import (
-	"encoding/json"
 	"fmt"
-	"image"
 	_ "image/jpeg"
 	_ "image/png"
-	"math"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
+
+	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
 )
 
 // Constants
@@ -21,6 +18,7 @@ const (
 
 // ModelSettings represents configuration for a model
 type ModelSettings struct {
+	modelinfo.Model
 	Name             string                 `json:"name"`
 	EditFormat       string                 `json:"edit_format"`
 	WeakModelName    *string                `json:"weak_model_name,omitempty"`
@@ -45,84 +43,13 @@ type Model struct {
 	MaxChatHistoryTokens int
 	WeakModel            *Model
 	EditorModel          *Model
-	Info                 map[string]interface{}
 	MissingKeys          []string
 	KeysInEnvironment    bool
 }
 
-// ModelInfoManager handles caching and retrieval of model information
-type ModelInfoManager struct {
-	ModelInfoURL string
-	CacheTTL     time.Duration
-	CacheDir     string
-	CacheFile    string
-	Content      map[string]interface{}
-}
-
-func InitializeDefaultRegistry() *ModelRegistry {
-	registry := NewModelRegistry()
-	for _, settings := range DefaultModelSettings {
-		registry.RegisterModel(settings)
-	}
-	return registry
-}
-
-// NewModelInfoManager creates a new ModelInfoManager instance
-func NewModelInfoManager() *ModelInfoManager {
-	homeDir, _ := os.UserHomeDir()
-	cacheDir := filepath.Join(homeDir, ".aider", "caches")
-
-	return &ModelInfoManager{
-		ModelInfoURL: "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-		CacheTTL:     24 * time.Hour,
-		CacheDir:     cacheDir,
-		CacheFile:    filepath.Join(cacheDir, "model_prices_and_context_window.json"),
-		Content:      make(map[string]interface{}),
-	}
-}
-
-// GetTokenCountForImage calculates token cost for an image
-func (m *Model) GetTokenCountForImage(fname string) (int, error) {
-	file, err := os.Open(fname)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-
-	img, _, err := image.DecodeConfig(file)
-	if err != nil {
-		return 0, err
-	}
-
-	width, height := img.Width, img.Height
-
-	// Scale down if larger than 2048 in any dimension
-	maxDimension := math.Max(float64(width), float64(height))
-	if maxDimension > 2048 {
-		scaleFactor := 2048 / maxDimension
-		width = int(float64(width) * scaleFactor)
-		height = int(float64(height) * scaleFactor)
-	}
-
-	// Scale to minimum 768 pixels
-	minDimension := math.Min(float64(width), float64(height))
-	scaleFactor := 768 / minDimension
-	width = int(float64(width) * scaleFactor)
-	height = int(float64(height) * scaleFactor)
-
-	// Calculate tiles
-	tilesWidth := int(math.Ceil(float64(width) / 512))
-	tilesHeight := int(math.Ceil(float64(height) / 512))
-	numTiles := tilesWidth * tilesHeight
-
-	// Calculate token cost
-	tokenCost := numTiles*170 + 85
-	return tokenCost, nil
-}
-
 // NewModel creates a new Model instance
 func NewModel(
-	modelName string,
+	modelBase modelinfo.Model,
 	weakModel *Model,
 	editorModel *Model,
 	editorEditFormat string,
@@ -130,13 +57,14 @@ func NewModel(
 	// Initialize model with default settings
 	model := &Model{
 		ModelSettings: ModelSettings{
-			Name:            modelName,
+			Model:           modelBase,
 			EditFormat:      "whole",
 			UseSystemPrompt: true,
 			UseTemperature:  true,
 			Streaming:       true,
 		},
 		MaxChatHistoryTokens: 1024,
+		// metadata:             metadata,
 	}
 
 	// Configure model settings based on name
@@ -215,81 +143,6 @@ var (
 	}
 )
 
-// ModelInfo represents information about a model's capabilities and requirements
-type ModelInfo struct {
-	MaxInputTokens  int                    `json:"max_input_tokens"`
-	LitellmProvider string                 `json:"litellm_provider"`
-	ExtraParams     map[string]interface{} `json:"extra_params"`
-}
-
-// LoadCache loads the model information from cache
-func (m *ModelInfoManager) LoadCache() error {
-	// Ensure cache directory exists
-	if err := os.MkdirAll(m.CacheDir, 0755); err != nil {
-		return fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	// Check if cache file exists and is within TTL
-	if info, err := os.Stat(m.CacheFile); err == nil {
-		if time.Since(info.ModTime()) < m.CacheTTL {
-			data, err := os.ReadFile(m.CacheFile)
-			if err != nil {
-				return fmt.Errorf("failed to read cache file: %w", err)
-			}
-
-			if err := json.Unmarshal(data, &m.Content); err != nil {
-				return fmt.Errorf("failed to parse cache file: %w", err)
-			}
-			return nil
-		}
-	}
-
-	return nil
-}
-
-// UpdateCache updates the model information cache
-func (m *ModelInfoManager) UpdateCache() error {
-	// TODO: Implement HTTP request to fetch latest model information
-	// For now, we'll just save an empty cache if nothing exists
-	if m.Content == nil {
-		m.Content = make(map[string]interface{})
-	}
-
-	data, err := json.MarshalIndent(m.Content, "", "    ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal cache content: %w", err)
-	}
-
-	if err := os.WriteFile(m.CacheFile, data, 0644); err != nil {
-		return fmt.Errorf("failed to write cache file: %w", err)
-	}
-
-	return nil
-}
-
-// GetModelInfo retrieves information about a specific model
-func (m *Model) GetModelInfo() error {
-	manager := NewModelInfoManager()
-	if err := manager.LoadCache(); err != nil {
-		return err
-	}
-
-	modelInfo, exists := manager.Content[m.Name]
-	if !exists {
-		// Try to get info for base model name if it's a provider-specific model
-		parts := strings.Split(m.Name, "/")
-		if len(parts) == 2 {
-			modelInfo, exists = manager.Content[parts[1]]
-		}
-	}
-
-	if exists {
-		m.Info = modelInfo.(map[string]interface{})
-	}
-
-	return nil
-}
-
 // ValidateEnvironment checks if required environment variables are set
 func (m *Model) ValidateEnvironment() error {
 	// Fast path for common models
@@ -297,16 +150,8 @@ func (m *Model) ValidateEnvironment() error {
 		return fmt.Errorf("missing required environment variables: %v", missingKeys)
 	}
 
-	// Check provider-specific requirements
-	provider := ""
-	if m.Info != nil {
-		if p, ok := m.Info["litellm_provider"].(string); ok {
-			provider = strings.ToLower(p)
-		}
-	}
-
 	var requiredVars []string
-	switch provider {
+	switch m.Provider {
 	case "cohere_chat":
 		requiredVars = []string{"COHERE_API_KEY"}
 	case "gemini":

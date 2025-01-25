@@ -25,6 +25,7 @@ func generateSessionID() string {
 }
 
 func main() {
+	ctx := context.Background()
 	configFile := flag.String("config", "", "Config file path")
 	verbose := flag.Bool("v", false, "Show verbose output")
 	attachFiles := flag.String("files", "", "Comma-separated list of files to attach")
@@ -66,7 +67,7 @@ func main() {
 	}
 
 	infoProviderCacheFile := filepath.Join(configDir, "provider_cache.json")
-	infoProviders, err := modelinfo.New(infoProviderCacheFile)
+	infoProviders, err := modelinfo.New(ctx, infoProviderCacheFile)
 	if err != nil {
 		logger.Error("Error creating model info providers", "error", err)
 		os.Exit(1)
@@ -98,7 +99,6 @@ func main() {
 		}
 	}
 
-	ctx := context.Background()
 	toolProcessor := llmagent.NewToolProcessor(logger)
 	toolProcessor.Start(ctx, &cfg.MCPServers)
 	defer toolProcessor.Stop()

@@ -11,6 +11,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
+	"github.com/y0ug/ai-helper/internal/assistant/llm/metrics"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
@@ -34,7 +35,7 @@ type AssistantOptions struct {
 
 type AssistantOrchestrator struct {
 	logger     *slog.Logger
-	llmClient  *llm.Client
+	llm        llm.ChatCompleter
 	prompts    prompts.Prompter
 	rm         repomanager.RepoManagerInterface
 	settings   *settings.CoderSettings
@@ -42,18 +43,20 @@ type AssistantOrchestrator struct {
 	history    *ChatHistory
 	formatter  *PromptFormatter
 	extractors []extractors.Extractor
+	metrics    llm.MetricsRecorder
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	history := NewChatHistory()
 	formatter := NewPromptFormatter(opts.Logger, opts.RepoManager, opts.Prompts, opts.Settings)
-
+	metricsTracker := metrics.NewMetricsTracker(opts.Logger, *opts.Settings.MainModel())
 	c := &AssistantOrchestrator{
 		rm:        opts.RepoManager,
 		logger:    opts.Logger,
 		settings:  opts.Settings,
 		history:   history,
 		formatter: formatter,
+		metrics:   metricsTracker,
 	}
 
 	// Stream processor for the LLMClient wrapper
@@ -63,14 +66,13 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	}
 
 	// Generate the LLMClient wrapper
-	llmClient := llm.New(
+	c.llm = llm.New(
 		opts.LlmClient,
 		opts.Settings,
 		opts.Logger,
 		streamProcessor,
+		metricsTracker,
 	)
-
-	c.llmClient = llmClient
 
 	validator := validation.NewValidationPipeline(c.logger)
 	// validator.AddStep(validation.NewDryRunValidator())
@@ -196,10 +198,12 @@ func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string)
 				m.Content,
 			)
 		}
-		resp, err := c.llmClient.SendMessages(ctx, messages.AllMessages(), tools)
+		resp, err := c.llm.SendMessages(ctx, messages.AllMessages(), tools)
 		if err != nil {
 			return err
 		}
+
+		c.logger.Info("metrics", "total", c.metrics)
 
 		err = c.processor.ProcessResponse(ctx, resp)
 		if err != nil {

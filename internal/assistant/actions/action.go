@@ -2,6 +2,7 @@ package actions
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,12 +57,12 @@ type ShellCommandAction struct {
 //		}, parentAction)
 //	}
 func (s *ShellCommandAction) WithConfirmed(parentAction *Action) Action {
-	return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
+	return NewAction(ActionTypeShellCommand, ShellCommandAction{
 		Command:      s.Command,
 		NeedsConfirm: false, // No longer needs confirmation
 		Confirmed:    true,
 		Output:       s.Output,
-	}, parentAction)
+	}).WithParent(parentAction)
 }
 
 type UserConfirmAction struct {
@@ -105,48 +106,24 @@ func (a Action) String() string {
 	}
 }
 
-// func (a Action) String() string {
-// 	switch payload := a.Payload.(type) {
-// 	case ApplyEdit:
-// 		return fmt.Sprintf("Edit %s: %d chars replaced",
-// 			payload.Filename,
-// 			len(payload.Updated))
-// 	case ShellCommandAction:
-// 		return fmt.Sprintf("Command executed: %s (confirmed: %v)",
-// 			payload.Command,
-// 			payload.Confirmed)
-// 	case LogAction:
-// 		return fmt.Sprintf("LOG: %s", payload.Message)
-// 	default:
-// 		return fmt.Sprintf("Action %s (%s)", a.Type, a.ID)
-// 	}
-// }
-
-// In actions/action.go
-// func (a Action) String() string {
-// 	switch v := a.Payload.(type) {
-// 	case ApplyEdit:
-// 		return fmt.Sprintf("EDIT %s: %q → %q",
-// 			v.Filename,
-// 			shorten(v.Original),
-// 			shorten(v.Updated))
-// 	case CommitAction:
-// 		return fmt.Sprintf("COMMIT: %s", v.Message)
-// 	case ShellCommandAction:
-// 		return fmt.Sprintf("CMD: %s (confirmed:%v)",
-// 			v.Command, v.Confirmed)
-// 	case LogAction:
-// 		return fmt.Sprintf("LOG: %s", v.Message)
-// 	default:
-// 		return fmt.Sprintf("ACTION-%s", a.Type)
-// 	}
-// }
+func (a Action) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("type", string(a.Type)),
+		slog.String("action_id", a.ID.String()),
+		slog.String("chain_id", a.Context.ChainID.String()),
+		slog.String("parent_id", a.Context.ParentID.String()),
+		slog.String("tool_call_id", a.Context.ToolCallID),
+		slog.String("created_at", a.Context.CreatedAt.Format(time.RFC3339)),
+	)
+}
 
 // New helper method to maintain chain IDs
-func (a Action) WithChainID(parent *Action) Action {
+
+func (a Action) WithParent(parent *Action) Action {
 	if parent != nil {
 		a.Context.ChainID = parent.Context.ChainID
 		a.Context.ParentID = parent.ID
+		a.Context.ToolCallID = parent.Context.ToolCallID
 	}
 	return a
 }
@@ -164,7 +141,15 @@ func Slice(action ...Action) []Action {
 }
 
 func NewAction(actionType ActionType, payload interface{}) Action {
-	return NewActionWithParent(actionType, payload, nil)
+	return Action{
+		ID:      uuid.New(),
+		Type:    actionType,
+		Payload: payload,
+		Context: ActionContext{
+			ChainID:   uuid.New(),
+			CreatedAt: time.Now(),
+		},
+	}
 }
 
 func NewActionWithParent(actionType ActionType, payload interface{}, parentAction *Action) Action {
@@ -190,43 +175,35 @@ func NewActionWithParent(actionType ActionType, payload interface{}, parentActio
 }
 
 func NewApplyEdit(parentAction *Action, filename, original, updated string) Action {
-	return NewActionWithParent(ActionTypeEdit, ApplyEdit{
+	return NewAction(ActionTypeEdit, ApplyEdit{
 		Filename: filename,
 		Original: original,
 		Updated:  updated,
-	}, parentAction).WithChainID(parentAction) // Add this method
+	}).WithParent(parentAction)
 }
 
-// func NewApplyEdit(parentAction *Action, filename, original, updated string) Action {
-// 	return NewActionWithParent(ActionTypeEdit, ApplyEdit{
-// 		Filename: filename,
-// 		Original: original,
-// 		Updated:  updated,
-// 	}, parentAction)
-// }
-
 func NewShellCommand(parentAction *Action, command string, needsConfirm bool) Action {
-	return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
+	return NewAction(ActionTypeShellCommand, ShellCommandAction{
 		Command:      command,
 		NeedsConfirm: needsConfirm,
-	}, parentAction).WithChainID(parentAction)
+	}).WithParent(parentAction)
 }
 
 func NewUserConfirmAction(parentAction *Action, question string) Action {
-	return NewActionWithParent(ActionTypeUserConfirm, UserConfirmAction{
+	return NewAction(ActionTypeUserConfirm, UserConfirmAction{
 		Question: question,
 		Context:  parentAction.Context,
-	}, parentAction).WithChainID(parentAction)
+	}).WithParent(parentAction)
 }
 
 func NewCommitAction(parentAction *Action, message string) Action {
-	return NewActionWithParent(ActionTypeCommit, CommitAction{
+	return NewAction(ActionTypeCommit, CommitAction{
 		Message: message,
-	}, parentAction).WithChainID(parentAction)
+	}).WithParent(parentAction)
 }
 
 func NewLogAction(parentAction *Action, message string) Action {
-	return NewActionWithParent(ActionTypeLog, LogAction{
+	return NewAction(ActionTypeLog, LogAction{
 		Message: message,
-	}, parentAction).WithChainID(parentAction)
+	}).WithParent(parentAction)
 }

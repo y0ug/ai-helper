@@ -83,11 +83,11 @@ func (a *Agent) SetParams(chatParams *chat.ChatParams) error {
 }
 
 func (a *Agent) SetModel(model string) error {
-	modelInfo, err := modelinfo.Parse(model, a.modelInfoProvider)
+	modelInfo, err := modelinfo.Get(model, a.modelInfoProvider)
 	a.logger.Debug("SetModel",
 		"model", model,
 		"provider", modelInfo.Provider,
-		"metadata", modelInfo.Metadata)
+		"info", modelInfo.Info)
 	if err != nil {
 		return fmt.Errorf("failed to parse model %s: %w", model, err)
 	}
@@ -152,13 +152,17 @@ func (a *Agent) UpdateCosts(resp ...*chat.ChatResponse) float64 {
 			a.logger.Warn("ModelInfo is nil, can't calculate cost")
 			continue
 		}
-		if a.ModelInfo.Metadata == nil {
+		if a.ModelInfo.Info == nil {
 			a.logger.Warn("Model metadata is nil, can't calculate cost",
 				"name", a.ModelInfo.Name)
 			continue
 		}
-		cost += a.ModelInfo.Metadata.OutputCostPerToken * float64(m.Usage.OutputTokens)
-		cost += a.ModelInfo.Metadata.InputCostPerToken * float64(m.Usage.InputTokens)
+		//   ptrFloat := a.ModelInfo.Info.GetCacheCreationInputTokenCost()
+		//   if ptrFloat != nil {
+		// cost += *a.ModelInfo.Info.GetCacheCreationInputTokenCost() .OutputCostPerToken * float64(
+		// 	m.Usage.OutputTokens,
+		// )
+		// cost += a.ModelInfo.Metadata.InputCostPerToken * float64(m.Usage.InputTokens)
 	}
 
 	a.TotalCost += cost

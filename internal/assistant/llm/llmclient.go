@@ -21,13 +21,16 @@ func New(
 	settings *settings.CoderSettings,
 	logger *slog.Logger,
 	processor *StreamProcessor,
-) *Client {
-	return &Client{
+	metrics MetricsRecorder,
+) ChatCompleter {
+	c := &Client{
 		client:    client,
 		settings:  settings,
 		logger:    logger,
 		processor: processor,
 	}
+
+	return WithMiddleware(c, MetricsMiddleware(metrics))
 }
 
 func (c *Client) SendMessages(
