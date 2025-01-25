@@ -47,10 +47,18 @@ type ShellCommandAction struct {
 	Success      bool // Add success stat
 }
 
+//	func (s *ShellCommandAction) WithConfirmed(parentAction *Action) Action {
+//		return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
+//			Command:      s.Command,
+//			NeedsConfirm: s.NeedsConfirm,
+//			Confirmed:    true,
+//			Output:       s.Output,
+//		}, parentAction)
+//	}
 func (s *ShellCommandAction) WithConfirmed(parentAction *Action) Action {
 	return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
 		Command:      s.Command,
-		NeedsConfirm: s.NeedsConfirm,
+		NeedsConfirm: false, // No longer needs confirmation
 		Confirmed:    true,
 		Output:       s.Output,
 	}, parentAction)
@@ -74,6 +82,29 @@ type UserResponseAction struct {
 	Context ActionContext
 }
 
+// In actions/action.go
+func (a Action) String() string {
+	// Add indication of completion status
+	status := ""
+	if a.Completed {
+		status = "✓ "
+	}
+	switch v := a.Payload.(type) {
+	case ApplyEdit:
+		return fmt.Sprintf("%sEDIT %s: %q → %q", status,
+			v.Filename, shorten(v.Original), shorten(v.Updated))
+	case CommitAction:
+		return fmt.Sprintf("%sCOMMIT: %s", status, v.Message)
+	case ShellCommandAction:
+		return fmt.Sprintf("%sCMD: %s (confirmed:%v)", status,
+			v.Command, v.Confirmed)
+	case LogAction:
+		return fmt.Sprintf("%sLOG: %s", status, v.Message)
+	default:
+		return fmt.Sprintf("%sACTION-%s", status, a.Type)
+	}
+}
+
 // func (a Action) String() string {
 // 	switch payload := a.Payload.(type) {
 // 	case ApplyEdit:
@@ -92,24 +123,24 @@ type UserResponseAction struct {
 // }
 
 // In actions/action.go
-func (a Action) String() string {
-	switch v := a.Payload.(type) {
-	case ApplyEdit:
-		return fmt.Sprintf("EDIT %s: %q → %q",
-			v.Filename,
-			shorten(v.Original),
-			shorten(v.Updated))
-	case CommitAction:
-		return fmt.Sprintf("COMMIT: %s", v.Message)
-	case ShellCommandAction:
-		return fmt.Sprintf("CMD: %s (confirmed:%v)",
-			v.Command, v.Confirmed)
-	case LogAction:
-		return fmt.Sprintf("LOG: %s", v.Message)
-	default:
-		return fmt.Sprintf("ACTION-%s", a.Type)
-	}
-}
+// func (a Action) String() string {
+// 	switch v := a.Payload.(type) {
+// 	case ApplyEdit:
+// 		return fmt.Sprintf("EDIT %s: %q → %q",
+// 			v.Filename,
+// 			shorten(v.Original),
+// 			shorten(v.Updated))
+// 	case CommitAction:
+// 		return fmt.Sprintf("COMMIT: %s", v.Message)
+// 	case ShellCommandAction:
+// 		return fmt.Sprintf("CMD: %s (confirmed:%v)",
+// 			v.Command, v.Confirmed)
+// 	case LogAction:
+// 		return fmt.Sprintf("LOG: %s", v.Message)
+// 	default:
+// 		return fmt.Sprintf("ACTION-%s", a.Type)
+// 	}
+// }
 
 // New helper method to maintain chain IDs
 func (a Action) WithChainID(parent *Action) Action {

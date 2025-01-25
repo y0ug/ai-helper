@@ -3,18 +3,31 @@ package actions
 import (
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type ActionChain struct {
+// ActionNode represents a node in the Action tree.
+type ActionNode struct {
+	Action   Action
+	ParentID uuid.UUID
+	Children []*ActionNode
+}
+
+// ActionChainTree is a tree of actions sharing one chain ID.
+type ActionChainTree struct {
 	ChainID   uuid.UUID
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Actions   []Action
-	Results   []string
+
+	// We store nodes in a map for quick lookups, but we
+	// can also keep a pointer to the root node(s) if needed.
+	Nodes   map[uuid.UUID]*ActionNode
+	Results []string
 }
 
 type ActionManager struct {
@@ -31,44 +44,137 @@ func NewActionManager(logger *slog.Logger) *ActionManager {
 func (m *ActionManager) RegisterAction(action Action) {
 	chainID := action.Context.ChainID
 
-	record, loaded := m.activeChains.LoadOrStore(chainID, &ActionChain{
+	// load or create the chain tree
+	raw, loaded := m.activeChains.LoadOrStore(chainID, &ActionChainTree{
 		ChainID:   chainID,
 		CreatedAt: time.Now(),
-		Actions:   []Action{action},
+		Nodes:     make(map[uuid.UUID]*ActionNode),
+		Results:   []string{}, // Initialize Results
 	})
-
+	chain := raw.(*ActionChainTree)
 	if loaded {
-		chain := record.(*ActionChain)
-		chain.Actions = append(chain.Actions, action)
 		chain.UpdatedAt = time.Now()
-		m.activeChains.Store(chainID, chain)
 	}
+
+	// create the node
+	node := &ActionNode{
+		Action:   action,
+		ParentID: action.Context.ParentID,
+		Children: make([]*ActionNode, 0),
+	}
+	chain.Nodes[action.ID] = node
+
+	// link to the parent's children if we have a parent
+	if action.Context.ParentID != uuid.Nil {
+		if parentNode, ok := chain.Nodes[action.Context.ParentID]; ok {
+			parentNode.Children = append(parentNode.Children, node)
+		} else {
+			m.logger.Warn("Parent action not found in chain when registering child",
+				"parent_id", action.Context.ParentID, "action_id", action.ID)
+		}
+	}
+
+	// store back
+	m.activeChains.Store(chainID, chain)
 }
 
-func (m *ActionManager) GetChain(chainID uuid.UUID) (*ActionChain, bool) {
-	record, ok := m.activeChains.Load(chainID)
+// Return the chain tree for a given chainID
+func (m *ActionManager) GetChainTree(chainID uuid.UUID) (*ActionChainTree, bool) {
+	raw, ok := m.activeChains.Load(chainID)
 	if !ok {
 		return nil, false
 	}
-	return record.(*ActionChain), true
+	return raw.(*ActionChainTree), true
 }
 
-func (m *ActionManager) GetAllChains() []*ActionChain {
-	var chains []*ActionChain
+// Return the root nodes (those with no parent).
+func (t *ActionChainTree) RootNodes() []*ActionNode {
+	roots := make([]*ActionNode, 0)
+	for _, node := range t.Nodes {
+		if node.ParentID == uuid.Nil {
+			roots = append(roots, node)
+		}
+	}
+	return roots
+}
+
+func (m *ActionManager) DumpActionChainTree(chainID uuid.UUID) {
+	t, ok := m.GetChainTree(chainID)
+	if !ok {
+		m.logger.Warn("Chain not found", "chain_id", chainID)
+		return
+	}
+
+	// For each root node, do a DFS
+	for _, root := range t.RootNodes() {
+		m.dumpNodeRec(root, 0)
+	}
+}
+
+// In action_manager.go
+func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int) {
+	indent := strings.Repeat("  ", depth)
+	status := " "
+	if node.Action.Completed {
+		status = "✓ "
+	}
+	fmt.Printf(
+		"%s- %s%s \nnode.ParentID %s  Action.ID %s  Action.ParentID %s Action.ChainID %s\n",
+		indent,
+		status,
+		node.Action.String(),
+		node.ParentID,
+		node.Action.ID,
+		node.Action.Context.ParentID,
+		node.Action.Context.ChainID,
+	)
+
+	// Sort children by creation time for consistent output
+	children := make([]*ActionNode, len(node.Children))
+	copy(children, node.Children)
+	sort.Slice(children, func(i, j int) bool {
+		return children[i].Action.Context.CreatedAt.Before(
+			children[j].Action.Context.CreatedAt)
+	})
+
+	for _, child := range children {
+		m.dumpNodeRec(child, depth+1)
+	}
+}
+
+func (m *ActionManager) GetAllChains() []*ActionChainTree {
+	var chains []*ActionChainTree
 	m.activeChains.Range(func(_, v interface{}) bool {
-		chains = append(chains, v.(*ActionChain))
+		chains = append(chains, v.(*ActionChainTree))
 		return true
 	})
 	return chains
 }
 
+func (t *ActionChainTree) GetActionsSorted() []Action {
+	actions := make([]Action, 0, len(t.Nodes))
+	for _, node := range t.Nodes {
+		actions = append(actions, node.Action)
+	}
+	// Sort by CreatedAt
+	sort.Slice(actions, func(i, j int) bool {
+		return actions[i].Context.CreatedAt.Before(actions[j].Context.CreatedAt)
+	})
+	return actions
+}
+
 func (m *ActionManager) AddResult(chainID uuid.UUID, result string) {
 	if record, ok := m.activeChains.Load(chainID); ok {
-		chain := record.(*ActionChain)
+		chain := record.(*ActionChainTree)
 		chain.Results = append(chain.Results, result)
 		chain.UpdatedAt = time.Now()
 		m.activeChains.Store(chainID, chain)
 	}
+}
+
+func (m *ActionManager) AddError(chainID uuid.UUID, action Action, err error) {
+	errMsg := fmt.Sprintf("ERROR: action_id=%s - %v", action.ID, err)
+	m.AddResult(chainID, errMsg)
 }
 
 func FindRootAction(m *ActionManager, action Action) Action {
@@ -78,28 +184,14 @@ func FindRootAction(m *ActionManager, action Action) Action {
 			return current
 		}
 
-		if chain, ok := m.GetChain(current.Context.ChainID); ok {
-			for _, a := range chain.Actions {
-				if a.ID == current.Context.ParentID {
-					current = a
-					break
-				}
+		if chain, ok := m.GetChainTree(current.Context.ChainID); ok {
+			if parentNode, exists := chain.Nodes[current.Context.ParentID]; exists {
+				current = parentNode.Action
+			} else {
+				return current // Parent not found, exit
 			}
+		} else {
+			return current // Chain not found, exit
 		}
 	}
-}
-
-// // In actions/action_manager.go
-// func (m *ActionManager) AddError(chainID uuid.UUID, err error) {
-// 	if record, ok := m.activeChains.Load(chainID); ok {
-// 		chain := record.(*ActionChain)
-// 		chain.Results = append(chain.Results, fmt.Sprintf("ERROR: %v", err))
-// 		chain.UpdatedAt = time.Now()
-// 		m.activeChains.Store(chainID, chain)
-// 	}
-// }
-
-func (m *ActionManager) AddError(chainID uuid.UUID, action Action, err error) {
-	errMsg := fmt.Sprintf("ERROR: action_id=%s - %v", action.ID, err)
-	m.AddResult(chainID, errMsg)
 }

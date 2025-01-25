@@ -162,12 +162,12 @@ func (c *AssistantOrchestrator) initBeforeMessage() {
 	// }
 }
 
-func (c *AssistantOrchestrator) Run(message string) error {
+func (c *AssistantOrchestrator) Run(ctx context.Context, message string) error {
 	c.initBeforeMessage()
-	return c.SendMessage(message)
+	return c.SendMessage(ctx, message)
 }
 
-func (c *AssistantOrchestrator) SendMessage(message string) error {
+func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string) error {
 	// Add user message
 	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
 
@@ -196,12 +196,12 @@ func (c *AssistantOrchestrator) SendMessage(message string) error {
 				m.Content,
 			)
 		}
-		resp, err := c.llmClient.SendMessages(context.Background(), messages.AllMessages(), tools)
+		resp, err := c.llmClient.SendMessages(ctx, messages.AllMessages(), tools)
 		if err != nil {
 			return err
 		}
 
-		err = c.processor.ProcessResponse(resp)
+		err = c.processor.ProcessResponse(ctx, resp)
 		if err != nil {
 			return fmt.Errorf("error processing response: %w", err)
 		}

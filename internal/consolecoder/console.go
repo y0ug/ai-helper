@@ -1,6 +1,7 @@
 package consolecoder
 
 import (
+	"context"
 	"fmt"
 	"os/user"
 	"path/filepath"
@@ -131,6 +132,7 @@ func (c *Console) send(args []string) {
 }
 
 func (c *Console) executor(input string) {
+	ctx := context.Background()
 	input = strings.TrimSpace(input)
 
 	if input == "" {
@@ -154,7 +156,7 @@ func (c *Console) executor(input string) {
 	}
 
 	// process input
-	err := c.coder.Run(input)
+	err := c.coder.Run(ctx, input)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}

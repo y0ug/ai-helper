@@ -47,11 +47,11 @@ func (s *ShellExecutor) Handle(
 ) ([]actions.Action, error) {
 	cmd := action.Payload.(actions.ShellCommandAction)
 
-	if cmd.NeedsConfirm && !cmd.Confirmed {
-		s.confirmChan <- actions.NewUserConfirmAction(&action,
-			fmt.Sprintf("Allow command: %s?", cmd.Command))
-		return nil, nil
-	}
+	// if cmd.NeedsConfirm && !cmd.Confirmed {
+	// 	s.confirmChan <- actions.NewUserConfirmAction(&action,
+	// 		fmt.Sprintf("Allow command: %s?", cmd.Command))
+	// 	return nil, nil
+	// }
 
 	if !s.isCommandAllowed(cmd.Command) {
 		return []actions.Action{

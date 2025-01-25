@@ -49,7 +49,7 @@ func NewActionExecutor(logger *slog.Logger, rm repomanager.RepoManagerInterface,
 	}
 }
 
-func (mp *ActionExecutor) ProcessResponse(resp *chat.ChatResponse) error {
+func (mp *ActionExecutor) ProcessResponse(ctx context.Context, resp *chat.ChatResponse) error {
 	if len(resp.Choice) == 0 {
 		return fmt.Errorf("no choice returned from LLM")
 	}
@@ -62,7 +62,7 @@ func (mp *ActionExecutor) ProcessResponse(resp *chat.ChatResponse) error {
 
 	mp.history.AddMessage(msg)
 
-	_ = mp.ProcessResponseExtractor(msg)
+	_ = mp.ProcessResponseExtractor(ctx, msg)
 
 	mp.DumpActionChains()
 
@@ -89,7 +89,7 @@ func (mp *ActionExecutor) ProcessResponse(resp *chat.ChatResponse) error {
 	return nil
 }
 
-func (mp *ActionExecutor) ProcessResponseExtractor(
+func (mp *ActionExecutor) ProcessResponseExtractor(ctx context.Context,
 	msg *chat.ChatMessage,
 ) []actions.Action {
 	allActions := make([]actions.Action, 0)
@@ -109,15 +109,29 @@ func (mp *ActionExecutor) ProcessResponseExtractor(
 
 	mp.logger.Info("queue", "isEmpty", mp.queue.IsEmpty(), "Length", mp.queue.Len())
 	// Process the queue
-	mp.processActionQueue()
+	mp.processActionQueue(ctx)
 	return allActions
 }
 
-func (mp *ActionExecutor) processActionQueue() {
-	ctx := context.TODO()
+func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
 	for !mp.queue.IsEmpty() {
 		action, _ := mp.queue.Dequeue()
 
+		// Skip already completed actions
+
+		if action.Completed {
+			mp.logger.Warn("Skipping completed action", "ID", action.ID,
+				"ChainID", action.Context.ChainID, "ParentID", action.Context.ParentID,
+				"Type", action.Type)
+			continue
+		}
+
+		mp.actionManager.RegisterAction(action)
+
+		// Mark action as completed after processing
+		defer func(a *actions.Action) {
+			a.Completed = true
+		}(&action)
 		// Register action with manager before processing
 		mp.actionManager.RegisterAction(action)
 
@@ -162,18 +176,21 @@ func (mp *ActionExecutor) processActionQueue() {
 	}
 }
 
-// Enhance DumpActionChains to show errors
 func (mp *ActionExecutor) DumpActionChains() {
 	for _, chain := range mp.actionManager.GetAllChains() {
 		fmt.Printf("Action Chain: %s\n", chain.ChainID)
+		mp.actionManager.DumpActionChainTree(chain.ChainID)
+
 		fmt.Println("Execution Timeline:")
-		for i, action := range chain.Actions {
+		sortedActions := chain.GetActionsSorted()
+		for i, action := range sortedActions {
 			status := "✓"
 			if containsError(chain.Results, action.ID) {
 				status = "✗"
 			}
 			fmt.Printf("%s [%d] %s\n", status, i+1, action.String())
 		}
+
 		fmt.Println("\nDetailed Results:")
 		for _, result := range chain.Results {
 			fmt.Println("-", result)
