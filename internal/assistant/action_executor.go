@@ -191,6 +191,7 @@ func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
 		mp.actionManager.AddResult(action.Context.ChainID,
 			fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
 
+		mp.logger.Info(fmt.Sprintf("ACTION: %s %T", action.Type, action))
 		if len(results) > 0 {
 			mp.queue.Enqueue(results...)
 		}

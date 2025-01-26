@@ -93,7 +93,6 @@ type UserResponseAction struct {
 	Context ActionContext
 }
 
-// In actions/action.go
 func (a Action) String() string {
 	// Add indication of completion status
 	status := ""
@@ -102,7 +101,7 @@ func (a Action) String() string {
 	}
 	switch v := a.Payload.(type) {
 	case BatchEditAction:
-		return fmt.Sprintf("%s%s", status, v)
+		return fmt.Sprintf("%s BATCHEDIT: %s", status, v.String())
 	case ApplyEdit:
 		return fmt.Sprintf("%sEDIT %s: %q → %q", status,
 			v.Filename, shorten(v.Original), shorten(v.Updated))
@@ -114,7 +113,7 @@ func (a Action) String() string {
 	case LogAction:
 		return fmt.Sprintf("%sLOG: %s", status, v.Message)
 	default:
-		return fmt.Sprintf("%sACTION-%s", status, a.Type)
+		return fmt.Sprintf("%sACTION -%s", status, a.Type)
 	}
 }
 
@@ -265,11 +264,11 @@ func NewBatchEditAction(edits []BatchEdit) Action {
 	return NewAction(ActionTypeBatchEdit, BatchEditAction{Edits: edits})
 }
 
-func (b *BatchEditAction) String() string {
+func (b BatchEditAction) String() string {
 	filenames := []string{}
 	for _, edit := range b.Edits {
 		filenames = append(filenames, edit.Edit.Filename)
 	}
 
-	return fmt.Sprintf("BatchEdit: [%s]", strings.Join(filenames, ", "))
+	return fmt.Sprintf("[%s]", strings.Join(filenames, ", "))
 }
