@@ -16,6 +16,7 @@ const (
 	ActionTypeEdit         ActionType = "edit"
 	ActionTypeShellCommand ActionType = "shell_command"
 	ActionTypeUserConfirm  ActionType = "user_confirm"
+	ActionTypeUserResponse ActionType = "user_response"
 	ActionTypeCommit       ActionType = "commit"
 	ActionTypeLog          ActionType = "log"
 	ActionTypeLLMRequest   ActionType = "llm_request"
@@ -66,18 +67,20 @@ type ShellCommandAction struct {
 //			Output:       s.Output,
 //		}, parentAction)
 //	}
-func (s *ShellCommandAction) WithConfirmed(parentAction *Action) Action {
-	return NewAction(ActionTypeShellCommand, ShellCommandAction{
-		Command:      s.Command,
-		NeedsConfirm: false, // No longer needs confirmation
-		Confirmed:    true,
-		Output:       s.Output,
-	}).WithParent(parentAction)
+func (s ShellCommandAction) WithConfirmed(parentAction *Action) Action {
+	s.Confirmed = true
+	return NewAction(ActionTypeShellCommand, s).WithParent(parentAction)
 }
 
 type UserConfirmAction struct {
-	Question string
-	Context  ActionContext
+	Question     string
+	ParentAction Action
+	Context      ActionContext
+}
+
+type UserResponseAction struct {
+	Allowed bool
+	Context ActionContext
 }
 
 type CommitAction struct {
@@ -86,11 +89,6 @@ type CommitAction struct {
 
 type LogAction struct {
 	Message string
-}
-
-type UserResponseAction struct {
-	Allowed bool
-	Context ActionContext
 }
 
 func (a Action) String() string {
@@ -194,26 +192,34 @@ func NewActionWithParent(actionType ActionType, payload interface{}, parentActio
 	return a
 }
 
-func NewApplyEdit(parentAction *Action, filename, original, updated string) Action {
+func NewApplyEdit(filename, original, updated string) Action {
 	return NewAction(ActionTypeEdit, ApplyEdit{
 		Filename: filename,
 		Original: original,
 		Updated:  updated,
-	}).WithParent(parentAction)
+	})
 }
 
-func NewShellCommand(parentAction *Action, command string, needsConfirm bool) Action {
+func NewShellCommand(command string, needsConfirm bool) Action {
 	return NewAction(ActionTypeShellCommand, ShellCommandAction{
 		Command:      command,
 		NeedsConfirm: needsConfirm,
-	}).WithParent(parentAction)
+	})
 }
 
-func NewUserConfirmAction(parentAction *Action, question string) Action {
+func NewUserConfirmAction(parentAction Action, question string) Action {
 	return NewAction(ActionTypeUserConfirm, UserConfirmAction{
-		Question: question,
-		Context:  parentAction.Context,
-	}).WithParent(parentAction)
+		Question:     question,
+		ParentAction: parentAction,
+		Context:      parentAction.Context,
+	})
+}
+
+func NewUserResponseAction(parentAction Action, isAllowed bool) Action {
+	return NewAction(ActionTypeUserResponse, UserResponseAction{
+		Allowed: isAllowed,
+		Context: parentAction.Context,
+	})
 }
 
 func NewCommitAction(parentAction *Action, message string) Action {

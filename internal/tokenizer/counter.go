@@ -20,6 +20,10 @@ func GetEncoding(modelName string) string {
 			}
 		}
 	}
+	// Handle gpt-4o which uses o200k_base encoding
+	if strings.HasPrefix(modelName, "gpt-4o") {
+		return "o200k_base"
+	}
 	return ""
 }
 
@@ -35,7 +39,7 @@ func CountRequest(
 	toolsTokens := CountTool(tkm, tools...)
 	fmt.Println("toolsTokens: ", toolsTokens)
 	if len(tools) > 0 {
-		toolsTokens -= 9 // Additional tokens for function definition of tools
+		toolsTokens += 9 // Additional tokens for function definition of tools
 	}
 	numTokens += toolsTokens
 
@@ -44,25 +48,68 @@ func CountRequest(
 		numTokens -= 4
 	}
 
-	// If tool_choice is 'none', add one token.
-	// If it's an object, add 4 + the number of tokens in the function name.
-	// If it's undefined or 'auto', don't add anything.
-	// if toolChoice == "none" {
-	//   numTokens += 1
-	// }else if toolChoice == "object" { // is dict??
-	//   numTokens += 4 + len(tkm.Encode(toolName, nil, nil))
-	// }
-
-	numTokens += 3 // every reply is primed with <|start|>assistant<|message|>
+	// Add 3 tokens only if not counting response tokens
+	if !countResponseTokens {
+		numTokens += 3 // every reply is primed with <|start|>assistant<|message|>
+	}
 	return
 }
 
-func CountTool(tkm *tiktoken.Tiktoken, tools ...chat.Tool) int {
-	content := formatFunctionDefinitions(tools...)
-	// fmt.Println(content)
-	return len(tkm.Encode(content, nil, nil))
+// ... [Other functions remain the same until formatType]
+
+func formatType(prop *jsonschema.Schema, indent int) string {
+	switch prop.Type {
+	case "string":
+		if len(prop.Enum) > 0 {
+			enumValues := make([]string, 0, len(prop.Enum))
+			for _, v := range prop.Enum {
+				strVal, ok := v.(string)
+				if !ok {
+					fmt.Printf("non-string value in enum: %T\n", v)
+					continue
+				}
+				enumValues = append(enumValues, fmt.Sprintf(`"%s"`, strVal))
+			}
+			return strings.Join(enumValues, " | ")
+		}
+		return "string"
+	case "array":
+		if prop.Items != nil {
+			return fmt.Sprintf("%s[]", formatType(prop.Items, indent))
+		}
+		return "any[]"
+	case "object":
+		return fmt.Sprintf(
+			"{\n%s\n%s}",
+			formatObjectParameters(*prop, indent+4),
+			strings.Repeat(" ", indent),
+		)
+	case "integer", "number":
+		if len(prop.Enum) > 0 {
+			var strVals []string
+			for _, val := range prop.Enum {
+				switch v := val.(type) {
+				case float64:
+					strVals = append(strVals, fmt.Sprintf("%d", int64(v)))
+				case int64:
+					strVals = append(strVals, fmt.Sprintf("%d", v))
+				default:
+					fmt.Printf("unsupported enum value type: %T\n", val)
+				}
+			}
+			return strings.Join(strVals, " | ")
+		}
+		return "number"
+	case "boolean":
+		return "boolean"
+	case "null":
+		return "null"
+	default:
+		return "any"
+	}
 }
 
+// Update ContentTypeToolUse handling in CountMessage
 func CountMessage(
 	tkm *tiktoken.Tiktoken,
 	isResponseTokens bool,
@@ -90,14 +137,21 @@ func CountMessage(
 			case chat.ContentTypeToolResult:
 				curContentTokens = len(tkm.Encode(string(content.Content), nil, nil))
 			case chat.ContentTypeToolUse:
-				input, _ := json.Marshal(content.Input)
+				toolUse := struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				}{
+					Name:      content.Name,
+					Arguments: string(content.Input),
+				}
+				input, _ := json.Marshal(toolUse)
+				fmt.Println("input: ", string(input))
 				curContentTokens = len(tkm.Encode(string(input), nil, nil))
-				curContentTokens += len(tkm.Encode(string(content.Name), nil, nil))
-				curContentTokens += len(tkm.Encode(string(content.ID), nil, nil))
+				// curContentTokens += len(tkm.Encode(string(content.Name), nil, nil))
+				// curContentTokens += len(tkm.Encode(string(content.Input), nil, nil))
 				hasFunctionUse = true
 			default:
 				fmt.Println("not counted content.Type: ", content.Type)
-				// contentCount = len(tkm.Encode(content.Text, nil, nil))
 			}
 			numTokens += curContentTokens
 			msgTokens += curContentTokens
@@ -109,24 +163,21 @@ func CountMessage(
 				content.String(),
 			)
 		}
-		// if msg.Role == "function" {
-		// 	numTokens -= 1
-		// }
 
 		if isResponseTokens {
-			if hasFunctionUse {
-				msgTokens -= 2
-			}
+			// No adjustment needed for response tokens
 			return msgTokens, hasFunctionUse, hasSystemPrompt
 		}
 
-		if msg.Role == "assistant" && hasFunctionUse {
-			numTokens -= 2
-		}
-		fmt.Println("numTokens: ", numTokens)
+		// Removed incorrect adjustment for assistant messages
 	}
-
 	return
+}
+
+func CountTool(tkm *tiktoken.Tiktoken, tools ...chat.Tool) int {
+	content := formatFunctionDefinitions(tools...)
+	fmt.Println(content)
+	return len(tkm.Encode(content, nil, nil))
 }
 
 func formatFunctionDefinitions(tools ...chat.Tool) string {
@@ -200,46 +251,6 @@ func SliceToType[T any](slice []any) []T {
 		result[i] = val
 	}
 	return result
-}
-
-func formatType(prop *jsonschema.Schema, indent int) string {
-	switch prop.Type {
-	case "string":
-		if len(prop.Enum) > 0 {
-			return fmt.Sprintf(
-				"string // enum: %s",
-				strings.Join(SliceToType[string](prop.Enum), " | "),
-			)
-		}
-		return "string"
-	case "array":
-		if prop.Items != nil {
-			return fmt.Sprintf("%s[]", formatType(prop.Items, indent))
-		}
-		return "any[]"
-	case "object":
-		return fmt.Sprintf(
-			"{\n%s\n%s}",
-			formatObjectParameters(*prop, indent+4),
-			strings.Repeat(" ", indent),
-		)
-	case "integer", "number":
-		if len(prop.Enum) > 0 {
-			vals := SliceToType[int64](prop.Enum)
-			var strVals []string
-			for _, val := range vals {
-				strVals = append(strVals, fmt.Sprintf("%d", val))
-			}
-			return fmt.Sprintf("int // enum: %s", strings.Join(strVals, " | "))
-		}
-		return "number"
-	case "boolean":
-		return "boolean"
-	case "null":
-		return "null"
-	default:
-		return "any"
-	}
 }
 
 func contains(slice []string, item string) bool {

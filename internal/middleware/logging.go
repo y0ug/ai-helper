@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,16 +37,16 @@ func LoggingMiddleware() func(*http.Request, func(*http.Request) (*http.Response
 				fmt.Printf("Error dumping response: %v\n", err)
 			} else {
 				// fmt.Printf("Response:\n%s\n", string(respDump))
-				if resp.Request.Header.Get("Content-Type") == "application/json" {
-					var obj map[string]interface{}
-					err := json.Unmarshal([]byte(bodyBytes), &obj)
-					if err == nil {
-						bodyPretty, err := json.MarshalIndent(obj, "", "  ")
-						if err == nil {
-							bodyBytes = bodyPretty
-						}
-					}
-				}
+				// if resp.Request.Header.Get("Content-Type") == "application/json" {
+				// 	var obj map[string]interface{}
+				// 	err := json.Unmarshal([]byte(bodyBytes), &obj)
+				// 	if err == nil {
+				// 		bodyPretty, err := json.MarshalIndent(obj, "", "  ")
+				// 		if err == nil {
+				// 			bodyBytes = bodyPretty
+				// 		}
+				// 	}
+				// }
 				fmt.Printf("%s\n", bodyBytes)
 			}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/pkoukk/tiktoken-go"
+	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmhaven"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
@@ -283,7 +284,7 @@ func ChatCompletion(
 	defer cancelFn()
 
 	requestOpts := []options.RequestOption{
-		// options.WithMiddleware(middleware.LoggingMiddleware()),
+		options.WithMiddleware(middleware.LoggingMiddleware()),
 		// options.WithMiddleware(middleware.TimeitMiddleware(nil)),
 	}
 

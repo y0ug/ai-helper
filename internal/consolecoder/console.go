@@ -1,14 +1,15 @@
 package consolecoder
 
 import (
-	"context"
 	"fmt"
+	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
 
 	"github.com/c-bata/go-prompt"
 	"github.com/y0ug/ai-helper/internal/assistant"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 )
 
@@ -18,6 +19,8 @@ type Console struct {
 	commands    map[string]Command
 	pt          *prompt.Prompt
 	historyFile string
+	status      string
+	uim         *ui.UIInteractionManager // UI interaction manager
 }
 
 func getHistoryFilePath() string {
@@ -28,11 +31,16 @@ func getHistoryFilePath() string {
 	return filepath.Join(usr.HomeDir, ".ai-coder-history")
 }
 
-func New(coder *assistant.AssistantOrchestrator, h *highlighter.Highlighter) *Console {
+func New(
+	coder *assistant.AssistantOrchestrator,
+	h *highlighter.Highlighter,
+	uim *ui.UIInteractionManager,
+) *Console {
 	c := &Console{
 		coder:       coder,
 		h:           h,
 		historyFile: getHistoryFilePath(),
+		uim:         uim,
 	}
 
 	c.setCommands()
@@ -53,12 +61,14 @@ func New(coder *assistant.AssistantOrchestrator, h *highlighter.Highlighter) *Co
 		}),
 	)
 
+	c.uim.Start()
+	c.uim.StreamOutput(h) // Start streaming LLM responses through the highlighter
 	return c
 }
 
 func (c *Console) UpdatePrompt() (string, bool) {
-	return fmt.Sprintf(
-		"➜ "), false
+	// status := <-c.statusChan
+	return fmt.Sprintf("[%s]  ➜ ", c.status), false
 }
 
 func (c *Console) Run() {
@@ -73,10 +83,10 @@ func (c *Console) handleHelp(args []string) {
 }
 
 func (c *Console) handleQuit(args []string) {
+	fmt.Println("\nShutting down gracefully...")
+	c.uim.Shutdown()
 	fmt.Println("Goodbye!")
-	// You might want to cleanup here
-	// Example: close connections, save state, etc.
-	panic("quit") // Quick way to exit, you might want to handle this more gracefully
+	os.Exit(0)
 }
 
 func (c *Console) handleAddFile(args []string) {
@@ -132,7 +142,6 @@ func (c *Console) send(args []string) {
 }
 
 func (c *Console) executor(input string) {
-	ctx := context.Background()
 	input = strings.TrimSpace(input)
 
 	if input == "" {
@@ -145,7 +154,6 @@ func (c *Console) executor(input string) {
 	// Handle commands
 	if strings.HasPrefix(input, "/") {
 		parts := strings.Fields(input)
-
 		cmd, exists := c.commands[parts[0]]
 		if exists {
 			cmd.handler(parts[1:])
@@ -155,9 +163,13 @@ func (c *Console) executor(input string) {
 		return
 	}
 
+	// Send input to the input channel for asynchronous processing
+	// c.uim.InputChan <- input
+	c.uim.HandleInput(input)
+
 	// process input
-	err := c.coder.Run(ctx, input)
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	}
+	// err := c.coder.Run(ctx, input)
+	// if err != nil {
+	// 	fmt.Printf("Error: %v\n", err)
+	// }
 }

@@ -66,7 +66,7 @@ func (c *FuncWholeFileExtractor) WriteFileHandler(
 	input WriteFileInput,
 ) (actions.Action, error) {
 	c.logger.Debug("WriteFileHandler", "Explanation", input.Explanation)
-	action := actions.NewApplyEdit(nil, input.Filename, "", input.Content)
+	action := actions.NewApplyEdit(input.Filename, "", input.Content)
 	return action, nil
 }
 

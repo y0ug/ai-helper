@@ -98,7 +98,7 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 
 		if isShellBlockStart(line) {
 			cmd, newI := extractShellCommand(lines, i)
-			action := actions.NewShellCommand(parentAction, cmd, false)
+			action := actions.NewShellCommand(cmd, true).WithParent(parentAction)
 			if parentAction == nil {
 				parentAction = &action
 			}
@@ -149,7 +149,7 @@ func (c *BlockExtractor) extractEditBlock(
 
 	originalStr := strings.Join(original, "\n")
 	updatedStr := strings.Join(updated, "\n")
-	return actions.NewApplyEdit(nil, filename, originalStr, updatedStr), i, nil
+	return actions.NewApplyEdit(filename, originalStr, updatedStr), i, nil
 }
 
 func (c *BlockExtractor) findFilename(lines []string, current int) string {

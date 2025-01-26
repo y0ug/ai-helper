@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/c-bata/go-prompt"
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 )
@@ -39,9 +41,13 @@ type Command struct {
 
 func New(agent *llmagent.TemplateAgent) *Console {
 	c := &Console{
-		agent:       agent,
-		h:           highlighter.NewHighlighter(os.Stdout),
-		historyFile: getHistoryFilePath(),
+		coder:        coder,
+		h:            h,
+		historyFile:  getHistoryFilePath(),
+		statusChan:   make(chan string),
+		inputChan:    make(chan string),
+		confirmChan:  make(chan actions.Action),
+		responseChan: make(chan executors.UserResponse),
 	}
 
 	c.setCommands()
@@ -51,7 +57,7 @@ func New(agent *llmagent.TemplateAgent) *Console {
 		c.completer,
 		prompt.OptionLivePrefix(c.UpdatePrompt),
 		prompt.OptionTitle("Chat"),
-		prompt.OptionPrefix(fmt.Sprintf("%s ➜ ", agent.GetModelName())),
+		prompt.OptionPrefix(fmt.Sprintf(" Γ₧£ ")),
 		prompt.OptionInputTextColor(prompt.Yellow),
 		prompt.OptionPrefixTextColor(prompt.Blue),
 		prompt.OptionMaxSuggestion(5),

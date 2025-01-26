@@ -3,7 +3,6 @@ package llm
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
@@ -11,19 +10,22 @@ import (
 )
 
 type StreamProcessor struct {
-	writer io.Writer
-	logger *slog.Logger
+	outputChan chan string
+	logger     *slog.Logger
 }
 
-func NewStreamProcessor(writer io.Writer, logger *slog.Logger) *StreamProcessor {
+func NewStreamProcessor(
+	outputChan chan string,
+	logger *slog.Logger,
+) *StreamProcessor {
 	return &StreamProcessor{
-		writer: writer,
-		logger: logger,
+		outputChan: outputChan,
+		logger:     logger,
 	}
 }
 
 func (sp *StreamProcessor) HasWriter() bool {
-	return sp.writer != nil
+	return true // sp.writer != nil
 }
 
 func (sp *StreamProcessor) ProcessStream(
@@ -44,22 +46,23 @@ func (sp *StreamProcessor) ProcessStream(
 	for {
 		select {
 		case <-ctx.Done():
+			sp.outputChan <- "\n"
 			return nil, ctx.Err()
 
 		case event, ok := <-eventCh:
 			if !ok {
+				sp.outputChan <- "\n"
 				return chatResponse, nil
 			}
 
 			switch event.Type {
 			case "text_delta":
-				if sp.writer != nil {
-					fmt.Fprintf(sp.writer, "%v", event.Delta)
-				}
+				sp.outputChan <- fmt.Sprintf("%v", event.Delta)
 			case "message_stop":
 				chatResponse = event.Message
 			case "error":
 				chatResponse = event.Message
+				sp.outputChan <- "\n"
 				return chatResponse, fmt.Errorf("error in stream: %v", event.Message)
 			}
 		}

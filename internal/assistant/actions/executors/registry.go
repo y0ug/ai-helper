@@ -7,6 +7,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
 )
 
@@ -46,8 +47,7 @@ func NewRegistryFull(
 	logger *slog.Logger,
 	repo repomanager.RepoManagerInterface,
 	validator validation.Validator,
-	confirmChan chan actions.Action,
-	responseChan chan UserResponse,
+	uim *ui.UIInteractionManager,
 	history *prompt.ChatHistory,
 ) *Registry {
 	registry := &Registry{
@@ -56,12 +56,12 @@ func NewRegistryFull(
 	registry.Register(NewShellExecutor(
 		[]string{`.*`}, // Example safe patterns
 		// []string{`^ls$`, `^go test .*`}, // Example safe patterns
-		confirmChan,
+		uim.ActionChan,
 		logger,
 	))
 	registry.Register(NewEditExecutor(repo, validator, logger))
 	registry.Register(NewCommitExecutor(repo))
-	registry.Register(NewUserInteractionExecutor(responseChan, confirmChan, logger))
+	registry.Register(NewUserInteractionExecutor(logger, uim))
 	registry.Register(NewLogExecutor())
 	registry.Register(NewAddMessageExecutor(history))
 	return registry

@@ -16,6 +16,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -30,6 +31,9 @@ type ActionExecutor struct {
 	executor      executors.Executor
 	queue         queue.ActionQueuer
 	actionManager *actions.ActionManager
+	uim           *ui.UIInteractionManager
+	runCtx        context.Context
+	runCancel     context.CancelFunc
 }
 
 func NewActionExecutor(
@@ -41,6 +45,7 @@ func NewActionExecutor(
 	prompts prompts.Prompter,
 	extractors []extractors.Extractor,
 	executor executors.Executor,
+	uim *ui.UIInteractionManager,
 ) *ActionExecutor {
 	actionManager := actions.NewActionManager(logger)
 	return &ActionExecutor{
@@ -54,6 +59,40 @@ func NewActionExecutor(
 		executor:      executor,
 		queue:         queue.NewActionQueue(),
 		actionManager: actionManager,
+		uim:           uim,
+	}
+}
+
+func (mp *ActionExecutor) Start(ctx context.Context) {
+	if mp.runCtx == nil {
+		mp.runCtx, mp.runCancel = context.WithCancel(ctx)
+		go mp.processingLoop(mp.runCtx)
+	}
+}
+
+func (mp *ActionExecutor) Stop() {
+	if mp.runCancel != nil {
+		mp.runCancel()
+	}
+	mp.runCancel = nil
+	mp.runCtx = nil
+}
+
+func (mp *ActionExecutor) processingLoop(ctx context.Context) {
+	mp.logger.Debug("start ActionExecutor processing loop")
+	for {
+		select {
+		case <-ctx.Done():
+			mp.logger.Info("Processing loop done")
+			return
+		case action := <-mp.uim.ActionChan:
+			mp.logger.Info("Processing action", "action", action)
+			mp.queue.Enqueue(action)
+			mp.processActionQueue(ctx)
+		case <-mp.uim.ShutdownChan:
+			return
+		default:
+		}
 	}
 }
 

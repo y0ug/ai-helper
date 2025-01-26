@@ -17,6 +17,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
@@ -30,21 +31,23 @@ type AssistantOptions struct {
 	Settings     *settings.CoderSettings
 	StreamWriter io.Writer
 	Stream       bool
-	ConfirmChan  chan actions.Action
-	ResponseChan chan executors.UserResponse
+	Uim          *ui.UIInteractionManager
 }
 
 type AssistantOrchestrator struct {
-	logger     *slog.Logger
-	llm        llm.ChatCompleter
-	prompts    prompts.Prompter
-	rm         repomanager.RepoManagerInterface
-	settings   *settings.CoderSettings
-	processor  *ActionExecutor
-	history    *prompt.ChatHistory
-	formatter  *prompt.PromptFormatter
-	extractors []extractors.Extractor
-	metrics    llm.MetricsRecorder
+	logger       *slog.Logger
+	llm          llm.ChatCompleter
+	prompts      prompts.Prompter
+	rm           repomanager.RepoManagerInterface
+	settings     *settings.CoderSettings
+	processor    *ActionExecutor
+	history      *prompt.ChatHistory
+	formatter    *prompt.PromptFormatter
+	extractors   []extractors.Extractor
+	metrics      llm.MetricsRecorder
+	uim          *ui.UIInteractionManager
+	runCtx       context.Context
+	cancelRunCtx context.CancelFunc
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
@@ -63,12 +66,16 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		history:   history,
 		formatter: formatter,
 		metrics:   metricsTracker,
+		uim:       opts.Uim,
 	}
 
 	// Stream processor for the LLMClient wrapper
 	var streamProcessor *llm.StreamProcessor
 	if opts.Stream {
-		streamProcessor = llm.NewStreamProcessor(opts.StreamWriter, opts.Logger)
+		streamProcessor = llm.NewStreamProcessor(
+			opts.Uim.OutputChan,
+			opts.Logger,
+		)
 	}
 
 	// Generate the LLMClient wrapper
@@ -87,8 +94,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		c.logger,
 		c.rm,
 		validator,
-		opts.ConfirmChan,
-		opts.ResponseChan,
+		c.uim,
 		history,
 	)
 
@@ -103,6 +109,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		opts.Prompts,
 		c.extractors,
 		registry,
+		c.uim,
 	)
 	c.processor = processor
 
@@ -127,7 +134,42 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		"extractor_features",
 		features,
 	)
+
 	return c
+}
+
+func (a *AssistantOrchestrator) Start(ctx context.Context) {
+	a.runCtx, a.cancelRunCtx = context.WithCancel(ctx)
+	go a.handleAssistantInputChan()
+	a.processor.Start(a.runCtx)
+}
+
+func (a *AssistantOrchestrator) Stop() {
+	a.cancelRunCtx()
+	// we shoiuld not have to stop a.processor since the context is cancelled
+	// a.processor.Stop()
+}
+
+func (a *AssistantOrchestrator) handleAssistantInputChan() {
+	for {
+		select {
+		case <-a.runCtx.Done():
+			return
+		case <-a.uim.ShutdownChan:
+			return
+		case input := <-a.uim.GetAssistantInputChan():
+			a.processUserInput(a.runCtx, input)
+		}
+	}
+}
+
+func (a *AssistantOrchestrator) processUserInput(ctx context.Context, input string) {
+	a.uim.UpdateStatus("ANALYZING_INPUT")
+
+	a.logger.Info("Processing user input", "input", input)
+	a.Run(ctx, input)
+
+	a.uim.UpdateStatus("READY")
 }
 
 func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
@@ -197,6 +239,13 @@ func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string)
 	messages := c.FormatMessages()
 
 	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
+		select {
+		case <-ctx.Done():
+			// Context cancelled, stop processing
+			return ctx.Err()
+		default:
+			// Continue processing
+		}
 		// Update the current messages Slice of the PromptChunks
 		// We only want to update those during turn
 		// we want to keep the prompt and files context the same
@@ -228,6 +277,13 @@ func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string)
 		if err != nil {
 			return fmt.Errorf("error sending messages: %w", err)
 		}
+
+		// Stream the response to the outputChan
+		// for _, content := range resp.Content {
+		// 	if content.Type == chat.ContentTypeText {
+		// 		c.uim.outputChan <- content.String() // Send the response to the outputChan
+		// 	}
+		// }
 
 		// c.logger.Info("metrics", "total", c.metrics)
 

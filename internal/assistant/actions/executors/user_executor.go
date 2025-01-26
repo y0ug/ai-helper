@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 )
 
 type UserInteractionExecutor struct {
-	pendingRequests sync.Map // map[string]*PendingRequest
-	responseChan    <-chan UserResponse
-	actionChan      chan<- actions.Action // Add this
+	pendingRequests sync.Map
+	uim             *ui.UIInteractionManager
 	logger          *slog.Logger
 	timeout         time.Duration
 }
@@ -23,25 +23,17 @@ type PendingRequest struct {
 	ReceivedAt     time.Time
 }
 
-type UserResponse struct {
-	ChainID    string
-	ParentID   string
-	ToolCallID string
-	Allowed    bool
-}
-
 func NewUserInteractionExecutor(
-	responseChan <-chan UserResponse,
-	actionChan chan<- actions.Action, // Add this parameter
 	logger *slog.Logger,
+	uim *ui.UIInteractionManager,
 ) *UserInteractionExecutor {
 	e := &UserInteractionExecutor{
-		responseChan: responseChan,
-		actionChan:   actionChan,
-		logger:       logger,
-		timeout:      5 * time.Minute,
+		logger:  logger,
+		uim:     uim,
+		timeout: 5 * time.Minute,
 	}
 
+	go e.processResponses()
 	go e.cleanupRoutine()
 	return e
 }
@@ -55,72 +47,75 @@ func (e *UserInteractionExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
 ) ([]actions.Action, error) {
+	logger := actions.GetLogger(ctx)
+
 	confirmAction := action.Payload.(actions.UserConfirmAction)
 
 	// Store using all context identifiers for redundancy
 	key := fmt.Sprintf("%s|%s|%s",
-		action.Context.ChainID,
-		action.Context.ParentID,
-		action.Context.ToolCallID,
+		confirmAction.Context.ChainID,
+		confirmAction.Context.ParentID,
+		confirmAction.Context.ToolCallID,
 	)
+
+	logger.Debug("Storing pending request", "key", key)
 
 	e.pendingRequests.Store(key, &PendingRequest{
-		OriginalAction: actions.Action{
-			ID:      action.Context.ParentID, // Original action's ID
-			Context: confirmAction.Context,
-		},
-		ReceivedAt: time.Now(),
+		OriginalAction: confirmAction.ParentAction,
+		ReceivedAt:     time.Now(),
 	})
 
-	e.logger.Debug("Stored pending request",
-		"chain_id", action.Context.ChainID,
-		"parent_id", action.Context.ParentID,
-		"tool_call_id", action.Context.ToolCallID,
-	)
+	logger.Debug("Stored pending request")
 
+	// forward the confirmation request to the UIInteractionManager
+	e.uim.ConfirmChan <- action
 	return nil, nil
 }
 
 func (e *UserInteractionExecutor) processResponses() {
-	for response := range e.responseChan {
-		// Try multiple key formats for redundancy
-		keys := []string{
-			fmt.Sprintf("%s|%s|%s", response.ChainID, response.ParentID, response.ToolCallID),
-			fmt.Sprintf("|%s|%s", response.ParentID, response.ToolCallID),
-			fmt.Sprintf("%s||", response.ChainID),
-		}
-
-		var foundAction *actions.Action
-		for _, key := range keys {
-			if req, ok := e.pendingRequests.Load(key); ok {
-				foundAction = &req.(*PendingRequest).OriginalAction
-				e.pendingRequests.Delete(key)
-				break
+	logger := e.logger
+	for action := range e.uim.ResponseChan {
+		switch response := action.Payload.(type) {
+		case actions.UserResponseAction:
+			// Try multiple key formats for redundancy
+			keys := []string{
+				fmt.Sprintf("%s|%s|%s", response.Context.ChainID, response.Context.ParentID, response.Context.ToolCallID),
+				fmt.Sprintf("|%s|%s", response.Context.ParentID, response.Context.ToolCallID),
+				fmt.Sprintf("%s||", response.Context.ChainID),
 			}
-		}
 
-		if foundAction != nil {
-			e.handleResponse(*foundAction, response)
-		} else {
-			e.logger.Warn("Orphaned user response",
-				"chain_id", response.ChainID,
-				"parent_id", response.ParentID,
-			)
+			var foundAction *actions.Action
+			for _, key := range keys {
+				if req, ok := e.pendingRequests.Load(key); ok {
+					foundAction = &req.(*PendingRequest).OriginalAction
+					e.pendingRequests.Delete(key)
+					break
+				}
+			}
+
+			if foundAction != nil {
+				e.handleResponse(*foundAction, response)
+			} else {
+				logger.Warn("Orphaned user response", "action", response)
+			}
+		default:
+			logger.Warn("ResponChan action type not supported", "action", action)
 		}
 	}
 }
 
 func (e *UserInteractionExecutor) handleResponse(
 	originalAction actions.Action,
-	response UserResponse,
+	response actions.UserResponseAction,
 ) {
+	logger := e.logger
 	// Update original action based on response
 	switch action := originalAction.Payload.(type) {
 	case actions.ShellCommandAction:
 		action.Confirmed = response.Allowed
 		originalAction.Payload = action
 
-		e.logger.Info("Re-enqueueing action with confirmation",
+		logger.Info("Re-enqueueing action with confirmation",
 			"action_id", originalAction.ID,
 			"confirmed", response.Allowed,
 		)
@@ -128,19 +123,21 @@ func (e *UserInteractionExecutor) handleResponse(
 		// Re-enqueue original action with updated state
 		go func() {
 			select {
-			case e.actionChan <- originalAction:
+			case e.uim.ActionChan <- originalAction:
 			case <-time.After(1 * time.Second):
 				e.logger.Error("Failed to re-enqueue confirmed action")
 			}
 		}()
 
 	default:
-		e.logger.Error("Unsupported action type for confirmation",
+		logger.Error("Unsupported action type for confirmation",
 			"action_type", originalAction.Type)
 	}
 }
 
 func (e *UserInteractionExecutor) cleanupRoutine() {
+	// TODO: should we track the creation that come from New?
+	// logger := actions.GetLogger(ctx)
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 

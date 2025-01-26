@@ -6,18 +6,18 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
-	"strings"
+	"syscall"
 	"time"
 
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/assistant"
-	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	modelinfocoder "github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
@@ -119,31 +119,15 @@ func main() {
 	h := highlighter.NewHighlighter(os.Stdout)
 	coderSettings := settings.NewCoderSettings(modelCoder)
 
-	// Create channels
-	responseChan := make(chan executors.UserResponse, 10)
-	confirmChan := make(chan actions.Action, 10)
+	uim := ui.NewUIInteractionManager(h)
 
-	// Start user input handler
+	// Capture Ctrl-C (SIGINT)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		for confirmAction := range confirmChan {
-			// Present confirmation to user
-			fmt.Printf(
-				"Allow command: %s? (y/n): ",
-				confirmAction.Payload.(actions.UserConfirmAction).Question,
-			)
-
-			// Get user response
-			var response string
-			fmt.Scanln(&response)
-
-			// Send response
-			responseChan <- executors.UserResponse{
-				Allowed:    strings.ToLower(response) == "y",
-				ParentID:   confirmAction.Context.ParentID.String(),
-				ChainID:    confirmAction.Context.ChainID.String(),
-				ToolCallID: confirmAction.Context.ToolCallID,
-			}
-		}
+		<-sigChan
+		fmt.Println("\nReceived interrupt signal, shutting down...")
+		uim.Shutdown()
 	}()
 
 	coderOpts := assistant.AssistantOptions{
@@ -154,11 +138,13 @@ func main() {
 		StreamWriter: h,
 		Settings:     coderSettings,
 		Stream:       true,
-		ResponseChan: responseChan,
-		ConfirmChan:  confirmChan,
+		Uim:          uim,
 	}
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
-	console := consolecoder.New(coder, h)
+	coder.Start(ctx)
+	defer coder.Stop()
+
+	console := consolecoder.New(coder, h, uim)
 	console.Run()
 }
