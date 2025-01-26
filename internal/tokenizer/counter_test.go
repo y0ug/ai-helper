@@ -138,6 +138,16 @@ func TestNumTokensFromMessages(t *testing.T) {
 			description: "System message",
 		},
 		{
+			name:  "WithToolsSystemMessage",
+			model: "gpt-4o",
+			messages: []*chat.ChatMessage{
+				chat.NewSystemMessage("You are are a weather forecaster."),
+				chat.NewUserMessage("What the weather in paris!"),
+			},
+			tools:       genTools(),
+			description: "System message with tools",
+		},
+		{
 			name:  "MultiTurnConversation",
 			model: "gpt-4o",
 			messages: []*chat.ChatMessage{
