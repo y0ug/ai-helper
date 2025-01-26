@@ -1,6 +1,7 @@
 package tokenizer
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -32,8 +33,9 @@ func CountRequest(
 	numTokens += msgsTokens
 
 	toolsTokens := CountTool(tkm, tools...)
+	fmt.Println("toolsTokens: ", toolsTokens)
 	if len(tools) > 0 {
-		toolsTokens += 9 // Additional tokens for function definition of tools
+		toolsTokens -= 9 // Additional tokens for function definition of tools
 	}
 	numTokens += toolsTokens
 
@@ -57,7 +59,7 @@ func CountRequest(
 
 func CountTool(tkm *tiktoken.Tiktoken, tools ...chat.Tool) int {
 	content := formatFunctionDefinitions(tools...)
-	fmt.Println(content)
+	// fmt.Println(content)
 	return len(tkm.Encode(content, nil, nil))
 }
 
@@ -88,8 +90,10 @@ func CountMessage(
 			case chat.ContentTypeToolResult:
 				curContentTokens = len(tkm.Encode(string(content.Content), nil, nil))
 			case chat.ContentTypeToolUse:
-				curContentTokens = len(tkm.Encode(string(content.Input), nil, nil))
+				input, _ := json.Marshal(content.Input)
+				curContentTokens = len(tkm.Encode(string(input), nil, nil))
 				curContentTokens += len(tkm.Encode(string(content.Name), nil, nil))
+				curContentTokens += len(tkm.Encode(string(content.ID), nil, nil))
 				hasFunctionUse = true
 			default:
 				fmt.Println("not counted content.Type: ", content.Type)
@@ -110,6 +114,9 @@ func CountMessage(
 		// }
 
 		if isResponseTokens {
+			if hasFunctionUse {
+				msgTokens -= 2
+			}
 			return msgTokens, hasFunctionUse, hasSystemPrompt
 		}
 

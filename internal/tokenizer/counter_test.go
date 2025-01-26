@@ -3,13 +3,11 @@ package tokenizer
 import (
 	"context"
 	"fmt"
-	"log"
 	"testing"
 	"time"
 
 	"github.com/invopop/jsonschema"
 	"github.com/pkoukk/tiktoken-go"
-	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/llmhaven"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
@@ -103,81 +101,165 @@ func genTools() []chat.Tool {
 }
 
 func TestNumTokensFromMessages(t *testing.T) {
-	modelName := "gpt-4o"
-
-	encoding := GetEncoding(modelName)
-	if encoding == "" {
-		err := fmt.Errorf("encoding for model %s not found", modelName)
-		t.Log(err)
-		return
+	testCases := []struct {
+		name        string
+		model       string
+		messages    []*chat.ChatMessage
+		tools       []chat.Tool
+		description string
+	}{
+		{
+			name:  "SimpleUserMessage",
+			model: "gpt-4o",
+			messages: []*chat.ChatMessage{
+				chat.NewUserMessage("Hello! How's the weather today?"),
+			},
+			tools:       nil,
+			description: "Simple user message without tools",
+		},
+		{
+			name:  "WithTools",
+			model: "gpt-4o",
+			messages: []*chat.ChatMessage{
+				chat.NewUserMessage(
+					"What's the coordinates of 13 calade st come? What the weather in Paris?",
+				),
+			},
+			tools:       genTools(),
+			description: "With tools",
+		},
+		{
+			name:  "WithSystemMessage",
+			model: "gpt-4o",
+			messages: []*chat.ChatMessage{
+				chat.NewSystemMessage("You're a comedian."),
+				chat.NewUserMessage("Tell me a joke!"),
+			},
+			description: "System message",
+		},
+		{
+			name:  "MultiTurnConversation",
+			model: "gpt-4o",
+			messages: []*chat.ChatMessage{
+				chat.NewUserMessage("What's the capital of France?"),
+				chat.NewMessage(
+					"assistant",
+					chat.NewTextContent("The capital of France is Paris."),
+				),
+				chat.NewUserMessage("What's the population there?"),
+			},
+			tools:       nil,
+			description: "Multi-turn conversation history",
+		},
+		// Add more test cases for different models
+		{
+			name:  "GPT3.5Turbo",
+			model: "gpt-3.5-turbo",
+			messages: []*chat.ChatMessage{
+				chat.NewUserMessage("Explain quantum computing in simple terms"),
+			},
+			tools:       nil,
+			description: "Different model (gpt-3.5-turbo)",
+		},
 	}
 
-	fmt.Printf("Model: %s Endcoding: %s", modelName, encoding)
-	tkm, err := tiktoken.GetEncoding("o200k_base")
-	if err != nil {
-		err = fmt.Errorf("encoding for model: %v", err)
-		log.Println(err)
-		return
-	}
-
-	msgs := []*chat.ChatMessage{
-		// chat.NewUserMessage("Hello test token! What is the weather today?"),
-		chat.NewUserMessage(
-			"I'm unable to provide real-time data, including current weather conditions. I recommend checking a reliable weather website or app for the most up-to-date information. If you have any other questions or need information, feel free to ask!",
-		),
-		// chat.NewMessage("assistant", chat.NewTextContent("The weather is sunny today.")),
-	}
-
-	t.Run("TestNumTokensMessageIntergration", func(t *testing.T) {
-		tools := []chat.Tool{}
-		inputTokens := CountRequest(tkm, msgs, nil, false)
-		fmt.Printf(
-			"Model: %s, InputTokens: %d Msgs: %d Tools: %d\n",
-			modelName,
-			inputTokens,
-			len(msgs),
-			len(tools),
-		)
-
-		resp, err := ChatCompletion(context.Background(), "openai", "gpt-4o", msgs, tools)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		fmt.Printf(
-			"Resp Choice: %d Contents: %d\n",
-			len(resp.Choice),
-			len(resp.Choice[0].Content),
-		)
-
-		respMsg := resp.ToMessageParams()
-		fmt.Printf("content: %s\n", respMsg.Content[0].String())
-
-		outputTokens := len(tkm.Encode(respMsg.Role, nil, nil))
-		for _, content := range respMsg.Content {
-			if content.Type == chat.ContentTypeText {
-				outputTokens += len(tkm.Encode(content.Text, nil, nil))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Validate model encoding
+			encoding := GetEncoding(tc.model)
+			if encoding == "" {
+				t.Skipf("Skipping %s: encoding not found for model %s", tc.description, tc.model)
+				return
 			}
-		}
 
-		msgs = append(msgs, respMsg)
-		totalTokens := CountRequest(tkm, msgs, nil, false)
+			// Initialize tokenizer
+			tkm, err := tiktoken.GetEncoding(encoding)
+			if err != nil {
+				t.Fatalf("Failed to get encoding: %v", err)
+			}
 
-		// outputTokens := CountRequest(tkm, []*chat.ChatMessage{respMsg}, nil, false)
-		fmt.Printf(
-			"Local: InputTokens: %d OutputToken %d totalTokens %d\n",
-			inputTokens,
-			outputTokens,
-			totalTokens,
-		)
-		fmt.Printf(
-			"Usage: InputTokens: %d OutputToken %d InputCachedTokens %d totalTokens %d\n",
-			resp.Usage.InputTokens,
-			resp.Usage.OutputTokens,
-			resp.Usage.InputCachedTokens,
-			resp.Usage.InputTokens+resp.Usage.OutputTokens+resp.Usage.InputCachedTokens,
-		)
-	})
+			// Calculate local token counts
+			localInputTokens := CountRequest(tkm, tc.messages, tc.tools, false)
+
+			// Make API call
+			resp, err := ChatCompletion(
+				context.Background(),
+				"openai",
+				tc.model,
+				tc.messages,
+				tc.tools,
+			)
+			if err != nil {
+				t.Fatalf("API call failed: %v", err)
+			}
+
+			// Calculate output tokens from response
+			respMsg := resp.ToMessageParams()
+			localOutputTokens, _, _ := CountMessage(tkm, true, respMsg)
+
+			totalMsgs := append(tc.messages, respMsg)
+			totalTokens := CountRequest(tkm, totalMsgs, tc.tools, true)
+
+			// Log results
+			t.Logf("\n=== Test Case: %s ===", tc.description)
+			t.Logf("Model: %s", tc.model)
+			t.Logf("Local vs API Input Tokens: %d vs %d", localInputTokens, resp.Usage.InputTokens)
+			t.Logf(
+				"Local vs API Output Tokens: %d vs %d",
+				localOutputTokens,
+				resp.Usage.OutputTokens,
+			)
+
+			t.Logf(
+				"Local vs API Total Tokens: %d vs %d",
+				localInputTokens+localOutputTokens,
+				resp.Usage.InputTokens+resp.Usage.OutputTokens+resp.Usage.InputCachedTokens,
+			)
+
+			t.Logf(
+				"TotalTokens vs API Total Tokens: %d vs %d",
+				totalTokens,
+				resp.Usage.InputTokens+resp.Usage.OutputTokens+resp.Usage.InputCachedTokens,
+			)
+
+			t.Logf(
+				"Local vs TotalTokens Total Tokens: %d vs %d",
+				localInputTokens+localOutputTokens,
+				totalTokens,
+			)
+
+			// Add validation thresholds (adjust based on expected variance)
+			if abs(totalTokens-localOutputTokens-localInputTokens) > 2 {
+				t.Errorf(
+					"Total token mismatch exceeds threshold: %d vs %d",
+					totalTokens,
+					localOutputTokens+localInputTokens,
+				)
+			}
+			if abs(localInputTokens-resp.Usage.InputTokens) > 2 {
+				t.Errorf(
+					"Input token mismatch exceeds threshold: %d vs %d",
+					localInputTokens,
+					resp.Usage.InputTokens,
+				)
+			}
+
+			if abs(localOutputTokens-resp.Usage.OutputTokens) > 2 {
+				t.Errorf(
+					"Output token mismatch exceeds threshold: %d vs %d",
+					localOutputTokens,
+					resp.Usage.OutputTokens,
+				)
+			}
+		})
+	}
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 func ChatCompletion(
@@ -191,7 +273,7 @@ func ChatCompletion(
 	defer cancelFn()
 
 	requestOpts := []options.RequestOption{
-		options.WithMiddleware(middleware.LoggingMiddleware()),
+		// options.WithMiddleware(middleware.LoggingMiddleware()),
 		// options.WithMiddleware(middleware.TimeitMiddleware(nil)),
 	}
 
