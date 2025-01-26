@@ -3,6 +3,7 @@ package actions
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ const (
 	ActionTypeLLMRequest   ActionType = "llm_request"
 	ActionTypeLLMResponse  ActionType = "llm_response"
 	ActionTypeAddMessage   ActionType = "add_message"
+	ActionTypeBatchEdit    ActionType = "batch_edit"
 )
 
 type ActionContext struct {
@@ -99,6 +101,8 @@ func (a Action) String() string {
 		status = "✓ "
 	}
 	switch v := a.Payload.(type) {
+	case BatchEditAction:
+		return fmt.Sprintf("%s%s", status, v)
 	case ApplyEdit:
 		return fmt.Sprintf("%sEDIT %s: %q → %q", status,
 			v.Filename, shorten(v.Original), shorten(v.Updated))
@@ -246,4 +250,26 @@ func NewLLMResponseAction(response string) Action {
 
 func NewAddMessageAction(msg chat.ChatMessage) Action {
 	return NewAction(ActionTypeAddMessage, AddMessageAction{Msg: msg})
+}
+
+type BatchEditAction struct {
+	Edits []BatchEdit // Each edit now includes its tool_call_id
+}
+
+type BatchEdit struct {
+	Edit       ApplyEdit
+	ToolCallID string // Track the tool_call_id for each edit
+}
+
+func NewBatchEditAction(edits []BatchEdit) Action {
+	return NewAction(ActionTypeBatchEdit, BatchEditAction{Edits: edits})
+}
+
+func (b *BatchEditAction) String() string {
+	filenames := []string{}
+	for _, edit := range b.Edits {
+		filenames = append(filenames, edit.Edit.Filename)
+	}
+
+	return fmt.Sprintf("BatchEdit: [%s]", strings.Join(filenames, ", "))
 }

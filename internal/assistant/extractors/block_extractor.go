@@ -80,17 +80,17 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 	i := 0
 	var parentAction *actions.Action
 
-	for i < len(lines) {
-		// ... existing edit detection code ...
+	// Collect all batchEdits into a slice
+	var batchEdits []actions.BatchEdit
 
+	for i < len(lines) {
 		line := lines[i]
 		if headRe.MatchString(line) {
-			edit, newI, err := c.extractEditBlock(lines, i)
+			action, newI, err := c.extractEditBlock(lines, i)
 			if err == nil {
-				if parentAction == nil {
-					parentAction = &edit // Store as parent for subsequent actions
-				}
-				results = append(results, edit)
+				batchEdits = append(batchEdits, actions.BatchEdit{
+					Edit: action.Payload.(actions.ApplyEdit),
+				})
 			}
 			i = newI
 			continue
@@ -98,7 +98,6 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 
 		if isShellBlockStart(line) {
 			cmd, newI := extractShellCommand(lines, i)
-			// Use parent action for shell command
 			action := actions.NewShellCommand(parentAction, cmd, false)
 			if parentAction == nil {
 				parentAction = &action
@@ -109,6 +108,13 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 		}
 		i++
 	}
+
+	// If there are multiple edits, create a single action for the batch
+	if len(batchEdits) > 0 {
+		batchAction := actions.NewBatchEditAction(batchEdits).WithParent(parentAction)
+		results = append(results, batchAction)
+	}
+
 	return results
 }
 
@@ -116,13 +122,11 @@ func (c *BlockExtractor) extractEditBlock(
 	lines []string,
 	start int,
 ) (actions.Action, int, error) {
-	// Find filename in preceding lines
 	filename := c.findFilename(lines, start)
 	if filename == "" {
 		return actions.Action{}, start, fmt.Errorf("filename not found")
 	}
 
-	// Extract original and updated blocks
 	var original, updated []string
 	i := start + 1
 	for ; i < len(lines) && !dividerRe.MatchString(strings.TrimSpace(lines[i])); i++ {
@@ -157,12 +161,10 @@ func (c *BlockExtractor) findFilename(lines []string, current int) string {
 	for i := current - 1; i >= 0 && i >= current-3; i-- {
 		line := strings.TrimSpace(lines[i])
 
-		// Skip empty lines and code fences
 		if line == "" || strings.HasPrefix(line, c.fence[0]) {
 			continue
 		}
 
-		// Skip lines that are just code block language declarations
 		if _, isLang := codeBlockLanguages[strings.ToLower(line)]; isLang {
 			continue
 		}

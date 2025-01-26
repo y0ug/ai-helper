@@ -186,9 +186,10 @@ func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
 		for _, result := range results {
 			result.Completed = true
 			mp.actionManager.RegisterAction(result)
-			mp.actionManager.AddResult(action.Context.ChainID,
-				fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
 		}
+
+		mp.actionManager.AddResult(action.Context.ChainID,
+			fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
 
 		if len(results) > 0 {
 			mp.queue.Enqueue(results...)
@@ -196,6 +197,32 @@ func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
 	}
 }
 
+//	func (mp *ActionExecutor) DumpActionChains() {
+//	    for _, chain := range mp.actionManager.GetAllChains() {
+//	        fmt.Printf("Action Chain: %s\n", chain.ChainID)
+//	        mp.actionManager.DumpActionChainTree(chain.ChainID)
+//
+//	        fmt.Println("Execution Timeline:")
+//	        sortedActions := chain.GetActionsSorted()
+//	        for i, action := range sortedActions {
+//	            status := "Γ£ô"
+//	            if containsError(chain.Results, action.ID) {
+//	                status = "Γ£ù"
+//	            }
+//	            fmt.Printf("%s [%d] %s\n", status, i+1, action.String())
+//	        }
+//
+//	        fmt.Println("\nDetailed Results:")
+//	        uniqueResults := make(map[string]bool)
+//	        for _, result := range chain.Results {
+//	            if !uniqueResults[result] {
+//	                fmt.Println("-", result)
+//	                uniqueResults[result] = true
+//	            }
+//	        }
+//	        fmt.Println("--------------------")
+//	    }
+//	}
 func (mp *ActionExecutor) DumpActionChains() {
 	for _, chain := range mp.actionManager.GetAllChains() {
 		fmt.Printf("Action Chain: %s\n", chain.ChainID)

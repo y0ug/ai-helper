@@ -2,6 +2,7 @@ package openai
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
@@ -10,8 +11,15 @@ func MessageToOpenAI(
 	m ...*chat.ChatMessage,
 ) []ChatCompletionMessageParam {
 	userMessages := make([]ChatCompletionMessageParam, 0)
-	for _, msg := range m {
+	ignored := map[int]bool{}
+
+	for i, msg := range m {
+		// for _, content := range msg.Content {
 		content := msg.Content[0]
+		if ignored[i] {
+			continue
+		}
+
 		switch content.Type {
 		case chat.ContentTypeToolUse:
 			// For toolCalls we need to process all of them in one time
@@ -19,12 +27,16 @@ func MessageToOpenAI(
 				Role:      "assistant",
 				ToolCalls: MessageContentToToolCall(msg.Content...),
 			})
+
 		case chat.ContentTypeToolResult:
-			userMessages = append(userMessages, ChatCompletionMessageParam{
-				Role:       "tool",
-				Content:    content.Content,
-				ToolCallID: content.ToolUseID,
-			})
+			for _, c := range msg.Content {
+				userMessages = append(userMessages, ChatCompletionMessageParam{
+					Role:       "tool",
+					Content:    c.Content,
+					ToolCallID: c.ToolUseID,
+				})
+			}
+			fmt.Println("ERROR we should not be here")
 		default:
 			userMessages = append(userMessages, ChatCompletionMessageParam{
 				Role:    msg.Role,
@@ -53,6 +65,8 @@ func MessageContentToToolCall(t ...*chat.MessageContent) []ToolCall {
 					Arguments: string(content.Input),
 				},
 			})
+		}
+		if content.Type == chat.ContentTypeToolResult {
 		}
 	}
 	return d

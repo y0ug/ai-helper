@@ -32,28 +32,32 @@ func NewEditExecutor(
 
 func (e *EditExecutor) CanHandle(action actions.Action) bool {
 	_, ok := action.Payload.(actions.ApplyEdit)
-	return ok
-}
-
-func NewActionAddMsgToolResult(toolCallID string, content string) actions.Action {
-	return actions.NewAddMessageAction(
-		*chat.NewMessage("tool",
-			chat.NewToolResultContent(
-				toolCallID,
-				content,
-			)))
+	_, okBatch := action.Payload.(actions.BatchEditAction)
+	return ok || okBatch
 }
 
 func (e *EditExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
 ) ([]actions.Action, error) {
-	edit := action.Payload.(actions.ApplyEdit)
+	switch v := action.Payload.(type) {
+	case actions.ApplyEdit:
+		return e.handleSingleEdit(ctx, action, v)
+	case actions.BatchEditAction:
+		return e.handleBatchEdit(ctx, action, v)
+	default:
+		return nil, fmt.Errorf("unsupported edit type")
+	}
+}
+
+func (e *EditExecutor) handleSingleEdit(
+	ctx context.Context,
+	action actions.Action,
+	edit actions.ApplyEdit,
+) ([]actions.Action, error) {
 	var followUps []actions.Action
 
-	// Run validation pipeline
 	validationResult := e.validator.Validate(ctx, edit.Filename, edit.Original, edit.Updated)
-
 	if !validationResult.Valid {
 		for _, issue := range validationResult.Issues {
 			followUps = append(followUps, actions.NewLogAction(&action,
@@ -80,7 +84,6 @@ func (e *EditExecutor) Handle(
 		return followUps, fmt.Errorf("validation failed")
 	}
 
-	// Proceed with applying edit
 	if err := e.repo.ApplyEdit(edit); err != nil {
 		if action.IsToolCall() {
 			followUps = append(
@@ -96,7 +99,6 @@ func (e *EditExecutor) Handle(
 			followUps,
 			actions.NewLogAction(&action, fmt.Sprintf("Edit failed: %v", err)),
 		)
-		// if err := repo.ApplyEdit(edit); err != nil {
 		return followUps, fmt.Errorf("failed to apply edit: %w", err)
 	}
 
@@ -112,6 +114,110 @@ func (e *EditExecutor) Handle(
 	followUps = append(
 		followUps,
 		actions.NewCommitAction(&action, fmt.Sprintf("Applied edit to %s", edit.Filename)),
-		actions.NewLogAction(&action, "Edit applied successfully"))
+		actions.NewLogAction(&action, "Edit applied successfully"),
+	)
 	return followUps, nil
+}
+
+func (e *EditExecutor) handleBatchEdit(
+	ctx context.Context,
+	action actions.Action,
+	batch actions.BatchEditAction,
+) ([]actions.Action, error) {
+	var followUps []actions.Action
+
+	chatMsg := chat.NewMessage("tool")
+	// if chatMsg.Content == nil {
+	// 	chatMsg.Content = make([]*chat.MessageContent, 0)
+	// }
+
+	// Process each edit in the batch
+	for _, batchEdit := range batch.Edits {
+		edit := batchEdit.Edit
+		toolCallID := batchEdit.ToolCallID
+
+		validationResult := e.validator.Validate(ctx, edit.Filename, edit.Original, edit.Updated)
+		if !validationResult.Valid {
+			for _, issue := range validationResult.Issues {
+				followUps = append(followUps, actions.NewLogAction(&action,
+					fmt.Sprintf("Validation %s: %s (line %d)",
+						strings.ToLower(issue.Level.String()),
+						issue.Message,
+						issue.Line,
+					),
+				))
+			}
+			msg := "Edit rejected due to validation errors"
+			if toolCallID != "" {
+				chatMsg.Content = append(chatMsg.Content,
+					chat.NewToolResultContent(toolCallID, msg),
+				)
+
+				followUps = append(
+					followUps,
+					actions.NewAddMessageAction(*chatMsg).WithParent(&action),
+				)
+			}
+			followUps = append(
+				followUps,
+				actions.NewLogAction(&action, msg),
+			)
+			return followUps, fmt.Errorf("validation failed")
+		}
+
+		if err := e.repo.ApplyEdit(edit); err != nil {
+			msg := fmt.Sprintf("Edit failed: %v", err)
+			if toolCallID != "" {
+				chatMsg.Content = append(chatMsg.Content,
+					chat.NewToolResultContent(toolCallID, msg),
+				)
+
+				followUps = append(
+					followUps,
+					actions.NewAddMessageAction(*chatMsg).WithParent(&action),
+				)
+			}
+			followUps = append(
+				followUps,
+				actions.NewLogAction(&action, msg),
+			)
+			return followUps, fmt.Errorf("failed to apply edit: %w", err)
+		}
+
+		// Respond to the tool call
+		msg := fmt.Sprintf("Edit applied successfully")
+		if toolCallID != "" {
+			chatMsg.Content = append(chatMsg.Content,
+				chat.NewToolResultContent(toolCallID, msg),
+			)
+		}
+
+	}
+
+	// Commit all edits
+	followUps = append(
+		followUps,
+		actions.NewAddMessageAction(*chatMsg).WithParent(&action),
+		actions.NewCommitAction(&action, "Applied batch edits"),
+		actions.NewLogAction(&action, "Batch edits applied successfully"),
+	)
+	return followUps, nil
+}
+
+func NewActionAddMsgToolResult(toolCallID string, content string) actions.Action {
+	return actions.NewAddMessageAction(
+		*chat.NewMessage("tool",
+			chat.NewToolResultContent(
+				toolCallID,
+				content,
+			)))
+}
+
+func NewToolResult(toolCallID string, content string) actions.Action {
+	return actions.NewAddMessageAction(
+		*chat.NewMessage("tool",
+			chat.NewToolResultContent(
+				toolCallID,
+				content,
+			)))
 }

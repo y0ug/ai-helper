@@ -66,8 +66,7 @@ func (c *FuncWholeFileExtractor) WriteFileHandler(
 	input WriteFileInput,
 ) (actions.Action, error) {
 	c.logger.Debug("WriteFileHandler", "Explanation", input.Explanation)
-	action := actions.NewApplyEdit(nil,
-		input.Filename, "", input.Content)
+	action := actions.NewApplyEdit(nil, input.Filename, "", input.Content)
 	return action, nil
 }
 
@@ -75,28 +74,29 @@ func (c *FuncWholeFileExtractor) Extract(
 	msg *chat.ChatMessage,
 ) ([]actions.Action, error) {
 	results := make([]actions.Action, 0)
-	// fmt.Println("FuncWholeExtractor", msg)
+	var batchEdits []actions.BatchEdit
+
 	for _, content := range msg.Content {
 		if content.Type == chat.ContentTypeToolUse {
 			action, err := c.processToolCall(content)
 			if err != nil {
 				c.logger.Error("Error processing tool call", "error", err)
-				// toolsResultContentError, err := chat.NewToolResultContentInterface(
-				// 	content.ID,
-				// 	NewActionError(err),
-				// )
-				// if err != nil {
-				// 	c.logger.Error("Error processing tool call error", "error", err)
-				// }
-				// results = append(results, action)
-				// *NewAction(ActionApplyEditToolResult, toolsResultContentError),
 			} else {
-				results = append(results, action)
+				// Add the edit with its tool_call_id to the batch
+				batchEdits = append(batchEdits, actions.BatchEdit{
+					Edit:       action.Payload.(actions.ApplyEdit),
+					ToolCallID: content.ID, // Preserve the tool_call_id
+				})
 			}
-			// results := c.GetEdits(content.String())
-			// edits = append(edits, results...)
 		}
 	}
+
+	// If there are multiple edits, create a single action for the batch
+	if len(batchEdits) > 0 {
+		batchAction := actions.NewBatchEditAction(batchEdits)
+		results = append(results, batchAction)
+	}
+
 	return results, nil
 }
 
