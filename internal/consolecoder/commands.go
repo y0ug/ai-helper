@@ -41,3 +41,7 @@ func (c *Console) setCommands() {
 		},
 	}
 }
+
+func (c *Console) handleQuit(args []string) {
+	c.shutdown()
+}

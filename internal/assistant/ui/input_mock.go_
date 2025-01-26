@@ -1,0 +1,25 @@
+// internal/assistant/ui/input_mock.go
+package ui
+
+import "github.com/y0ug/ai-helper/internal/assistant/actions"
+
+type MockInputHandler struct {
+	eventChan chan<- Event
+}
+
+func NewMockInputHandler(bus EventBus) *MockInputHandler {
+	return &MockInputHandler{
+		eventChan: bus.Subscribe(10),
+	}
+}
+
+func (m *MockInputHandler) SimulateInput(text string) {
+	m.eventChan <- NewEvent(EventInput, UserInput{
+		Source:  "test",
+		Content: text,
+	})
+}
+
+func (m *MockInputHandler) SimulateAction(action actions.Action) {
+	m.eventChan <- NewEvent(EventAction, action)
+}

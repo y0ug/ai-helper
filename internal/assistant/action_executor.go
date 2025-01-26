@@ -11,12 +11,12 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/middleware"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/queue"
+	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
-	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
@@ -31,9 +31,9 @@ type ActionExecutor struct {
 	executor      executors.Executor
 	queue         queue.ActionQueuer
 	actionManager *actions.ActionManager
-	uim           *ui.UIInteractionManager
 	runCtx        context.Context
 	runCancel     context.CancelFunc
+	eventBus      *eventbus.EventBus
 }
 
 func NewActionExecutor(
@@ -45,7 +45,7 @@ func NewActionExecutor(
 	prompts prompts.Prompter,
 	extractors []extractors.Extractor,
 	executor executors.Executor,
-	uim *ui.UIInteractionManager,
+	bus *eventbus.EventBus,
 ) *ActionExecutor {
 	actionManager := actions.NewActionManager(logger)
 	return &ActionExecutor{
@@ -59,14 +59,18 @@ func NewActionExecutor(
 		executor:      executor,
 		queue:         queue.NewActionQueue(),
 		actionManager: actionManager,
-		uim:           uim,
+		eventBus:      bus,
 	}
 }
 
 func (mp *ActionExecutor) Start(ctx context.Context) {
 	if mp.runCtx == nil {
 		mp.runCtx, mp.runCancel = context.WithCancel(ctx)
-		go mp.processingLoop(mp.runCtx)
+
+		// Subscribe to action events
+		actionSub := mp.eventBus.Subscribe(100)
+
+		go mp.processingLoop(mp.runCtx, actionSub)
 	}
 }
 
@@ -78,22 +82,50 @@ func (mp *ActionExecutor) Stop() {
 	mp.runCtx = nil
 }
 
-func (mp *ActionExecutor) processingLoop(ctx context.Context) {
+func (mp *ActionExecutor) processingLoop(ctx context.Context, sub <-chan eventbus.Event) {
 	mp.logger.Debug("start ActionExecutor processing loop")
 	for {
 		select {
 		case <-ctx.Done():
-			mp.logger.Info("Processing loop done")
 			return
-		case action := <-mp.uim.ActionChan:
-			mp.logger.Info("Processing action", "action", action)
-			mp.queue.Enqueue(action)
-			mp.processActionQueue(ctx)
-		case <-mp.uim.ShutdownChan:
-			return
-		default:
+		case event := <-sub:
+			if event.Type != eventbus.EventAction {
+				continue
+			}
+
+			action, ok := event.Payload.(actions.Action)
+			if !ok {
+				mp.logger.Error("Invalid action payload", "event", event)
+				continue
+			}
+
+			mp.processSingleAction(ctx, action)
 		}
 	}
+}
+
+func (mp *ActionExecutor) processSingleAction(ctx context.Context, action actions.Action) {
+	results, err := mp.baseHandler(ctx, action)
+	if err != nil {
+		mp.eventBus.Publish(eventbus.NewEvent(eventbus.EventError, err))
+		return
+	}
+
+	// Publish results
+	for _, result := range results {
+		mp.eventBus.Publish(eventbus.NewEvent(
+			eventbus.EventAction,
+			result,
+		))
+	}
+
+	// Update status
+	mp.eventBus.Publish(eventbus.NewEvent(
+		eventbus.EventStatusUpdate,
+		eventbus.StatusUpdate{
+			New: "actions_processed",
+		},
+	))
 }
 
 func (mp *ActionExecutor) ProcessResponse(

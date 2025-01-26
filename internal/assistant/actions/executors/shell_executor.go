@@ -13,14 +13,12 @@ import (
 
 type ShellExecutor struct {
 	safePatterns   []*regexp.Regexp
-	confirmChan    chan<- actions.Action
 	logger         *slog.Logger
 	commandTimeout time.Duration
 }
 
 func NewShellExecutor(
 	safePatterns []string,
-	confirmChan chan<- actions.Action,
 	logger *slog.Logger,
 ) *ShellExecutor {
 	compiled := make([]*regexp.Regexp, len(safePatterns))
@@ -30,7 +28,6 @@ func NewShellExecutor(
 
 	return &ShellExecutor{
 		safePatterns:   compiled,
-		confirmChan:    confirmChan,
 		logger:         logger,
 		commandTimeout: 2 * time.Minute,
 	}

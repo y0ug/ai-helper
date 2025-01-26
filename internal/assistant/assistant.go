@@ -3,12 +3,12 @@ package assistant
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"strings"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
+	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/metrics"
@@ -17,21 +17,19 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
-	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 type AssistantOptions struct {
-	MainModel    *models.Model
-	RepoManager  repomanager.RepoManagerInterface
-	LlmClient    chat.Provider
-	Logger       *slog.Logger
-	Prompts      prompts.Prompter
-	Settings     *settings.CoderSettings
-	StreamWriter io.Writer
-	Stream       bool
-	Uim          *ui.UIInteractionManager
+	MainModel   *models.Model
+	RepoManager repomanager.RepoManagerInterface
+	LlmClient   chat.Provider
+	Logger      *slog.Logger
+	Prompts     prompts.Prompter
+	Settings    *settings.CoderSettings
+	Stream      bool
+	eventBus    *eventbus.EventBus
 }
 
 type AssistantOrchestrator struct {
@@ -45,9 +43,9 @@ type AssistantOrchestrator struct {
 	formatter    *prompt.PromptFormatter
 	extractors   []extractors.Extractor
 	metrics      llm.MetricsRecorder
-	uim          *ui.UIInteractionManager
 	runCtx       context.Context
 	cancelRunCtx context.CancelFunc
+	eventBus     *eventbus.EventBus
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
@@ -66,14 +64,23 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		history:   history,
 		formatter: formatter,
 		metrics:   metricsTracker,
-		uim:       opts.Uim,
+		eventBus:  eventbus.GetEventBus(),
 	}
+
+	c.registerEventHandlers()
+
+	outputChan := make(chan string)
+	go func() {
+		for content := range outputChan {
+			c.eventBus.Publish(eventbus.NewEvent(eventbus.EventOutput, content))
+		}
+	}()
 
 	// Stream processor for the LLMClient wrapper
 	var streamProcessor *llm.StreamProcessor
 	if opts.Stream {
 		streamProcessor = llm.NewStreamProcessor(
-			opts.Uim.OutputChan,
+			outputChan,
 			opts.Logger,
 		)
 	}
@@ -94,7 +101,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		c.logger,
 		c.rm,
 		validator,
-		c.uim,
+		nil,
 		history,
 	)
 
@@ -109,7 +116,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		opts.Prompts,
 		c.extractors,
 		registry,
-		c.uim,
+		nil,
 	)
 	c.processor = processor
 
@@ -138,10 +145,55 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	return c
 }
 
+// TODO: Proper ctx handling for cancellation
+func (c *AssistantOrchestrator) registerEventHandlers() {
+	sub := c.eventBus.Subscribe(100)
+
+	go func() {
+		for event := range sub {
+			switch event.Type {
+			case eventbus.EventInput:
+				c.handleInputEvent(event)
+			case eventbus.EventLLMResponse:
+				// c.handleLLMResponse(event)
+			case eventbus.EventShutdown:
+				c.Stop()
+			}
+		}
+	}()
+}
+
+func (c *AssistantOrchestrator) handleInputEvent(event eventbus.Event) {
+	input, ok := event.Payload.(eventbus.UserInput)
+	if !ok {
+		c.logger.Error("Invalid input event payload")
+		return
+	}
+
+	// c.eventBus.Publish(eventbus.NewEvent(
+	// 	eventbus.StatusManager,
+	// 	map[string]interface{}{
+	// 		"New": "processing",
+	// 	}))
+
+	// Process input through existing pipeline
+	err := c.Run(c.runCtx, input.Content)
+	if err != nil {
+		c.eventBus.Publish(eventbus.NewEvent(
+			eventbus.EventError,
+			map[string]interface{}{
+				"error":   err,
+				"context": "input_processing",
+			},
+		))
+	}
+}
+
 func (a *AssistantOrchestrator) Start(ctx context.Context) {
+	a.logger.Info("Starting assistant orchestrator")
 	a.runCtx, a.cancelRunCtx = context.WithCancel(ctx)
-	go a.handleAssistantInputChan()
-	a.processor.Start(a.runCtx)
+	// go a.handleAssistantInputChan()
+	// a.processor.Start(a.runCtx)
 }
 
 func (a *AssistantOrchestrator) Stop() {
@@ -150,27 +202,27 @@ func (a *AssistantOrchestrator) Stop() {
 	// a.processor.Stop()
 }
 
-func (a *AssistantOrchestrator) handleAssistantInputChan() {
-	for {
-		select {
-		case <-a.runCtx.Done():
-			return
-		case <-a.uim.ShutdownChan:
-			return
-		case input := <-a.uim.GetAssistantInputChan():
-			a.processUserInput(a.runCtx, input)
-		}
-	}
-}
-
-func (a *AssistantOrchestrator) processUserInput(ctx context.Context, input string) {
-	a.uim.UpdateStatus("ANALYZING_INPUT")
-
-	a.logger.Info("Processing user input", "input", input)
-	a.Run(ctx, input)
-
-	a.uim.UpdateStatus("READY")
-}
+//
+// func (a *AssistantOrchestrator) handleAssistantInputChan() {
+// 	for {
+// 		select {
+// 		case <-a.runCtx.Done():
+// 			return
+// 		case <-a.uim.ShutdownChan:
+// 			return
+// 		case input := <-a.uim.GetAssistantInputChan():
+// 			a.processUserInput(a.runCtx, input)
+// 		}
+// 	}
+// }
+//
+// func (a *AssistantOrchestrator) processUserInput(ctx context.Context, input string) {
+// 	a.uim.UpdateStatus("ANALYZING_INPUT")
+//
+// 	a.logger.Info("Processing user input", "input", input)
+//
+// 	a.uim.UpdateStatus("READY")
+// }
 
 func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
 	c.prompts = pts
@@ -285,7 +337,7 @@ func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string)
 		// 	}
 		// }
 
-		// c.logger.Info("metrics", "total", c.metrics)
+		c.logger.Info("metrics", "total", c.metrics)
 
 		// Process the response , linkijng it to llmReqAction
 		err = c.processor.ProcessResponse(ctx, resp, &llmReqAction)

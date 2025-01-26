@@ -9,6 +9,7 @@ import (
 
 	"github.com/c-bata/go-prompt"
 	"github.com/y0ug/ai-helper/internal/assistant"
+	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 )
@@ -17,9 +18,11 @@ type Console struct {
 	coder       *assistant.AssistantOrchestrator
 	h           *highlighter.Highlighter
 	commands    map[string]Command
+	eventBus    *eventbus.EventBus
+	status      *ui.StatusManager
+	input       *ui.InputHandler
 	pt          *prompt.Prompt
 	historyFile string
-	status      string
 	uim         *ui.UIInteractionManager // UI interaction manager
 }
 
@@ -35,12 +38,20 @@ func New(
 	coder *assistant.AssistantOrchestrator,
 	h *highlighter.Highlighter,
 	uim *ui.UIInteractionManager,
+	bus *eventbus.EventBus,
 ) *Console {
+	bus = eventbus.GetEventBus()
+	status := ui.NewStatusManager("ready")
+	output := ui.NewOutputHandler(h)
+	input := ui.NewInputHandler()
+
 	c := &Console{
 		coder:       coder,
 		h:           h,
 		historyFile: getHistoryFilePath(),
-		uim:         uim,
+		eventBus:    bus,
+		status:      status,
+		input:       input,
 	}
 
 	c.setCommands()
@@ -57,18 +68,26 @@ func New(
 		prompt.OptionHistory(c.loadHistory()),
 		prompt.OptionAddKeyBind(prompt.KeyBind{
 			Key: prompt.ControlC,
-			Fn:  func(*prompt.Buffer) { c.handleQuit(nil) },
+			Fn:  func(*prompt.Buffer) { c.shutdown() },
 		}),
 	)
 
-	c.uim.Start()
-	c.uim.StreamOutput(h) // Start streaming LLM responses through the highlighter
+	// Wire components
+	bus.Use(
+	// ui.LoggingMiddleware(coder.logger),
+	// ui.ErrorHandlingMiddleware(),
+	)
+
+	// Start subsystems
+	output.Start()
+	input.Start()
+
 	return c
 }
 
 func (c *Console) UpdatePrompt() (string, bool) {
 	// status := <-c.statusChan
-	return fmt.Sprintf("[%s]  ➜ ", c.status), false
+	return fmt.Sprintf("[%s]  ➜ ", c.status.Current()), false
 }
 
 func (c *Console) Run() {
@@ -82,10 +101,10 @@ func (c *Console) handleHelp(args []string) {
 	}
 }
 
-func (c *Console) handleQuit(args []string) {
+func (c *Console) shutdown() {
 	fmt.Println("\nShutting down gracefully...")
-	c.uim.Shutdown()
-	fmt.Println("Goodbye!")
+	c.eventBus.Publish(eventbus.NewEvent(eventbus.EventShutdown, nil))
+	c.eventBus.Shutdown()
 	os.Exit(0)
 }
 
@@ -163,13 +182,12 @@ func (c *Console) executor(input string) {
 		return
 	}
 
-	// Send input to the input channel for asynchronous processing
-	// c.uim.InputChan <- input
-	c.uim.HandleInput(input)
-
-	// process input
-	// err := c.coder.Run(ctx, input)
-	// if err != nil {
-	// 	fmt.Printf("Error: %v\n", err)
-	// }
+	// Publish input event instead of direct channel access
+	c.eventBus.Publish(eventbus.NewEvent(
+		eventbus.EventInput,
+		eventbus.UserInput{
+			Source:  "console",
+			Content: input,
+		},
+	))
 }

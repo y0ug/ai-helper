@@ -131,20 +131,20 @@ func main() {
 	}()
 
 	coderOpts := assistant.AssistantOptions{
-		Logger:       logger,
-		LlmClient:    llmClient,
-		RepoManager:  rm,
-		Prompts:      pts,
-		StreamWriter: h,
-		Settings:     coderSettings,
-		Stream:       true,
-		Uim:          uim,
+		Logger:      logger,
+		LlmClient:   llmClient,
+		RepoManager: rm,
+		Prompts:     pts,
+		// StreamWriter: h,
+		Settings: coderSettings,
+		Stream:   true,
+		// Uim:          uim,
 	}
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
 	coder.Start(ctx)
 	defer coder.Stop()
 
-	console := consolecoder.New(coder, h, uim)
+	console := consolecoder.New(coder, h, uim, nil)
 	console.Run()
 }

@@ -1,0 +1,72 @@
+// internal/assistant/ui/integration_test.go
+package ui
+
+import (
+	"bytes"
+	"testing"
+	"time"
+
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
+)
+
+type TestHarness struct {
+	Bus    *eventbus.TestableEventBus
+	Input  *MockInputHandler
+	Output *bytes.Buffer
+	Status *StatusManager
+	// Executor *eventbus.MockActionExecutor
+}
+
+func NewTestHarness() *TestHarness {
+	bus := eventbus.NewTestableEventBus()
+	return &TestHarness{
+		Bus:      bus,
+		Input:    NewMockInputHandler(bus),
+		Output:   new(bytes.Buffer),
+		Status:   NewStatusManager("init"),
+		Executor: NewMockActionExecutor(),
+	}
+}
+
+func (h *TestHarness) RunTestSequence(seq []eventbus.Event, timeout time.Duration) bool {
+	// Implementation for sequenced testing
+	return true
+}
+
+func TestBasicInteractionFlow(t *testing.T) {
+	harness := NewTestHarness()
+
+	// Simulate user input
+	harness.Input.SimulateInput("hello")
+
+	// Verify system response
+	if !harness.Bus.WaitForEventType(eventbus.EventOutput, 1*time.Second) {
+		t.Fatal("No output generated")
+	}
+
+	history := harness.Bus.GetHistory()
+	if len(history) < 2 {
+		t.Fatal("Insufficient events captured")
+	}
+}
+
+func TestErrorRecovery(t *testing.T) {
+	harness := NewTestHarness()
+
+	// Inject faulty action
+	harness.Input.SimulateAction(actions.Action{
+		Type:    "invalid_action",
+		Payload: "malformed_data",
+	})
+
+	// Verify error handling
+	if !harness.Bus.WaitForEventType(eventbus.EventError, 1*time.Second) {
+		t.Fatal("Error not captured")
+	}
+
+	// Verify status rollback
+	if harness.Status.Current() != "ready" {
+		t.Errorf("Invalid status after error: %s", harness.Status.Current())
+	}
+}

@@ -56,12 +56,11 @@ func NewRegistryFull(
 	registry.Register(NewShellExecutor(
 		[]string{`.*`}, // Example safe patterns
 		// []string{`^ls$`, `^go test .*`}, // Example safe patterns
-		uim.ActionChan,
 		logger,
 	))
 	registry.Register(NewEditExecutor(repo, validator, logger))
 	registry.Register(NewCommitExecutor(repo))
-	registry.Register(NewUserInteractionExecutor(logger, uim))
+	// registry.Register(NewUserInteractionExecutor(logger, uim))
 	registry.Register(NewLogExecutor())
 	registry.Register(NewAddMessageExecutor(history))
 	return registry

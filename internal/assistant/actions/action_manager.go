@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 )
 
 // ActionNode represents a node in the Action tree.
@@ -32,10 +33,20 @@ type ActionChainTree struct {
 
 type ActionManager struct {
 	activeChains sync.Map // map[uuid.UUID]*ActionChain
+	chains       sync.Map
 	logger       *slog.Logger
+	eventBus     *eventbus.EventBus
 }
 
 func NewActionManager(logger *slog.Logger) *ActionManager {
+	bus := eventbus.GetEventBus()
+	bus.Subscribe(func(event eventbus.Event) {
+		if event.Type == eventbus.EventAction {
+			if action, ok := event.Payload.(Action); ok {
+				am.RegisterAction(action)
+			}
+		}
+	})
 	return &ActionManager{
 		logger: logger,
 	}
