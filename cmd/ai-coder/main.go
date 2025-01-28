@@ -20,6 +20,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
+	"github.com/y0ug/ai-helper/internal/webapi"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmhaven"
@@ -141,6 +142,10 @@ func main() {
 		// Uim:          uim,
 	}
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
+
+	// Create and start web server
+	server := webapi.NewWebServer(coder, eventbus)
+	go server.Start(":8080")
 
 	console := consolecoder.New(coder, h, eventbus)
 	console.Run()

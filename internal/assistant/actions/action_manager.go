@@ -116,31 +116,36 @@ func (t *ActionChainTree) RootNodes() []*ActionNode {
 	return roots
 }
 
-func (m *ActionManager) DumpActionChainTree(chainID uuid.UUID) {
+func (m *ActionManager) DumpActionChainTree(chainID uuid.UUID) string {
+	var sb strings.Builder
+
 	t, ok := m.GetChainTree(chainID)
 	if !ok {
 		m.logger.Warn("Chain not found", "chain_id", chainID)
-		return
+		return ""
 	}
 
 	// For each root node, do a DFS
 	for _, root := range t.RootNodes() {
-		m.dumpNodeRec(root, 0)
+		m.dumpNodeRec(root, 0, &sb)
 	}
+
+	return sb.String()
 }
 
-func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int) {
+func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int, sb *strings.Builder) {
 	indent := strings.Repeat("  ", depth)
 	status := " "
 	if node.Action.Completed {
 		status = "✓ "
 	}
-	fmt.Printf(
+
+	sb.WriteString(fmt.Sprintf(
 		"%s- %s%s \n",
 		indent,
 		status,
 		node.Action.String(),
-	)
+	))
 
 	// Sort children by creation time for consistent output
 	children := make([]*ActionNode, len(node.Children))
@@ -151,7 +156,7 @@ func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int) {
 	})
 
 	for _, child := range children {
-		m.dumpNodeRec(child, depth+1)
+		m.dumpNodeRec(child, depth+1, sb)
 	}
 }
 

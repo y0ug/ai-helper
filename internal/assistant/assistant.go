@@ -157,6 +157,10 @@ func (c *AssistantOrchestrator) registerEventHandlers() {
 			switch event.Type {
 			case eventbus.EventInput:
 				c.handleInputEvent(ctx, event)
+			case eventbus.EventAddFile:
+				c.handleAddFileEvent(ctx, event)
+			case eventbus.EventRemoveFile:
+				c.handleRemoveFileEvent(ctx, event)
 			case eventbus.EventShutdown:
 			}
 		}
@@ -184,27 +188,108 @@ func (c *AssistantOrchestrator) handleInputEvent(ctx context.Context, event even
 	}
 }
 
-func (a *AssistantOrchestrator) DumpActionChain() {
-	for _, chain := range a.actionManager.GetAllChains() {
-		fmt.Printf("Action Chain: %s\n", chain.ChainID)
-		a.actionManager.DumpActionChainTree(chain.ChainID)
+func (c *AssistantOrchestrator) handleAddFileEvent(ctx context.Context, event eventbus.Event) {
+	payload, ok := event.Payload.(eventbus.FileOperation)
+	if !ok {
+		c.logger.Error("Invalid payload for AddFile event")
+		return
+	}
 
-		fmt.Println("Execution Timeline:")
+	c.AddFiles(ctx, payload.ReadOnly, payload.Files...)
+}
+
+func (c *AssistantOrchestrator) RemoveFiles(ctx context.Context, filesname ...string) {
+	files := make([]string, 0)
+	for _, file := range filesname {
+		err := c.rm.GetFM().Remove(file)
+		if err != nil {
+			c.logger.Error("Error adding file", "file", file, "error", err)
+			c.eventBus.Publish(eventbus.NewEvent(
+				eventbus.EventError,
+				map[string]interface{}{
+					"error":   err,
+					"context": "add_file",
+					"file":    file,
+				},
+			))
+		} else {
+			files = append(files, file)
+		}
+	}
+	c.eventBus.Publish(
+		eventbus.NewEvent(
+			eventbus.EventFileNotification,
+			eventbus.FileOperation{
+				Type:  eventbus.FileOperationTypeRemove,
+				Files: files,
+			}))
+}
+
+func (c *AssistantOrchestrator) AddFiles(ctx context.Context, readOnly bool, filesname ...string) {
+	files := make([]string, 0)
+	for _, file := range filesname {
+		err := c.rm.GetFM().Add(file, readOnly)
+		if err != nil {
+			c.logger.Error("Error adding file", "file", file, "error", err)
+			c.eventBus.Publish(eventbus.NewEvent(
+				eventbus.EventError,
+				map[string]interface{}{
+					"error":   err,
+					"context": "add_file",
+					"file":    file,
+				},
+			))
+		} else {
+			files = append(files, file)
+		}
+	}
+	c.eventBus.Publish(
+		eventbus.NewEvent(
+			eventbus.EventFileNotification,
+			eventbus.FileOperation{
+				Type:     eventbus.FileOperationTypeAdd,
+				Files:    files,
+				ReadOnly: readOnly,
+			}))
+}
+
+func (c *AssistantOrchestrator) handleRemoveFileEvent(ctx context.Context, event eventbus.Event) {
+	payload, ok := event.Payload.(eventbus.FileOperation)
+	if !ok {
+		c.logger.Error("Invalid payload for RemoveFile event")
+		return
+	}
+	c.RemoveFiles(ctx, payload.Files...)
+}
+
+func (a *AssistantOrchestrator) DumpActionChain() string {
+	var sb strings.Builder
+
+	for _, chain := range a.actionManager.GetAllChains() {
+		sb.WriteString(fmt.Sprintf("Action Chain: %s\n", chain.ChainID))
+
+		// Assuming DumpActionChainTree returns a string, if not it needs to be modified
+		treeOutput := a.actionManager.DumpActionChainTree(chain.ChainID)
+		sb.WriteString(treeOutput)
+
+		sb.WriteString("Execution Timeline:\n")
 		sortedActions := chain.GetActionsSorted()
 		for i, action := range sortedActions {
 			status := "✓"
 			if containsError(chain.Results, action.ID) {
 				status = "✗"
 			}
-			fmt.Printf("%s [%d] %s\n", status, i+1, action.String())
+			sb.WriteString(fmt.Sprintf("%s [%d] %s\n", status, i+1, action.String()))
 		}
 
-		fmt.Println("\nDetailed Results:")
+		sb.WriteString("\nDetailed Results:\n")
 		for _, result := range chain.Results {
-			fmt.Println("-", result)
+			sb.WriteString(fmt.Sprintf("- %s\n", result))
 		}
-		fmt.Println("--------------------")
+		sb.WriteString("--------------------\n")
 	}
+
+	return sb.String()
 }
 
 func containsError(results []string, actionID uuid.UUID) bool {

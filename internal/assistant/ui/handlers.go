@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
@@ -68,23 +69,33 @@ func (h *OutputHandler) Start() {
 
 func (h *OutputHandler) processOutput(ch <-chan eventbus.Event) {
 	for event := range ch {
-		if event.Type == eventbus.EventOutput {
-			output, ok := event.Payload.(string)
-			if !ok {
-				continue
+		switch event.Type {
+		case eventbus.EventOutput:
+			if output, ok := event.Payload.(string); ok {
+				fmt.Fprint(h.highlighter, output)
 			}
 
-			formatted := output
-
-			fmt.Fprint(h.highlighter, formatted)
-			// // Handle different output types
-			// switch event.Metadata["output_type"] {
-			// case "stream":
-			// case "final":
-			// 	fmt.Println("\n" + formatted)
-			// case "error":
-			// 	fmt.Fprintf(os.Stderr, "ERROR: %s", formatted)
-			// }
+		case eventbus.EventError:
+			if errData, ok := event.Payload.(map[string]interface{}); ok {
+				var errMsg strings.Builder
+				if err, exists := errData["error"].(error); exists {
+					errMsg.WriteString(fmt.Sprintf("Error: %v", err))
+				}
+				if ctx, exists := errData["context"].(string); exists {
+					errMsg.WriteString(fmt.Sprintf(" (Context: %s)", ctx))
+				}
+				if file, exists := errData["file"].(string); exists {
+					errMsg.WriteString(fmt.Sprintf(" (File: %s)", file))
+				}
+				fmt.Fprintf(h.highlighter, "\x1b[31m%s\x1b[0m\n", errMsg.String())
+			}
 		}
+
+		// Some idea to handle different output types
+		// switch event.Metadata["output_type"] {
+		// case "stream":
+		// case "final":
+		// case "error":
+		// }
 	}
 }

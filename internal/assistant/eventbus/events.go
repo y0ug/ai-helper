@@ -11,6 +11,9 @@ const (
 	EventError
 	EventOutput
 	EventStatusUpdate
+	EventFileNotification
+	EventAddFile
+	EventRemoveFile
 	EventShutdown
 )
 
@@ -41,3 +44,16 @@ type UserInput struct {
 	Source  string
 	Content string
 }
+
+type FileOperation struct {
+	Type     FileOperationType
+	Files    []string
+	ReadOnly bool
+}
+
+type FileOperationType string
+
+var (
+	FileOperationTypeAdd    FileOperationType = "add"
+	FileOperationTypeRemove FileOperationType = "remove"
+)

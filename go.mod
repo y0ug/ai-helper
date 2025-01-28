@@ -7,9 +7,11 @@ require (
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/invopop/jsonschema v0.13.0
 	github.com/lmittmann/tint v1.0.6
 	github.com/pkg/errors v0.9.1
+	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/sjson v1.2.5
 	go.uber.org/mock v0.5.0
@@ -40,7 +42,6 @@ require (
 	github.com/mattn/go-tty v0.0.3 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
-	github.com/pkoukk/tiktoken-go v0.1.7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect

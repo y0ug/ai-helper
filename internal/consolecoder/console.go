@@ -1,6 +1,7 @@
 package consolecoder
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/user"
@@ -78,7 +79,33 @@ func New(
 	output.Start()
 	input.Start()
 
+	c.registerEventHandlers()
 	return c
+}
+
+func (c *Console) registerEventHandlers() {
+	sub := c.eventBus.Subscribe(100)
+
+	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		for event := range sub {
+			switch event.Type {
+			case eventbus.EventFileNotification:
+				c.handleFileNotification(ctx, event)
+			}
+		}
+	}()
+}
+
+func (c *Console) handleFileNotification(ctx context.Context, event eventbus.Event) {
+	fileOp := event.Payload.(eventbus.FileOperation)
+	switch fileOp.Type {
+	case eventbus.FileOperationTypeAdd:
+		fmt.Printf("Added file: %s\n", fileOp.Files)
+	case eventbus.FileOperationTypeRemove:
+		fmt.Printf("Remove file: %s\n", fileOp.Files)
+	}
 }
 
 func (c *Console) UpdatePrompt() (string, bool) {
@@ -104,20 +131,46 @@ func (c *Console) shutdown() {
 	os.Exit(0)
 }
 
+//	func (c *Console) handleAddFile(args []string) {
+//		if len(args) == 0 {
+//			fmt.Println("Please specify file(s) to add")
+//			return
+//		}
+//
+//		for _, file := range args {
+//			err := c.coder.GetRM().GetFM().Add(file, false)
+//			if err != nil {
+//				fmt.Printf("Error loading file %s: %v\n", file, err)
+//				continue
+//			}
+//			fmt.Printf("Added file: %s\n", file)
+//		}
+//	}
+//
+//	func (c *Console) handleRemoveFile(args []string) {
+//		if len(args) == 0 {
+//			fmt.Println("Please specify file(s) to remove")
+//			return
+//		}
+//
+//		for _, file := range args {
+//			fmt.Printf("Removed file: %s\n", file)
+//			err := c.coder.GetRM().GetFM().Remove(file)
+//			if err != nil {
+//				fmt.Printf("Error removing file %s: %v\n", file, err)
+//			}
+//		}
+//	}
+
 func (c *Console) handleAddFile(args []string) {
 	if len(args) == 0 {
 		fmt.Println("Please specify file(s) to add")
 		return
 	}
-
-	for _, file := range args {
-		err := c.coder.GetRM().GetFM().Add(file, false)
-		if err != nil {
-			fmt.Printf("Error loading file %s: %v\n", file, err)
-			continue
-		}
-		fmt.Printf("Added file: %s\n", file)
-	}
+	c.eventBus.Publish(eventbus.NewEvent(
+		eventbus.EventAddFile,
+		eventbus.FileOperation{Files: args},
+	))
 }
 
 func (c *Console) handleRemoveFile(args []string) {
@@ -125,14 +178,10 @@ func (c *Console) handleRemoveFile(args []string) {
 		fmt.Println("Please specify file(s) to remove")
 		return
 	}
-
-	for _, file := range args {
-		fmt.Printf("Removed file: %s\n", file)
-		err := c.coder.GetRM().GetFM().Remove(file)
-		if err != nil {
-			fmt.Printf("Error removing file %s: %v\n", file, err)
-		}
-	}
+	c.eventBus.Publish(eventbus.NewEvent(
+		eventbus.EventRemoveFile,
+		eventbus.FileOperation{Files: args},
+	))
 }
 
 func (c *Console) handleListFiles(args []string) {
