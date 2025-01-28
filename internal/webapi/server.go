@@ -91,6 +91,13 @@ func (s *WebServer) Start(addr string) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	s.eventBus.SubscribeFunc(func(event eventbus.Event) error {
+		switch event.Type {
+		case eventbus.EventShutdown:
+			s.Shutdown()
+		}
+		return nil
+	})
 	// Channel for server errors
 	serverErr := make(chan error, 1)
 
@@ -111,6 +118,7 @@ func (s *WebServer) Start(addr string) error {
 }
 
 func (s *WebServer) performCleanShutdown() error {
+	fmt.Println("\nShutting down gracefully the api...")
 	// Create context with timeout for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
