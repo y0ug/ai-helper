@@ -133,15 +133,11 @@ func main() {
 		LlmClient:   llmClient,
 		RepoManager: rm,
 		Prompts:     pts,
-		// StreamWriter: h,
-		Settings: coderSettings,
-		Stream:   true,
+		Settings:    coderSettings,
+		Stream:      true,
 		// Uim:          uim,
 	}
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
-
-	coder.Start(ctx)
-	defer coder.Stop()
 
 	console := consolecoder.New(coder, h, nil)
 	console.Run()

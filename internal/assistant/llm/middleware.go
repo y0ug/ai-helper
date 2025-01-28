@@ -102,7 +102,6 @@ func (m *metricsChatCompleter) SendMessages(
 	start := time.Now()
 
 	resp, err := m.next.SendMessages(ctx, messages, tools)
-
 	if resp != nil {
 		m.recorder.RecordRequest(ctx, resp, time.Since(start))
 	}

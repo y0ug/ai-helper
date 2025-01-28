@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
@@ -33,20 +34,21 @@ type AssistantOptions struct {
 }
 
 type AssistantOrchestrator struct {
-	logger       *slog.Logger
-	llm          llm.ChatCompleter
-	prompts      prompts.Prompter
-	rm           repomanager.RepoManagerInterface
-	settings     *settings.CoderSettings
-	processor    *ActionExecutor
-	history      *prompt.ChatHistory
-	formatter    *prompt.PromptFormatter
-	extractors   []extractors.Extractor
-	metrics      llm.MetricsRecorder
-	runCtx       context.Context
-	cancelRunCtx context.CancelFunc
-	eventBus     *eventbus.EventBus
-	lastMsgChunk *prompt.PromptChunks
+	logger        *slog.Logger
+	llm           llm.ChatCompleter
+	prompts       prompts.Prompter
+	rm            repomanager.RepoManagerInterface
+	settings      *settings.CoderSettings
+	processor     *Pipeline
+	history       *prompt.ChatHistory
+	formatter     *prompt.PromptFormatter
+	extractors    []extractors.Extractor
+	metrics       llm.MetricsRecorder
+	runCtx        context.Context
+	cancelRunCtx  context.CancelFunc
+	eventBus      *eventbus.EventBus
+	lastMsgChunk  *prompt.PromptChunks
+	actionManager *actions.ActionManager
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
@@ -103,27 +105,6 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	// we them to be correctly be set before loading executors.NewRegistry and NewActionExecutor
 	c.SetPrompts(opts.Prompts)
 
-	registry := executors.NewRegistryFull(
-		c.logger,
-		c.rm,
-		validator,
-		history,
-		c.extractors,
-	)
-
-	processor := NewActionExecutor(
-		opts.Logger,
-		opts.RepoManager,
-		history,
-		formatter,
-		opts.Settings,
-		opts.Prompts,
-		c.extractors,
-		registry,
-		nil,
-	)
-	c.processor = processor
-
 	re := make([]string, 0)
 	features := make([]string, 0)
 	for _, e := range c.extractors {
@@ -134,6 +115,16 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		}
 	}
 
+	registry := executors.NewRegistryFull(opts.Logger, c.rm, validator, history, c.extractors,
+		c.SendMessage)
+	c.actionManager = actions.NewActionManager(opts.Logger)
+	pipeline := NewPipeline(
+		opts.Logger,
+		c.actionManager,
+		registry,
+	)
+
+	c.processor = pipeline
 	c.logger.Info(
 		"setting ",
 		"max_output_token", c.settings.GetMaxOutputToken(),
@@ -149,34 +140,23 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	return c
 }
 
-// TODO: Proper ctx handling for cancellation
 func (c *AssistantOrchestrator) registerEventHandlers() {
 	sub := c.eventBus.Subscribe(100)
 
 	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		for event := range sub {
 			switch event.Type {
 			case eventbus.EventInput:
-				c.handleInputEvent(event)
-			case eventbus.EventLLMRequest:
-				c.handleLLMRequestEvent(event)
+				c.handleInputEvent(ctx, event)
 			case eventbus.EventShutdown:
-				c.Stop()
 			}
 		}
 	}()
 }
 
-func (c *AssistantOrchestrator) handleLLMRequestEvent(event eventbus.Event) {
-	action, ok := event.Payload.(actions.Action)
-	if !ok {
-		c.logger.Error("Invalid event payload", "type", fmt.Sprintf("%T", event.Payload))
-		return
-	}
-	c.SendMessage(c.runCtx, action)
-}
-
-func (c *AssistantOrchestrator) handleInputEvent(event eventbus.Event) {
+func (c *AssistantOrchestrator) handleInputEvent(ctx context.Context, event eventbus.Event) {
 	input, ok := event.Payload.(eventbus.UserInput)
 	if !ok {
 		c.logger.Error("Invalid input event payload")
@@ -190,8 +170,9 @@ func (c *AssistantOrchestrator) handleInputEvent(event eventbus.Event) {
 	// 	}))
 
 	// Process input through existing pipeline
-	err := c.Run(c.runCtx, input.Content)
+	err := c.Run(ctx, input.Content)
 	if err != nil {
+		c.logger.Error("Error processing input", "error", err)
 		c.eventBus.Publish(eventbus.NewEvent(
 			eventbus.EventError,
 			map[string]interface{}{
@@ -203,20 +184,36 @@ func (c *AssistantOrchestrator) handleInputEvent(event eventbus.Event) {
 }
 
 func (a *AssistantOrchestrator) DumpActionChain() {
-	a.processor.DumpActionChains()
+	for _, chain := range a.actionManager.GetAllChains() {
+		fmt.Printf("Action Chain: %s\n", chain.ChainID)
+		a.actionManager.DumpActionChainTree(chain.ChainID)
+
+		fmt.Println("Execution Timeline:")
+		sortedActions := chain.GetActionsSorted()
+		for i, action := range sortedActions {
+			status := "✓"
+			if containsError(chain.Results, action.ID) {
+				status = "✗"
+			}
+			fmt.Printf("%s [%d] %s\n", status, i+1, action.String())
+		}
+
+		fmt.Println("\nDetailed Results:")
+		for _, result := range chain.Results {
+			fmt.Println("-", result)
+		}
+		fmt.Println("--------------------")
+	}
 }
 
-func (a *AssistantOrchestrator) Start(ctx context.Context) {
-	a.logger.Info("Starting assistant orchestrator")
-	a.runCtx, a.cancelRunCtx = context.WithCancel(ctx)
-	// go a.handleAssistantInputChan()
-	a.processor.Start(a.runCtx)
-}
-
-func (a *AssistantOrchestrator) Stop() {
-	a.cancelRunCtx()
-	// we shoiuld not have to stop a.processor since the context is cancelled
-	a.processor.Stop()
+func containsError(results []string, actionID uuid.UUID) bool {
+	for _, result := range results {
+		if strings.Contains(result, actionID.String()) &&
+			(strings.Contains(result, "ERROR") || strings.Contains(result, "failed")) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
@@ -247,31 +244,18 @@ func (c *AssistantOrchestrator) getPrompts() prompts.Prompter {
 	return c.prompts
 }
 
-func (c *AssistantOrchestrator) initBeforeMessage() {
-	// Reset state before processing a new message
-	// if c.rm.GetGit() != nil {
-	// 	// Should commit before message
-	// 	lastCommitHash, err := c.rm.GetGit().GetHeadCommitSHA(false)
-	// 	if err != nil {
-	// 		fmt.Println("Error getting head commit SHA:", err)
-	// 	} else {
-	// 		c.lastCommitHash = lastCommitHash
-	// 	}
-	// }
-}
-
-// Should be only call on user input
 func (c *AssistantOrchestrator) Run(ctx context.Context, message string) error {
-	c.initBeforeMessage()
-
 	// Add user message
 
 	c.logger.Info("Run: message", "stop_reason", c.history.GetLastStopReason(), "message", message)
 	if c.history.GetLastStopReason() == "end_turn" || c.lastMsgChunk == nil {
-		// Rebuilding the last msg chunk if we start a new turn
-		c.lastMsgChunk = c.FormatMessages()
-		c.history.SetLastStopReason("")
-		c.history.MoveCurrentToDone(message)
+		if c.lastMsgChunk == nil {
+			c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
+			c.lastMsgChunk = c.FormatMessages()
+		} else {
+			c.history.SetLastStopReason("")
+			c.history.MoveCurrentToDone(message)
+		}
 	} else {
 		c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
 		c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
@@ -282,12 +266,9 @@ func (c *AssistantOrchestrator) Run(ctx context.Context, message string) error {
 
 	// Create and register a new LLmRequestAction
 	llmReqAction := actions.NewLLMRequestAction(promptText)
-	// c.processor.actionManager.RegisterAction(llmReqAction)
-	c.eventBus.Publish(eventbus.NewEvent(eventbus.EventAction,
-		llmReqAction))
 
+	c.processor.Execute(ctx, llmReqAction)
 	return nil
-	// return c.SendMessage(ctx)
 }
 
 func (c *AssistantOrchestrator) collectTools() []chat.Tool {
@@ -302,32 +283,27 @@ func (c *AssistantOrchestrator) collectTools() []chat.Tool {
 	return tools
 }
 
-func (c *AssistantOrchestrator) SendMessage(ctx context.Context, action actions.Action) error {
+func (c *AssistantOrchestrator) SendMessage(
+	ctx context.Context,
+	action actions.Action,
+) (results []actions.Action, err error) {
 	tools := c.collectTools()
 
 	if c.lastMsgChunk == nil {
 		c.logger.Warn("lastMsgChunk is nil")
-		return fmt.Errorf("lastMsgChunk is nil")
+		return results, fmt.Errorf("lastMsgChunk is nil")
 	}
 	c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
 
+	c.logger.Info("SendMessage: request", "test", c.lastMsgChunk.ToMarkdown(c.lastMsgChunk.Cur))
 	resp, err := c.llm.SendMessages(ctx, c.lastMsgChunk.AllMessages(), tools)
 	if err != nil {
-		return fmt.Errorf("error sending messages: %w", err)
+		return results, fmt.Errorf("error sending messages: %w", err)
 	}
-
-	// Send the response text content to the eventbus output if we are in not stream mode
-	// for _, content := range resp.Content {
-	// 	if content.Type == chat.ContentTypeText {
-	// 	}
-	// }
-
 	c.logger.Info("metrics", "total", c.metrics, "resp", resp.ToMessageParams())
 
-	c.eventBus.Publish(eventbus.NewEvent(eventbus.EventAction,
-		actions.NewLLMResponseAction(*resp).WithParent(&action)))
-
-	return nil
+	results = append(results, actions.NewLLMResponseAction(*resp).WithParent(&action))
+	return
 }
 
 // FormatMessages formats all messages for the LLM with appropriate prompts

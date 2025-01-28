@@ -49,6 +49,7 @@ func NewRegistryFull(
 	validator validation.Validator,
 	history *prompt.ChatHistory,
 	extractors []extractors.Extractor,
+	sendMessage Processor[actions.Action],
 ) *Registry {
 	registry := &Registry{
 		handlers: make([]ActionHandler, 0),
@@ -65,6 +66,6 @@ func NewRegistryFull(
 	registry.Register(NewAddMessageExecutor(history))
 	registry.Register(NewExtractorExecutor(logger, extractors))
 	registry.Register(NewLLMResponseExecutor(history))
-	registry.Register(NewLLMRequestExecutor(history))
+	registry.Register(NewLLMRequestExecutor(sendMessage))
 	return registry
 }

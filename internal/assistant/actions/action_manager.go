@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 )
 
 // ActionNode represents a node in the Action tree.
@@ -35,26 +34,13 @@ type ActionManager struct {
 	activeChains sync.Map // map[uuid.UUID]*ActionChain
 	chains       sync.Map
 	logger       *slog.Logger
-	eventBus     *eventbus.EventBus
 }
 
 func NewActionManager(logger *slog.Logger) *ActionManager {
 	am := &ActionManager{
-		logger:   logger,
-		eventBus: eventbus.GetEventBus(),
+		logger: logger,
 	}
-	am.eventBus.SubscribeFunc(func(event eventbus.Event) error {
-		if event.Type == eventbus.EventAction {
-			if action, ok := event.Payload.(Action); ok {
-				am.eventBus.Process(func(e eventbus.Event) error {
-					am.logger.Debug("ActionManager::Eventandler, EventAction ", "action", action)
-					am.RegisterAction(action)
-					return nil
-				})(event)
-			}
-		}
-		return nil
-	})
+
 	return am
 }
 
@@ -74,15 +60,15 @@ func (m *ActionManager) RegisterAction(action Action) {
 
 	// Update existing node if present
 	if existing, exists := chain.Nodes[action.ID]; exists {
-		m.logger.Debug("RegisterAction, update", "context", action)
+		// m.logger.Debug("RegisterAction, update", "context", action)
 		existing.Action = action
 		return
 	}
 
-	m.logger.Debug(
-		"RegisterAction, create",
-		"context", action,
-	)
+	// m.logger.Debug(
+	// 	"RegisterAction, create",
+	// 	"context", action,
+	// )
 
 	node := &ActionNode{
 		Action:   action,
@@ -218,7 +204,7 @@ func (t *ActionChainTree) GetActionsSorted() []Action {
 	}
 	// Sort by CreatedAt
 	sort.Slice(actions, func(i, j int) bool {
-		return actions[i].Context.CreatedAt.Before(actions[j].Context.CreatedAt)
+		return actions[i].Context.CreatedAt.After(actions[j].Context.CreatedAt)
 	})
 	return actions
 }

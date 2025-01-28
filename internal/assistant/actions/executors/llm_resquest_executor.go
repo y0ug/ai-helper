@@ -4,17 +4,20 @@ import (
 	"context"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
-	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 )
 
-type LLMRequestExecutor struct {
-	history *prompt.ChatHistory
-}
+type (
+	Processor[T any]   func(context.Context, T) ([]T, error)
+	LLMRequestExecutor struct {
+		cb Processor[actions.Action]
+	}
+)
 
-func NewLLMRequestExecutor(history *prompt.ChatHistory) *LLMRequestExecutor {
+func NewLLMRequestExecutor(
+	cb Processor[actions.Action],
+) *LLMRequestExecutor {
 	return &LLMRequestExecutor{
-		history: history,
+		cb: cb,
 	}
 }
 
@@ -27,16 +30,10 @@ func (e *LLMRequestExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
 ) (results []actions.Action, err error) {
-	logger := actions.GetLogger(ctx)
+	// logger := actions.GetLogger(ctx)
 
 	_ = action.Payload.(actions.LLMRequestAction)
 	// resp := val.Resp
 
-	eventbus.GetEventBus().Publish(eventbus.NewEvent(eventbus.EventLLMRequest, action))
-
-	logger.Info(
-		"Processing LLM request", "curMessage",
-		len(e.history.GetCurrentMessages()),
-	)
-	return results, nil
+	return e.cb(ctx, action)
 }

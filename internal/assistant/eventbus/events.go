@@ -9,14 +9,9 @@ type EventType int
 const (
 	EventInput EventType = iota
 	EventError
-	EventAction
-	EventActionResult
-	EventActionOutput
-	EventActionProcess
 	EventOutput
 	EventStatusUpdate
 	EventShutdown
-	EventLLMRequest
 )
 
 type Event struct {
