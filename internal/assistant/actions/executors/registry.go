@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	conversation "github.com/y0ug/ai-helper/internal/assistant/conversion"
+	conversation "github.com/y0ug/ai-helper/internal/assistant/conversation"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"

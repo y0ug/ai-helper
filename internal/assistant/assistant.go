@@ -9,13 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
-	conversation "github.com/y0ug/ai-helper/internal/assistant/conversion"
+	conversation "github.com/y0ug/ai-helper/internal/assistant/conversation"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/metrics"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
-	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
@@ -51,7 +50,7 @@ type AssistantOrchestrator struct {
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
-	history := prompt.NewChatHistory()
+	history := conversation.NewChatHistory()
 
 	metricsTracker := metrics.NewMetricsTracker(opts.Logger, *opts.Settings.MainModel())
 	c := &AssistantOrchestrator{

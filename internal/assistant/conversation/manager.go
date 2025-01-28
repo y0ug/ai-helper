@@ -3,7 +3,6 @@ package conversation
 import (
 	"log/slog"
 
-	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
@@ -13,29 +12,29 @@ import (
 // ConversationManager manages conversation turns, summarization, and chunk building.
 type ConversationManager struct {
 	logger  *slog.Logger
-	history *prompt.ChatHistory
+	history *ChatHistory
 	rm      repomanager.RepoManagerInterface
-	// summarizer prompt.Summarizer // e.g. DefaultSummarizer or nil if summarization is off
+	// summarizer Summarizer // e.g. DefaultSummarizer or nil if summarization is off
 	tokenLimit int
 
 	prompts   prompts.Prompter
 	settings  *settings.CoderSettings
-	formatter *prompt.PromptFormatter
+	formatter *PromptFormatter
 
-	lastMsgChunk *prompt.PromptChunks
+	lastMsgChunk *PromptChunks
 }
 
 // NewConversationManager creates a new ConversationManager
 func NewConversationManager(
 	logger *slog.Logger,
-	history *prompt.ChatHistory,
+	history *ChatHistory,
 	rm repomanager.RepoManagerInterface,
-	// summarizer prompt.Summarizer,
+	// summarizer Summarizer,
 	tokenLimit int,
 	prompts prompts.Prompter,
 	settings *settings.CoderSettings,
 ) *ConversationManager {
-	fm := prompt.NewPromptFormatter(logger, rm, prompts, settings) // or pass RepoManager
+	fm := NewPromptFormatter(logger, rm, prompts, settings) // or pass RepoManager
 	return &ConversationManager{
 		logger:  logger,
 		history: history,
@@ -113,7 +112,7 @@ func (cm *ConversationManager) AddAssistantMessage(content string) {
 // }
 
 // BuildPrompt builds or updates cm.lastMsgChunk with the latest conversation state.
-func (cm *ConversationManager) BuildPrompt() *prompt.PromptChunks {
+func (cm *ConversationManager) BuildPrompt() *PromptChunks {
 	cm.lastMsgChunk = cm.formatter.FormatMessages(cm.history)
 	return cm.lastMsgChunk
 }
@@ -138,7 +137,7 @@ func (cm *ConversationManager) estimateTokenUsage() int {
 }
 
 // getOrBuildPromptChunk is sometimes convenient if you only want to build the chunk once per turn.
-func (cm *ConversationManager) GetOrBuildPromptChunk() *prompt.PromptChunks {
+func (cm *ConversationManager) GetOrBuildPromptChunk() *PromptChunks {
 	if cm.lastMsgChunk == nil {
 		cm.lastMsgChunk = cm.formatter.FormatMessages(cm.history)
 	}

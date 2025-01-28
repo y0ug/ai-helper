@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	conversation "github.com/y0ug/ai-helper/internal/assistant/conversion"
+	conversation "github.com/y0ug/ai-helper/internal/assistant/conversation"
 )
 
 type AddMessageExecutor struct {

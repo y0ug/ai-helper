@@ -1,4 +1,4 @@
-package prompt
+package conversation
 
 import (
 	"fmt"
