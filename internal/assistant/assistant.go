@@ -35,18 +35,30 @@ type AssistantOptions struct {
 }
 
 type AssistantOrchestrator struct {
-	logger *slog.Logger
-	llm    llm.ChatCompleter
-	// prompts       prompts.Prompter
+	logger        *slog.Logger
+	llm           llm.ChatCompleter
 	rm            repomanager.RepoManagerInterface
 	settings      *settings.CoderSettings
 	processor     *Pipeline
-	extractors    []extractors.Extractor
 	metrics       llm.MetricsRecorder
 	eventBus      *eventbus.EventBus
 	actionManager *actions.ActionManager
 	status        *ui.StatusManager
 	conversation  *conversation.ConversationManager
+	llmTools      []chat.Tool
+}
+
+func NewFromPrompts(logger *slog.Logger, pts prompts.Prompter) (results []extractors.Extractor) {
+	extractorNames := strings.Split(pts.GetEditFormat(), "\n")
+	for _, name := range extractorNames {
+		extractorName := extractors.New(extractors.ExtractorType(name), logger)
+		if extractorName == nil {
+			logger.Error("Error creating extractor", "name", extractorName)
+			continue
+		}
+		results = append(results, extractorName)
+	}
+	return
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
@@ -61,7 +73,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		// formatter: formatter,
 		metrics:  metricsTracker,
 		eventBus: opts.EventBus,
-		status:   ui.NewStatusManager("ready"),
+		status:   ui.NewStatusManager(ui.StatusReady),
 	}
 
 	c.registerEventHandlers()
@@ -103,11 +115,12 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	// Should handle this better
 	// This is loading the correct c.extractors
 	// we them to be correctly be set before loading executors.NewRegistry and NewActionExecutor
-	c.loadPrompts(opts.Prompts)
+	exts := NewFromPrompts(c.logger, opts.Prompts)
+	c.llmTools = extractors.GetTools(exts...)
 
 	re := make([]string, 0)
 	features := make([]string, 0)
-	for _, e := range c.extractors {
+	for _, e := range exts {
 		re = append(re, e.Name())
 		actions := e.SupportedActions()
 		for _, action := range actions {
@@ -299,20 +312,6 @@ func containsError(results []string, actionID uuid.UUID) bool {
 	return false
 }
 
-func (c *AssistantOrchestrator) loadPrompts(pts prompts.Prompter) {
-	// c.prompts = pts
-
-	extractorNames := strings.Split(pts.GetEditFormat(), "\n")
-	for _, name := range extractorNames {
-		extractorName := extractors.New(extractors.ExtractorType(name), c.logger)
-		if extractorName == nil {
-			c.logger.Error("Error creating extractor", "name", extractorName)
-			continue
-		}
-		c.extractors = append(c.extractors, extractorName)
-	}
-}
-
 func (c *AssistantOrchestrator) GetRM() repomanager.RepoManagerInterface {
 	return c.rm
 }
@@ -346,18 +345,6 @@ func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error
 	return nil
 }
 
-func (c *AssistantOrchestrator) collectTools() []chat.Tool {
-	tools := make([]chat.Tool, 0)
-	for _, e := range c.extractors {
-		tools = append(tools, e.GetChatTools()...)
-	}
-
-	for _, tool := range tools {
-		c.logger.Debug("SendMessage: tool", "name", tool.Name)
-	}
-	return tools
-}
-
 func (c *AssistantOrchestrator) SendMessage(
 	ctx context.Context,
 	action actions.Action,
@@ -365,11 +352,9 @@ func (c *AssistantOrchestrator) SendMessage(
 	c.status.Update(ui.StatusProcessing)
 	defer c.status.Update(ui.StatusReady)
 
-	tools := c.collectTools()
-
 	promptChunk := c.conversation.BuildPrompt()
 
-	resp, err := c.llm.SendMessages(ctx, promptChunk.AllMessages(), tools)
+	resp, err := c.llm.SendMessages(ctx, promptChunk.AllMessages(), c.llmTools)
 	if err != nil {
 		return results, fmt.Errorf("error sending messages: %w", err)
 	}

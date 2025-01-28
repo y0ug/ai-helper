@@ -3,7 +3,19 @@ package extractors
 import (
 	"math"
 	"strings"
+
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
+
+func GetTools(
+	extractors ...Extractor,
+) (tools []chat.Tool) {
+	for _, e := range extractors {
+		tools = append(tools, e.GetChatTools()...)
+	}
+
+	return
+}
 
 func isShellBlockStart(line string) bool {
 	shellPrefixes := []string{"```bash", "```sh", "```shell", "```cmd", "```batch", "```zsh"}
