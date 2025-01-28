@@ -2,13 +2,17 @@ package eventbus
 
 import (
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type EventBus struct {
-	subscribers  []chan Event
-	middleware   []Middleware
-	shutdownChan chan struct{}
-	mu           sync.RWMutex
+	subscribers     []chan Event
+	funcSubscribers map[string]EventHandler
+	middleware      []Middleware
+	shutdownChan    chan struct{}
+	mu              sync.RWMutex
+	funcMu          sync.RWMutex
 }
 
 var (
@@ -57,15 +61,60 @@ func (b *EventBus) Publish(event Event) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
+	// Publish to channel subscribers
 	for _, sub := range b.subscribers {
 		select {
 		case sub <- event:
 		case <-b.shutdownChan:
 			return
 		default:
-			// Handle overflow (e.g., log or create overflow channel)
+			// Handle channel overflow
 		}
 	}
+
+	// Publish to function subscribers
+	b.funcMu.RLock()
+	defer b.funcMu.RUnlock()
+
+	for id, handler := range b.funcSubscribers {
+		go func(id string, h EventHandler) {
+			defer func() {
+				if r := recover(); r != nil {
+					// Handle panic in subscriber
+				}
+			}()
+			if err := h(event); err != nil {
+				// Handle error from subscriber
+			}
+		}(id, handler)
+	}
+}
+
+// SubscribeFunc registers a callback function to handle events
+func (b *EventBus) SubscribeFunc(handler EventHandler) string {
+	b.funcMu.Lock()
+	defer b.funcMu.Unlock()
+
+	// Apply middleware to the handler
+	wrappedHandler := b.Process(handler)
+
+	// Generate unique ID for this subscription
+	id := uuid.New().String()
+
+	if b.funcSubscribers == nil {
+		b.funcSubscribers = make(map[string]EventHandler)
+	}
+	b.funcSubscribers[id] = wrappedHandler
+
+	return id
+}
+
+// UnsubscribeFunc removes a callback subscription
+func (b *EventBus) UnsubscribeFunc(id string) {
+	b.funcMu.Lock()
+	defer b.funcMu.Unlock()
+
+	delete(b.funcSubscribers, id)
 }
 
 func (b *EventBus) Use(middleware ...Middleware) {
@@ -83,11 +132,18 @@ func (b *EventBus) Process(handler EventHandler) EventHandler {
 
 func (b *EventBus) Shutdown() {
 	close(b.shutdownChan)
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	// Close channel subscribers
 	for _, sub := range b.subscribers {
 		close(sub)
 	}
 	b.subscribers = nil
+
+	// Clear function subscribers
+	b.funcMu.Lock()
+	defer b.funcMu.Unlock()
+	b.funcSubscribers = nil
 }

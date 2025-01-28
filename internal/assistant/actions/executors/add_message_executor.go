@@ -32,5 +32,5 @@ func (e *AddMessageExecutor) Handle(
 	logger.Info("AddMessageExecutor", "Role", val.Msg.Role, "Content", val.Msg.Content)
 
 	e.history.AddMessage(&val.Msg)
-	return nil, nil
+	return []actions.Action{actions.NewLLMRequestAction("foo").WithParent(&action)}, nil
 }

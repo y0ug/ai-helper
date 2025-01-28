@@ -39,6 +39,11 @@ func (c *Console) setCommands() {
 			description: "send request",
 			handler:     c.send,
 		},
+		"/dump": {
+			name:        "dump",
+			description: "dump full actions chains",
+			handler:     func(args []string) { c.coder.DumpActionChain() },
+		},
 	}
 }
 

@@ -87,6 +87,7 @@ func (c *FuncWholeFileExtractor) Extract(
 					Edit:       action.Payload.(actions.ApplyEdit),
 					ToolCallID: content.ID, // Preserve the tool_call_id
 				})
+				c.logger.Info("Tool call processed", "action", batchEdits)
 			}
 		}
 	}

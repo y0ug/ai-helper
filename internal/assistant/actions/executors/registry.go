@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/ui"
@@ -49,6 +50,7 @@ func NewRegistryFull(
 	validator validation.Validator,
 	uim *ui.UIInteractionManager,
 	history *prompt.ChatHistory,
+	extractors []extractors.Extractor,
 ) *Registry {
 	registry := &Registry{
 		handlers: make([]ActionHandler, 0),
@@ -63,5 +65,8 @@ func NewRegistryFull(
 	// registry.Register(NewUserInteractionExecutor(logger, uim))
 	registry.Register(NewLogExecutor())
 	registry.Register(NewAddMessageExecutor(history))
+	registry.Register(NewExtractorExecutor(logger, extractors))
+	registry.Register(NewLLMResponseExecutor(history))
+	registry.Register(NewLLMRequestExecutor(history))
 	return registry
 }

@@ -23,6 +23,7 @@ const (
 	ActionTypeLLMResponse  ActionType = "llm_response"
 	ActionTypeAddMessage   ActionType = "add_message"
 	ActionTypeBatchEdit    ActionType = "batch_edit"
+	ActionTypeExtractor    ActionType = "extractor"
 )
 
 type ActionContext struct {
@@ -238,7 +239,7 @@ type LLMRequestAction struct {
 	Prompt string
 }
 type LLMResponseAction struct {
-	Response string
+	Resp chat.ChatResponse
 }
 
 type AddMessageAction struct {
@@ -249,8 +250,8 @@ func NewLLMRequestAction(prompt string) Action {
 	return NewAction(ActionTypeLLMRequest, LLMRequestAction{Prompt: prompt})
 }
 
-func NewLLMResponseAction(response string) Action {
-	return NewAction(ActionTypeLLMResponse, LLMResponseAction{Response: response})
+func NewLLMResponseAction(resp chat.ChatResponse) Action {
+	return NewAction(ActionTypeLLMResponse, LLMResponseAction{Resp: resp})
 }
 
 func NewAddMessageAction(msg chat.ChatMessage) Action {
@@ -277,4 +278,12 @@ func (b BatchEditAction) String() string {
 	}
 
 	return fmt.Sprintf("[%s]", strings.Join(filenames, ", "))
+}
+
+type ActionExtractor struct {
+	Msg chat.ChatMessage
+}
+
+func NewActionExtractor(msg chat.ChatMessage) Action {
+	return NewAction(ActionTypeExtractor, ActionExtractor{Msg: msg})
 }

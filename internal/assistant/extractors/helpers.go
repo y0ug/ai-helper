@@ -6,7 +6,7 @@ import (
 )
 
 func isShellBlockStart(line string) bool {
-	shellPrefixes := []string{"```bash", "```sh", "```shell", "```cmd", "```batch"}
+	shellPrefixes := []string{"```bash", "```sh", "```shell", "```cmd", "```batch", "```zsh"}
 	for _, prefix := range shellPrefixes {
 		if strings.HasPrefix(line, prefix) {
 			return true

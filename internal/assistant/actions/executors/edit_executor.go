@@ -126,6 +126,7 @@ func (e *EditExecutor) handleBatchEdit(
 ) ([]actions.Action, error) {
 	var followUps []actions.Action
 
+	logger := actions.GetLogger(ctx)
 	chatMsg := chat.NewMessage("tool")
 	// if chatMsg.Content == nil {
 	// 	chatMsg.Content = make([]*chat.MessageContent, 0)
@@ -133,9 +134,10 @@ func (e *EditExecutor) handleBatchEdit(
 
 	// Process each edit in the batch
 	for _, batchEdit := range batch.Edits {
+
 		edit := batchEdit.Edit
 		toolCallID := batchEdit.ToolCallID
-
+		logger.Warn("EDIT", "edit", batchEdit)
 		validationResult := e.validator.Validate(ctx, edit.Filename, edit.Original, edit.Updated)
 		if !validationResult.Valid {
 			for _, issue := range validationResult.Issues {
@@ -155,7 +157,8 @@ func (e *EditExecutor) handleBatchEdit(
 
 				followUps = append(
 					followUps,
-					actions.NewAddMessageAction(*chatMsg).WithParent(&action),
+					actions.NewAddMessageAction(*chatMsg).
+						WithParent(&action),
 				)
 			}
 			followUps = append(
@@ -174,7 +177,9 @@ func (e *EditExecutor) handleBatchEdit(
 
 				followUps = append(
 					followUps,
-					actions.NewAddMessageAction(*chatMsg).WithParent(&action),
+					actions.NewAddMessageAction(*chatMsg).
+						WithParent(&action).
+						WithToolCallID(toolCallID),
 				)
 			}
 			followUps = append(

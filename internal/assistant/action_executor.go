@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
@@ -17,7 +18,6 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
 type ActionExecutor struct {
@@ -34,6 +34,7 @@ type ActionExecutor struct {
 	runCtx        context.Context
 	runCancel     context.CancelFunc
 	eventBus      *eventbus.EventBus
+	pipeline      *actions.Pipeline
 }
 
 func NewActionExecutor(
@@ -48,7 +49,7 @@ func NewActionExecutor(
 	bus *eventbus.EventBus,
 ) *ActionExecutor {
 	actionManager := actions.NewActionManager(logger)
-	return &ActionExecutor{
+	mp := &ActionExecutor{
 		logger:        logger,
 		rm:            rm,
 		history:       history,
@@ -59,8 +60,16 @@ func NewActionExecutor(
 		executor:      executor,
 		queue:         queue.NewActionQueue(),
 		actionManager: actionManager,
-		eventBus:      bus,
+		eventBus:      eventbus.GetEventBus(),
 	}
+	chain := middleware.NewMiddlewareChain(
+		mp.baseHandler,
+		middleware.NewLoggerMiddleware(mp.logger),
+		middleware.NewTimeoutMiddleware(time.Second*1),
+	)
+	mp.pipeline = actions.NewPipeline(logger, chain.Process)
+
+	return mp
 }
 
 func (mp *ActionExecutor) Start(ctx context.Context) {
@@ -70,7 +79,9 @@ func (mp *ActionExecutor) Start(ctx context.Context) {
 		// Subscribe to action events
 		actionSub := mp.eventBus.Subscribe(100)
 
+		// Catch new EventAction and pass them to EventActionProcess
 		go mp.processingLoop(mp.runCtx, actionSub)
+		mp.pipeline.Start(mp.runCtx)
 	}
 }
 
@@ -83,7 +94,7 @@ func (mp *ActionExecutor) Stop() {
 }
 
 func (mp *ActionExecutor) processingLoop(ctx context.Context, sub <-chan eventbus.Event) {
-	mp.logger.Debug("start ActionExecutor processing loop")
+	mp.logger.Debug("ActionExecutor: start processing loop")
 	for {
 		select {
 		case <-ctx.Done():
@@ -99,120 +110,11 @@ func (mp *ActionExecutor) processingLoop(ctx context.Context, sub <-chan eventbu
 				continue
 			}
 
-			mp.processSingleAction(ctx, action)
+			// mp.processSingleAction(ctx, action)
+			mp.logger.Debug("ActionExecutor: Publishing EventActionProcess", "action", action)
+			mp.eventBus.Publish(eventbus.NewEvent(eventbus.EventActionProcess, action))
 		}
 	}
-}
-
-func (mp *ActionExecutor) processSingleAction(ctx context.Context, action actions.Action) {
-	results, err := mp.baseHandler(ctx, action)
-	if err != nil {
-		mp.eventBus.Publish(eventbus.NewEvent(eventbus.EventError, err))
-		return
-	}
-
-	// Publish results
-	for _, result := range results {
-		mp.eventBus.Publish(eventbus.NewEvent(
-			eventbus.EventAction,
-			result,
-		))
-	}
-
-	// Update status
-	mp.eventBus.Publish(eventbus.NewEvent(
-		eventbus.EventStatusUpdate,
-		eventbus.StatusUpdate{
-			New: "actions_processed",
-		},
-	))
-}
-
-func (mp *ActionExecutor) ProcessResponse(
-	ctx context.Context,
-	resp *chat.ChatResponse,
-	parentAction *actions.Action,
-) error {
-	if len(resp.Choice) == 0 {
-		return fmt.Errorf("no choice returned from LLM")
-	}
-	choice := resp.Choice[0]
-	msg := resp.ToMessageParams()
-
-	if msg.Role != "assistant" {
-		return fmt.Errorf("last message should be from assistant")
-	}
-
-	// Create an LLMResponseAction, child of parentAction
-	var rawText string
-	if len(msg.Content) > 0 {
-		rawText = msg.Content[0].String()
-	}
-
-	llmRespAction := actions.NewLLMResponseAction(rawText).WithParent(parentAction)
-	mp.actionManager.RegisterAction(llmRespAction)
-
-	// Add to curernt chat history
-	mp.history.AddMessage(msg)
-
-	// Extract and process new tasks
-	newActs := mp.ProcessResponseExtractor(ctx, msg)
-
-	// Re-parent them to LLMResponseAction
-	for _, na := range newActs {
-		reparented := na.WithParent(&llmRespAction)
-
-		// TODO: define if we register the action here or when dequeued
-		// We don't have to register them here they will be registered when dequeued
-		// mp.actionManager.RegisterAction(reparented)
-
-		// Enqueue the new reparented actions we just extract
-		mp.queue.Enqueue(reparented)
-	}
-
-	// Process the queue
-	mp.processActionQueue(ctx)
-
-	mp.DumpActionChains()
-
-	if choice.StopReason == "end_turn" {
-		mp.history.MoveCurrentToDone("")
-	}
-
-	mp.logger.Info(
-		"End Processing response",
-		"stop",
-		choice.StopReason,
-		"len(currentMessages)",
-		len(mp.history.GetCurrentMessages()),
-	)
-
-	for _, msg := range mp.history.GetCurrentMessages() {
-		mp.logger.Info("CurrentMessages", "role", msg.Role)
-		for _, c := range msg.Content {
-			mp.logger.Info("Content", "type", c.Type)
-		}
-	}
-
-	// We have done all the modification we should handle the commit where?
-	return nil
-}
-
-func (mp *ActionExecutor) ProcessResponseExtractor(ctx context.Context,
-	msg *chat.ChatMessage,
-) []actions.Action {
-	allActions := make([]actions.Action, 0)
-
-	for _, extractor := range mp.extractors {
-		results, err := extractor.Extract(msg)
-		mp.logger.Debug("Results", "results", results, "namne", extractor.Name())
-
-		if err != nil {
-			mp.logger.Error("Error extracting response", "error", err)
-		}
-		allActions = append(allActions, results...)
-	}
-	return allActions
 }
 
 func (mp *ActionExecutor) baseHandler(
@@ -237,64 +139,61 @@ func (mp *ActionExecutor) baseHandler(
 	return handler.Handle(ctx, action)
 }
 
-func (mp *ActionExecutor) processActionQueue(ctx context.Context) {
-	chain := middleware.NewMiddlewareChain(
-		mp.baseHandler,
-		middleware.NewLoggerMiddleware(mp.logger),
-	)
-
-	for !mp.queue.IsEmpty() {
-		action, _ := mp.queue.Dequeue()
-
-		mp.actionManager.RegisterAction(action)
-
-		results, err := chain.Process(ctx, action)
-		if err != nil {
-			mp.logger.Error("Error handling action", "error", err, "context", action)
-		}
-
-		// Register results and follow-up actions
-		for _, result := range results {
-			result.Completed = true
-			mp.actionManager.RegisterAction(result)
-		}
-
-		mp.actionManager.AddResult(action.Context.ChainID,
-			fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
-
-		mp.logger.Info(fmt.Sprintf("ACTION: %s %T", action.Type, action))
-		if len(results) > 0 {
-			mp.queue.Enqueue(results...)
-		}
-	}
-}
-
-//	func (mp *ActionExecutor) DumpActionChains() {
-//	    for _, chain := range mp.actionManager.GetAllChains() {
-//	        fmt.Printf("Action Chain: %s\n", chain.ChainID)
-//	        mp.actionManager.DumpActionChainTree(chain.ChainID)
+// func (mp *ActionExecutor) ProcessResponse(
 //
-//	        fmt.Println("Execution Timeline:")
-//	        sortedActions := chain.GetActionsSorted()
-//	        for i, action := range sortedActions {
-//	            status := "Γ£ô"
-//	            if containsError(chain.Results, action.ID) {
-//	                status = "Γ£ù"
-//	            }
-//	            fmt.Printf("%s [%d] %s\n", status, i+1, action.String())
-//	        }
+//	ctx context.Context,
+//	resp *chat.ChatResponse,
+//	parentAction *actions.Action,
 //
-//	        fmt.Println("\nDetailed Results:")
-//	        uniqueResults := make(map[string]bool)
-//	        for _, result := range chain.Results {
-//	            if !uniqueResults[result] {
-//	                fmt.Println("-", result)
-//	                uniqueResults[result] = true
-//	            }
-//	        }
-//	        fmt.Println("--------------------")
-//	    }
+//	) error {
+//		if len(resp.Choice) == 0 {
+//			return fmt.Errorf("no choice returned from LLM")
+//		}
+//		choice := resp.Choice[0]
+//		msg := resp.ToMessageParams()
+//
+//		if msg.Role != "assistant" {
+//			return fmt.Errorf("last message should be from assistant")
+//		}
+//
+//		// Create an LLMResponseAction, child of parentAction
+//		var rawText string
+//		if len(msg.Content) > 0 {
+//			rawText = msg.Content[0].String()
+//		}
+//
+//		llmRespAction := actions.NewLLMResponseAction(rawText).WithParent(parentAction)
+//		mp.actionManager.RegisterAction(llmRespAction)
+//
+//		// Add to curernt chat history
+//		mp.history.AddMessage(msg)
+//
+//		// We are pushing to the event action to extract action
+//		// from the LLM response. We alsa pass the parent action
+//		mp.eventBus.Publish(
+//			eventbus.NewEvent(
+//				eventbus.EventAction,
+//				actions.NewActionExtractor(*msg).WithParent(&llmRespAction),
+//			),
+//		)
+//
+//		// If LLM stop reason is end_turn, we move the current messages to done
+//		// So any new llm request will start rebuilding the prompt states
+//		if choice.StopReason == "end_turn" {
+//			mp.history.MoveCurrentToDone("")
+//		}
+//
+//		mp.logger.Info(
+//			"End Processing response",
+//			"stop",
+//			choice.StopReason,
+//			"len(currentMessages)",
+//			len(mp.history.GetCurrentMessages()),
+//		)
+//
+//		return nil
 //	}
+
 func (mp *ActionExecutor) DumpActionChains() {
 	for _, chain := range mp.actionManager.GetAllChains() {
 		fmt.Printf("Action Chain: %s\n", chain.ChainID)

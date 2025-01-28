@@ -2,7 +2,6 @@ package openai
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
@@ -36,7 +35,6 @@ func MessageToOpenAI(
 					ToolCallID: c.ToolUseID,
 				})
 			}
-			fmt.Println("ERROR we should not be here")
 		default:
 			userMessages = append(userMessages, ChatCompletionMessageParam{
 				Role:    msg.Role,

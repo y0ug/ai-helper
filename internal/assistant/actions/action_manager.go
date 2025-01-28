@@ -39,17 +39,23 @@ type ActionManager struct {
 }
 
 func NewActionManager(logger *slog.Logger) *ActionManager {
-	bus := eventbus.GetEventBus()
-	bus.Subscribe(func(event eventbus.Event) {
+	am := &ActionManager{
+		logger:   logger,
+		eventBus: eventbus.GetEventBus(),
+	}
+	am.eventBus.SubscribeFunc(func(event eventbus.Event) error {
 		if event.Type == eventbus.EventAction {
 			if action, ok := event.Payload.(Action); ok {
-				am.RegisterAction(action)
+				am.eventBus.Process(func(e eventbus.Event) error {
+					am.logger.Debug("ActionManager::Eventandler, EventAction ", "action", action)
+					am.RegisterAction(action)
+					return nil
+				})(event)
 			}
 		}
+		return nil
 	})
-	return &ActionManager{
-		logger: logger,
-	}
+	return am
 }
 
 func (m *ActionManager) RegisterAction(action Action) {
@@ -68,13 +74,13 @@ func (m *ActionManager) RegisterAction(action Action) {
 
 	// Update existing node if present
 	if existing, exists := chain.Nodes[action.ID]; exists {
-		m.logger.Debug("RegisterAction, Action already exists we update it", "context", action)
+		m.logger.Debug("RegisterAction, update", "context", action)
 		existing.Action = action
 		return
 	}
 
 	m.logger.Debug(
-		"RegisterAction, Action does not exist we create it",
+		"RegisterAction, create",
 		"context", action,
 	)
 
@@ -163,27 +169,6 @@ func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int) {
 	}
 }
 
-func (m *ActionManager) GetAllChains() []*ActionChainTree {
-	var chains []*ActionChainTree
-	m.activeChains.Range(func(_, v interface{}) bool {
-		chains = append(chains, v.(*ActionChainTree))
-		return true
-	})
-	return chains
-}
-
-func (t *ActionChainTree) GetActionsSorted() []Action {
-	actions := make([]Action, 0, len(t.Nodes))
-	for _, node := range t.Nodes {
-		actions = append(actions, node.Action)
-	}
-	// Sort by CreatedAt
-	sort.Slice(actions, func(i, j int) bool {
-		return actions[i].Context.CreatedAt.Before(actions[j].Context.CreatedAt)
-	})
-	return actions
-}
-
 func (m *ActionManager) AddResult(chainID uuid.UUID, result string) {
 	if record, ok := m.activeChains.Load(chainID); ok {
 		chain := record.(*ActionChainTree)
@@ -215,4 +200,25 @@ func FindRootAction(m *ActionManager, action Action) Action {
 			return current // Chain not found, exit
 		}
 	}
+}
+
+func (m *ActionManager) GetAllChains() []*ActionChainTree {
+	var chains []*ActionChainTree
+	m.activeChains.Range(func(_, v interface{}) bool {
+		chains = append(chains, v.(*ActionChainTree))
+		return true
+	})
+	return chains
+}
+
+func (t *ActionChainTree) GetActionsSorted() []Action {
+	actions := make([]Action, 0, len(t.Nodes))
+	for _, node := range t.Nodes {
+		actions = append(actions, node.Action)
+	}
+	// Sort by CreatedAt
+	sort.Slice(actions, func(i, j int) bool {
+		return actions[i].Context.CreatedAt.Before(actions[j].Context.CreatedAt)
+	})
+	return actions
 }

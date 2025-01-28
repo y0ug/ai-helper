@@ -98,7 +98,7 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 
 		if isShellBlockStart(line) {
 			cmd, newI := extractShellCommand(lines, i)
-			action := actions.NewShellCommand(cmd, true).WithParent(parentAction)
+			action := actions.NewShellCommand(cmd, false).WithParent(parentAction)
 			if parentAction == nil {
 				parentAction = &action
 			}
@@ -109,10 +109,13 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 		i++
 	}
 
-	// If there are multiple edits, create a single action for the batch
+	// If there are edits, create a single action for the batch and append at the begining
+	// of  results. This is to ensure that we run the batch edit before any other actions.
+	// but maybe we should not batctedit and just executing everything as it come from the
+	// LLM and add the commit here at then end of all the actions
 	if len(batchEdits) > 0 {
 		batchAction := actions.NewBatchEditAction(batchEdits).WithParent(parentAction)
-		results = append(results, batchAction)
+		results = append([]actions.Action{batchAction}, results...)
 	}
 
 	return results
@@ -156,6 +159,7 @@ func (c *BlockExtractor) findFilename(lines []string, current int) string {
 	codeBlockLanguages := map[string]bool{
 		"python": true, "bash": true, "sh": true,
 		"javascript": true, "go": true, "typescript": true,
+		"c": true, "cpp": true, "js": true, "ts": true,
 	}
 
 	for i := current - 1; i >= 0 && i >= current-3; i-- {

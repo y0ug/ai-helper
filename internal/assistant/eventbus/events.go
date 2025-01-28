@@ -10,10 +10,13 @@ const (
 	EventInput EventType = iota
 	EventError
 	EventAction
+	EventActionResult
+	EventActionOutput
+	EventActionProcess
 	EventOutput
 	EventStatusUpdate
 	EventShutdown
-	EventLLMResponse
+	EventLLMRequest
 )
 
 type Event struct {

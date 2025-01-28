@@ -46,6 +46,7 @@ type AssistantOrchestrator struct {
 	runCtx       context.Context
 	cancelRunCtx context.CancelFunc
 	eventBus     *eventbus.EventBus
+	lastMsgChunk *prompt.PromptChunks
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
@@ -97,16 +98,20 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	validator := validation.NewValidationPipeline(c.logger)
 	// validator.AddStep(validation.NewDryRunValidator())
 
+	// Should handle this better
+	// This is loading the correct c.extractors
+	// we them to be correctly be set before loading executors.NewRegistry and NewActionExecutor
+	c.SetPrompts(opts.Prompts)
+
 	registry := executors.NewRegistryFull(
 		c.logger,
 		c.rm,
 		validator,
 		nil,
 		history,
+		c.extractors,
 	)
 
-	// Should handle this better
-	c.SetPrompts(opts.Prompts)
 	processor := NewActionExecutor(
 		opts.Logger,
 		opts.RepoManager,
@@ -154,13 +159,22 @@ func (c *AssistantOrchestrator) registerEventHandlers() {
 			switch event.Type {
 			case eventbus.EventInput:
 				c.handleInputEvent(event)
-			case eventbus.EventLLMResponse:
-				// c.handleLLMResponse(event)
+			case eventbus.EventLLMRequest:
+				c.handleLLMRequestEvent(event)
 			case eventbus.EventShutdown:
 				c.Stop()
 			}
 		}
 	}()
+}
+
+func (c *AssistantOrchestrator) handleLLMRequestEvent(event eventbus.Event) {
+	action, ok := event.Payload.(actions.Action)
+	if !ok {
+		c.logger.Error("Invalid event payload", "type", fmt.Sprintf("%T", event.Payload))
+		return
+	}
+	c.SendMessage(c.runCtx, action)
 }
 
 func (c *AssistantOrchestrator) handleInputEvent(event eventbus.Event) {
@@ -189,40 +203,22 @@ func (c *AssistantOrchestrator) handleInputEvent(event eventbus.Event) {
 	}
 }
 
+func (a *AssistantOrchestrator) DumpActionChain() {
+	a.processor.DumpActionChains()
+}
+
 func (a *AssistantOrchestrator) Start(ctx context.Context) {
 	a.logger.Info("Starting assistant orchestrator")
 	a.runCtx, a.cancelRunCtx = context.WithCancel(ctx)
 	// go a.handleAssistantInputChan()
-	// a.processor.Start(a.runCtx)
+	a.processor.Start(a.runCtx)
 }
 
 func (a *AssistantOrchestrator) Stop() {
 	a.cancelRunCtx()
 	// we shoiuld not have to stop a.processor since the context is cancelled
-	// a.processor.Stop()
+	a.processor.Stop()
 }
-
-//
-// func (a *AssistantOrchestrator) handleAssistantInputChan() {
-// 	for {
-// 		select {
-// 		case <-a.runCtx.Done():
-// 			return
-// 		case <-a.uim.ShutdownChan:
-// 			return
-// 		case input := <-a.uim.GetAssistantInputChan():
-// 			a.processUserInput(a.runCtx, input)
-// 		}
-// 	}
-// }
-//
-// func (a *AssistantOrchestrator) processUserInput(ctx context.Context, input string) {
-// 	a.uim.UpdateStatus("ANALYZING_INPUT")
-//
-// 	a.logger.Info("Processing user input", "input", input)
-//
-// 	a.uim.UpdateStatus("READY")
-// }
 
 func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
 	c.prompts = pts
@@ -265,9 +261,34 @@ func (c *AssistantOrchestrator) initBeforeMessage() {
 	// }
 }
 
+// Should be only call on user input
 func (c *AssistantOrchestrator) Run(ctx context.Context, message string) error {
 	c.initBeforeMessage()
-	return c.SendMessage(ctx, message)
+
+	// Add user message
+
+	c.logger.Info("Run: message", "stop_reason", c.history.GetLastStopReason(), "message", message)
+	if c.history.GetLastStopReason() == "end_turn" || c.lastMsgChunk == nil {
+		// Rebuilding the last msg chunk if we start a new turn
+		c.lastMsgChunk = c.FormatMessages()
+		c.history.SetLastStopReason("")
+		c.history.MoveCurrentToDone(message)
+	} else {
+		c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
+		c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
+	}
+
+	// Build current messages to put it in the requests
+	promptText := c.lastMsgChunk.ToMarkdown(c.lastMsgChunk.Cur)
+
+	// Create and register a new LLmRequestAction
+	llmReqAction := actions.NewLLMRequestAction(promptText)
+	// c.processor.actionManager.RegisterAction(llmReqAction)
+	c.eventBus.Publish(eventbus.NewEvent(eventbus.EventAction,
+		llmReqAction))
+
+	return nil
+	// return c.SendMessage(ctx)
 }
 
 func (c *AssistantOrchestrator) collectTools() []chat.Tool {
@@ -282,70 +303,30 @@ func (c *AssistantOrchestrator) collectTools() []chat.Tool {
 	return tools
 }
 
-func (c *AssistantOrchestrator) SendMessage(ctx context.Context, message string) error {
-	// Add user message
-	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
+func (c *AssistantOrchestrator) SendMessage(ctx context.Context, action actions.Action) error {
+	tools := c.collectTools()
 
-	// Format messages with appropriate prompts
-	i := 0
-	messages := c.FormatMessages()
-
-	for len(c.history.GetCurrentMessages()) > 0 && i < 4 {
-		select {
-		case <-ctx.Done():
-			// Context cancelled, stop processing
-			return ctx.Err()
-		default:
-			// Continue processing
-		}
-		// Update the current messages Slice of the PromptChunks
-		// We only want to update those during turn
-		// we want to keep the prompt and files context the same
-		messages.Cur = c.history.GetCurrentMessages()
-
-		tools := c.collectTools()
-
-		// Build current messages to put it in the requests
-		promptText := messages.ToMarkdown(messages.Cur)
-
-		// Create and register a new LLmRequestAction
-		llmReqAction := actions.NewLLMRequestAction(promptText)
-		c.processor.actionManager.RegisterAction(llmReqAction)
-
-		c.logger.Debug("SendMessage: currentMessges", "text", promptText)
-		// for _, m := range messages.AllMessages() {
-		// 	c.logger.Debug(
-		// 		"SendMessage: msg",
-		// 		"role",
-		// 		m.Role,
-		// 		"is_cacheable",
-		// 		m.Content[0].IsCacheable(),
-		// 		"content",
-		// 		m.Content,
-		// 	)
-		// }
-		//
-		resp, err := c.llm.SendMessages(ctx, messages.AllMessages(), tools)
-		if err != nil {
-			return fmt.Errorf("error sending messages: %w", err)
-		}
-
-		// Stream the response to the outputChan
-		// for _, content := range resp.Content {
-		// 	if content.Type == chat.ContentTypeText {
-		// 		c.uim.outputChan <- content.String() // Send the response to the outputChan
-		// 	}
-		// }
-
-		c.logger.Info("metrics", "total", c.metrics)
-
-		// Process the response , linkijng it to llmReqAction
-		err = c.processor.ProcessResponse(ctx, resp, &llmReqAction)
-		if err != nil {
-			return fmt.Errorf("error processing response: %w", err)
-		}
-		i += 1
+	if c.lastMsgChunk == nil {
+		c.logger.Warn("lastMsgChunk is nil")
+		return fmt.Errorf("lastMsgChunk is nil")
 	}
+	c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
+
+	resp, err := c.llm.SendMessages(ctx, c.lastMsgChunk.AllMessages(), tools)
+	if err != nil {
+		return fmt.Errorf("error sending messages: %w", err)
+	}
+
+	// Send the response text content to the eventbus output if we are in not stream mode
+	// for _, content := range resp.Content {
+	// 	if content.Type == chat.ContentTypeText {
+	// 	}
+	// }
+
+	c.logger.Info("metrics", "total", c.metrics, "resp", resp.ToMessageParams())
+
+	c.eventBus.Publish(eventbus.NewEvent(eventbus.EventAction,
+		actions.NewLLMResponseAction(*resp).WithParent(&action)))
 
 	return nil
 }
