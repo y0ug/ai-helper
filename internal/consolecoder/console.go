@@ -23,7 +23,6 @@ type Console struct {
 	input       *ui.InputHandler
 	pt          *prompt.Prompt
 	historyFile string
-	uim         *ui.UIInteractionManager // UI interaction manager
 }
 
 func getHistoryFilePath() string {
@@ -37,7 +36,6 @@ func getHistoryFilePath() string {
 func New(
 	coder *assistant.AssistantOrchestrator,
 	h *highlighter.Highlighter,
-	uim *ui.UIInteractionManager,
 	bus *eventbus.EventBus,
 ) *Console {
 	bus = eventbus.GetEventBus()

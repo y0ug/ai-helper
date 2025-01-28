@@ -13,11 +13,11 @@ import (
 
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/assistant"
+	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	modelinfocoder "github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
-	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
@@ -119,15 +119,13 @@ func main() {
 	h := highlighter.NewHighlighter(os.Stdout)
 	coderSettings := settings.NewCoderSettings(modelCoder)
 
-	uim := ui.NewUIInteractionManager(h)
-
 	// Capture Ctrl-C (SIGINT)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
 		fmt.Println("\nReceived interrupt signal, shutting down...")
-		uim.Shutdown()
+		eventbus.GetEventBus().Publish(eventbus.NewEvent(eventbus.EventShutdown, nil))
 	}()
 
 	coderOpts := assistant.AssistantOptions{
@@ -145,6 +143,6 @@ func main() {
 	coder.Start(ctx)
 	defer coder.Stop()
 
-	console := consolecoder.New(coder, h, uim, nil)
+	console := consolecoder.New(coder, h, nil)
 	console.Run()
 }

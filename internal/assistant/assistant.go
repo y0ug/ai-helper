@@ -107,7 +107,6 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		c.logger,
 		c.rm,
 		validator,
-		nil,
 		history,
 		c.extractors,
 	)

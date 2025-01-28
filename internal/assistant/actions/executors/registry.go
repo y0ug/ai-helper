@@ -8,7 +8,6 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
-	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
 )
 
@@ -48,7 +47,6 @@ func NewRegistryFull(
 	logger *slog.Logger,
 	repo repomanager.RepoManagerInterface,
 	validator validation.Validator,
-	uim *ui.UIInteractionManager,
 	history *prompt.ChatHistory,
 	extractors []extractors.Extractor,
 ) *Registry {

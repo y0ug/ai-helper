@@ -8,12 +8,10 @@ import (
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/ui"
 )
 
 type UserInteractionExecutor struct {
 	pendingRequests sync.Map
-	uim             *ui.UIInteractionManager
 	logger          *slog.Logger
 	timeout         time.Duration
 }
@@ -25,11 +23,9 @@ type PendingRequest struct {
 
 func NewUserInteractionExecutor(
 	logger *slog.Logger,
-	uim *ui.UIInteractionManager,
 ) *UserInteractionExecutor {
 	e := &UserInteractionExecutor{
 		logger:  logger,
-		uim:     uim,
 		timeout: 5 * time.Minute,
 	}
 
@@ -68,40 +64,40 @@ func (e *UserInteractionExecutor) Handle(
 	logger.Debug("Stored pending request")
 
 	// forward the confirmation request to the UIInteractionManager
-	e.uim.ConfirmChan <- action
+	// e.uim.ConfirmChan <- action
 	return nil, nil
 }
 
 func (e *UserInteractionExecutor) processResponses() {
-	logger := e.logger
-	for action := range e.uim.ResponseChan {
-		switch response := action.Payload.(type) {
-		case actions.UserResponseAction:
-			// Try multiple key formats for redundancy
-			keys := []string{
-				fmt.Sprintf("%s|%s|%s", response.Context.ChainID, response.Context.ParentID, response.Context.ToolCallID),
-				fmt.Sprintf("|%s|%s", response.Context.ParentID, response.Context.ToolCallID),
-				fmt.Sprintf("%s||", response.Context.ChainID),
-			}
-
-			var foundAction *actions.Action
-			for _, key := range keys {
-				if req, ok := e.pendingRequests.Load(key); ok {
-					foundAction = &req.(*PendingRequest).OriginalAction
-					e.pendingRequests.Delete(key)
-					break
-				}
-			}
-
-			if foundAction != nil {
-				e.handleResponse(*foundAction, response)
-			} else {
-				logger.Warn("Orphaned user response", "action", response)
-			}
-		default:
-			logger.Warn("ResponChan action type not supported", "action", action)
-		}
-	}
+	// logger := e.logger
+	// for action := range e.uim.ResponseChan {
+	// 	switch response := action.Payload.(type) {
+	// 	case actions.UserResponseAction:
+	// 		// Try multiple key formats for redundancy
+	// 		keys := []string{
+	// 			fmt.Sprintf("%s|%s|%s", response.Context.ChainID, response.Context.ParentID, response.Context.ToolCallID),
+	// 			fmt.Sprintf("|%s|%s", response.Context.ParentID, response.Context.ToolCallID),
+	// 			fmt.Sprintf("%s||", response.Context.ChainID),
+	// 		}
+	//
+	// 		var foundAction *actions.Action
+	// 		for _, key := range keys {
+	// 			if req, ok := e.pendingRequests.Load(key); ok {
+	// 				foundAction = &req.(*PendingRequest).OriginalAction
+	// 				e.pendingRequests.Delete(key)
+	// 				break
+	// 			}
+	// 		}
+	//
+	// 		if foundAction != nil {
+	// 			e.handleResponse(*foundAction, response)
+	// 		} else {
+	// 			logger.Warn("Orphaned user response", "action", response)
+	// 		}
+	// 	default:
+	// 		logger.Warn("ResponChan action type not supported", "action", action)
+	// 	}
+	// }
 }
 
 func (e *UserInteractionExecutor) handleResponse(
@@ -123,7 +119,7 @@ func (e *UserInteractionExecutor) handleResponse(
 		// Re-enqueue original action with updated state
 		go func() {
 			select {
-			case e.uim.ActionChan <- originalAction:
+			// case e.uim.ActionChan <- originalAction:
 			case <-time.After(1 * time.Second):
 				e.logger.Error("Failed to re-enqueue confirmed action")
 			}
