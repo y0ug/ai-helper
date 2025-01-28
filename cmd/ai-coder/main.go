@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -123,13 +124,8 @@ func main() {
 	// Capture Ctrl-C (SIGINT)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\nReceived interrupt signal, shutting down...")
-		eventbus.GetEventBus().Publish(eventbus.NewEvent(eventbus.EventShutdown, nil))
-	}()
 
-	eventbus := eventbus.GetEventBus()
+	eventBus := eventbus.GetEventBus()
 
 	coderOpts := assistant.AssistantOptions{
 		Logger:      logger,
@@ -138,15 +134,29 @@ func main() {
 		Prompts:     pts,
 		Settings:    coderSettings,
 		Stream:      true,
-		EventBus:    eventbus,
+		EventBus:    eventBus,
 		// Uim:          uim,
 	}
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
 	// Create and start web server
-	server := webapi.NewWebServer(coder, eventbus)
-	go server.Start(":8080")
+	server := webapi.NewWebServer(coder, eventBus)
 
-	console := consolecoder.New(coder, h, eventbus)
+	go func() {
+		if err := server.Start(":8080"); err != nil {
+			log.Printf("Server error: %v", err)
+			os.Exit(1)
+		}
+	}()
+
+	go func() {
+		<-sigChan
+		fmt.Println("\nReceived interrupt signal, shutting down...")
+		eventBus.Publish(eventbus.NewEvent(eventbus.EventShutdown, nil))
+		// Shut down or let it process the event?
+		server.Shutdown()
+	}()
+
+	console := consolecoder.New(coder, h, eventBus)
 	console.Run()
 }

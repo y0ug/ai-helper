@@ -3,6 +3,8 @@ package webapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io/fs"
 	"net/http"
 	"sync"
 	"time"
@@ -17,7 +19,9 @@ type WebServer struct {
 	assistant *assistant.AssistantOrchestrator
 	eventBus  *eventbus.EventBus
 	upgrader  websocket.Upgrader
-	clients   sync.Map // thread-safe map for websocket clients
+	clients   sync.Map     // thread-safe map for websocket clients
+	server    *http.Server // Add HTTP server reference
+	shutdown  chan struct{}
 }
 
 func NewWebServer(assistant *assistant.AssistantOrchestrator, bus *eventbus.EventBus) *WebServer {
@@ -29,6 +33,7 @@ func NewWebServer(assistant *assistant.AssistantOrchestrator, bus *eventbus.Even
 				return true // Configure as needed
 			},
 		},
+		shutdown: make(chan struct{}),
 	}
 }
 
@@ -45,6 +50,27 @@ func (s *WebServer) Start(addr string) error {
 	// Using Go 1.22 routing patterns
 	mux := http.NewServeMux()
 
+	// Serve static files
+	fsys, err := getFileSystem()
+	if err != nil {
+		return err
+	}
+
+	// Serve the frontend at root
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			content, err := fs.ReadFile(fsys, "index.html")
+			if err != nil {
+				http.Error(w, "Could not load frontend", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html")
+			w.Write(content)
+			return
+		}
+		http.FileServer(http.FS(fsys)).ServeHTTP(w, r)
+	})
+
 	// Chat endpoints
 	mux.HandleFunc("POST /api/chat", s.handleChat)
 
@@ -57,7 +83,7 @@ func (s *WebServer) Start(addr string) error {
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
 
 	// Start the server
-	server := &http.Server{
+	s.server = &http.Server{
 		Addr:         addr,
 		Handler:      s.withMiddleware(mux),
 		ReadTimeout:  15 * time.Second,
@@ -65,7 +91,68 @@ func (s *WebServer) Start(addr string) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return server.ListenAndServe()
+	// Channel for server errors
+	serverErr := make(chan error, 1)
+
+	// Start server in goroutine
+	go func() {
+		if err := s.server.ListenAndServe(); err != http.ErrServerClosed {
+			serverErr <- err
+		}
+	}()
+
+	// Wait for shutdown signal or server error
+	select {
+	case err := <-serverErr:
+		return fmt.Errorf("server error: %w", err)
+	case <-s.shutdown:
+		return s.performCleanShutdown()
+	}
+}
+
+func (s *WebServer) performCleanShutdown() error {
+	// Create context with timeout for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Notify clients of shutdown
+	s.notifyClientsOfShutdown()
+
+	// Close all WebSocket connections
+	s.closeAllWebSocketConnections()
+
+	// Shutdown the HTTP server
+	if err := s.server.Shutdown(ctx); err != nil {
+		return fmt.Errorf("server shutdown error: %w", err)
+	}
+
+	return nil
+}
+
+func (s *WebServer) notifyClientsOfShutdown() {
+	s.clients.Range(func(key, value interface{}) bool {
+		if client, ok := key.(*WSClient); ok {
+			// Send shutdown message to client
+			shutdownMsg := []byte(`{"type":"shutdown","message":"Server is shutting down"}`)
+			client.send <- shutdownMsg
+		}
+		return true
+	})
+}
+
+func (s *WebServer) closeAllWebSocketConnections() {
+	s.clients.Range(func(key, value interface{}) bool {
+		if client, ok := key.(*WSClient); ok {
+			close(client.send)
+			client.conn.Close()
+		}
+		return true
+	})
+}
+
+// Shutdown initiates server shutdown
+func (s *WebServer) Shutdown() {
+	close(s.shutdown)
 }
 
 func generateRequestID() string {
@@ -116,7 +203,8 @@ func (s *WebServer) handleChat(w http.ResponseWriter, r *http.Request) {
 	// Wait for response with timeout
 	select {
 	case event := <-sub:
-		if event.Type == eventbus.EventOutput {
+		switch event.Type {
+		case eventbus.EventOutput:
 			if output, ok := event.Payload.(string); ok {
 				json.NewEncoder(w).Encode(ChatResponse{
 					Response: output,
@@ -125,6 +213,7 @@ func (s *WebServer) handleChat(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+
 	case <-time.After(30 * time.Second):
 		http.Error(w, "Request timeout", http.StatusGatewayTimeout)
 		return
@@ -221,17 +310,30 @@ func (c *WSClient) writePump() {
 		c.server.clients.Delete(c)
 	}()
 
+	// Add done channel for shutdown
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-c.server.shutdown:
+			close(done)
+		}
+	}()
+
 	for {
 		select {
+		case <-done:
+			return
 		case message, ok := <-c.send:
 			if !ok {
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				return
 			}
 		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -245,35 +347,61 @@ func (c *WSClient) readPump() {
 		c.server.clients.Delete(c)
 	}()
 
+	c.conn.SetReadLimit(512)
+	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetPongHandler(func(string) error {
+		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	// Add done channel for shutdown
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-c.server.shutdown:
+			close(done)
+		}
+	}()
+
 	for {
-		_, message, err := c.conn.ReadMessage()
-		if err != nil {
-			break
-		}
+		select {
+		case <-done:
+			return
+		default:
+			_, message, err := c.conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(
+					err,
+					websocket.CloseGoingAway,
+					websocket.CloseAbnormalClosure,
+				) {
+					// c.server.logger.Error("websocket error", "error", err)
+				}
+				return
+			} // Handle incoming WebSocket messages
+			var input struct {
+				Type    string          `json:"type"`
+				Payload json.RawMessage `json:"payload"`
+			}
 
-		// Handle incoming WebSocket messages
-		var input struct {
-			Type    string          `json:"type"`
-			Payload json.RawMessage `json:"payload"`
-		}
-
-		if err := json.Unmarshal(message, &input); err != nil {
-			continue
-		}
-
-		switch input.Type {
-		case "chat":
-			var chatReq ChatRequest
-			if err := json.Unmarshal(input.Payload, &chatReq); err != nil {
+			if err := json.Unmarshal(message, &input); err != nil {
 				continue
 			}
-			c.server.eventBus.Publish(eventbus.NewEvent(
-				eventbus.EventInput,
-				eventbus.UserInput{
-					Source:  "websocket",
-					Content: chatReq.Message,
-				},
-			))
+
+			switch input.Type {
+			case "chat":
+				var chatReq ChatRequest
+				if err := json.Unmarshal(input.Payload, &chatReq); err != nil {
+					continue
+				}
+				c.server.eventBus.Publish(eventbus.NewEvent(
+					eventbus.EventInput,
+					eventbus.UserInput{
+						Source:  "websocket",
+						Content: chatReq.Message,
+					},
+				))
+			}
 		}
 	}
 }
