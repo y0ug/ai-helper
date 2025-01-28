@@ -64,9 +64,9 @@ func (c *PromptChunks) AddCacheControl(messages []*chat.ChatMessage) {
 	}
 }
 
-func (c *PromptChunks) ToMarkdown(msgs []*chat.ChatMessage) string {
+func (c *PromptChunks) ToMarkdown(typeName string, msgs []*chat.ChatMessage) string {
 	buf := strings.Builder{}
-	buf.WriteString(fmt.Sprintf("# Current Messages\n"))
+	buf.WriteString(fmt.Sprintf("# %s messages\n", typeName))
 	for _, msg := range msgs {
 		buf.WriteString(fmt.Sprintf("## %s:\n\n", msg.Role))
 
@@ -75,7 +75,7 @@ func (c *PromptChunks) ToMarkdown(msgs []*chat.ChatMessage) string {
 			if content.Type == "text" {
 				buf.WriteString(content.String())
 			}
-			buf.WriteString("\n")
+			buf.WriteString("\n\n")
 		}
 	}
 	return buf.String()

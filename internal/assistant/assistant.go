@@ -334,21 +334,28 @@ func (c *AssistantOrchestrator) Run(ctx context.Context, message string) error {
 	// Add user message
 
 	c.logger.Info("Run: message", "stop_reason", c.history.GetLastStopReason(), "message", message)
-	if c.history.GetLastStopReason() == "end_turn" || c.lastMsgChunk == nil {
-		if c.lastMsgChunk == nil {
-			c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
-			c.lastMsgChunk = c.FormatMessages()
-		} else {
-			c.history.SetLastStopReason("")
-			c.history.MoveCurrentToDone(message)
-		}
-	} else {
-		c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
-		c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
+	if c.lastMsgChunk == nil {
+		c.lastMsgChunk = c.FormatMessages()
 	}
 
+	if c.history.GetLastStopReason() == "end_turn" {
+		c.logger.Info("Run: end_turn")
+		// end_turn we reset the last stop reason and move the current messages to done
+		// reformat the msgChunk
+		c.history.SetLastStopReason("")
+		c.history.MoveCurrentToDone("")
+		c.lastMsgChunk = c.FormatMessages()
+	}
+
+	// We add the new message and update the  lastMsgChunk.Cur slice
+	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
+	c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
+
 	// Build current messages to put it in the requests
-	promptText := c.lastMsgChunk.ToMarkdown(c.lastMsgChunk.Cur)
+	promptText := c.lastMsgChunk.ToMarkdown("Current", c.lastMsgChunk.Cur)
+
+	fmt.Println(c.lastMsgChunk.ToMarkdown("Done", c.lastMsgChunk.Done))
+	fmt.Println(c.lastMsgChunk.ToMarkdown("Current", c.lastMsgChunk.Cur))
 
 	// Create and register a new LLmRequestAction
 	llmReqAction := actions.NewLLMRequestAction(promptText)
@@ -383,7 +390,7 @@ func (c *AssistantOrchestrator) SendMessage(
 	}
 	c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
 
-	c.logger.Info("SendMessage: request", "test", c.lastMsgChunk.ToMarkdown(c.lastMsgChunk.Cur))
+	// c.logger.Info("SendMessage: request", "test", c.lastMsgChunk.ToMarkdown("Current" c.lastMsgChunk.Cur))
 	resp, err := c.llm.SendMessages(ctx, c.lastMsgChunk.AllMessages(), tools)
 	if err != nil {
 		return results, fmt.Errorf("error sending messages: %w", err)
