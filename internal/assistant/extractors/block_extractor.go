@@ -98,7 +98,7 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 
 		if isShellBlockStart(line) {
 			cmd, newI := extractShellCommand(lines, i)
-			action := actions.NewShellCommand(cmd, false).WithParent(parentAction)
+			action := actions.NewShellCommand(cmd, true).WithParent(parentAction)
 			if parentAction == nil {
 				parentAction = &action
 			}

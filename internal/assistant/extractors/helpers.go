@@ -35,6 +35,11 @@ func ApplyEdit(content, original, updated string) string {
 		return updated
 	}
 
+	// TODO: should have a switch to append vs overwrite
+	if original == "" {
+		return updated
+	}
+
 	// First try exact match
 	if idx := strings.Index(content, original); idx != -1 {
 		return content[:idx] + updated + content[idx+len(original):]

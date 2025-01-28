@@ -7,6 +7,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/c-bata/go-prompt"
 	"github.com/y0ug/ai-helper/internal/assistant"
@@ -16,14 +17,21 @@ import (
 )
 
 type Console struct {
-	coder       *assistant.AssistantOrchestrator
-	h           *highlighter.Highlighter
-	commands    map[string]Command
-	eventBus    *eventbus.EventBus
-	status      *ui.StatusManager
-	input       *ui.InputHandler
-	pt          *prompt.Prompt
-	historyFile string
+	coder               *assistant.AssistantOrchestrator
+	h                   *highlighter.Highlighter
+	commands            map[string]Command
+	eventBus            *eventbus.EventBus
+	status              *ui.StatusManager
+	input               *ui.InputHandler
+	pt                  *prompt.Prompt
+	historyFile         string
+	confirmationManager *ui.ConfirmationManager
+}
+
+type ConsoleConfirmation struct {
+	ID      string
+	Message string
+	Time    time.Time
 }
 
 func getHistoryFilePath() string {
@@ -41,14 +49,16 @@ func New(
 ) *Console {
 	output := ui.NewOutputHandler(h)
 	input := ui.NewInputHandler()
+	confirmationManager := ui.NewConfirmationManager(bus)
 
 	c := &Console{
-		coder:       coder,
-		h:           h,
-		historyFile: getHistoryFilePath(),
-		eventBus:    bus,
-		status:      coder.GetStatus(),
-		input:       input,
+		coder:               coder,
+		h:                   h,
+		historyFile:         getHistoryFilePath(),
+		eventBus:            bus,
+		status:              coder.GetStatus(),
+		input:               input,
+		confirmationManager: confirmationManager,
 	}
 
 	c.setCommands()
@@ -96,6 +106,54 @@ func (c *Console) registerEventHandlers() {
 			}
 		}
 	}()
+
+	go func() {
+		for confirmation := range c.confirmationManager.Notifications() {
+			fmt.Printf("\nNew confirmation request [%s]: %s\n",
+				confirmation.ID[:8],
+				confirmation.Message)
+			c.printPrompt() // Reprint the prompt
+		}
+	}()
+}
+
+func (c *Console) handleConfirmCommand(args []string) {
+	if len(args) != 2 {
+		fmt.Println("Usage: /confirm <id> <y/n>")
+		return
+	}
+
+	id := args[0]
+	response := strings.ToLower(args[1])
+	approved := response == "y"
+
+	if err := c.confirmationManager.RespondToConfirmation(id, approved); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Responded to confirmation %s: %v\n", id, approved)
+}
+
+func (c *Console) handlePendingCommand(args []string) {
+	fmt.Println("\nPending confirmations:")
+	count := 0
+	for _, confirmation := range c.confirmationManager.GetPendingConfirmations() {
+		fmt.Printf("[%s] %s (received: %s)\n",
+			confirmation.ID[:8],
+			confirmation.Message,
+			confirmation.Time.Format("15:04:05"),
+		)
+		count++
+	}
+
+	if count == 0 {
+		fmt.Println("No pending confirmations")
+	}
+}
+
+func (c *Console) printPrompt() {
+	p, _ := c.UpdatePrompt()
+	fmt.Printf("%s ", p)
 }
 
 func (c *Console) handleFileNotification(ctx context.Context, event eventbus.Event) {

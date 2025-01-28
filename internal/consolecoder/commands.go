@@ -1,5 +1,7 @@
 package consolecoder
 
+import "fmt"
+
 // Command represents a chat command
 type Command struct {
 	name        string
@@ -42,7 +44,17 @@ func (c *Console) setCommands() {
 		"/dump": {
 			name:        "dump",
 			description: "dump full actions chains",
-			handler:     func(args []string) { c.coder.DumpActionChain() },
+			handler:     func(args []string) { fmt.Println(c.coder.DumpActionChain()) },
+		},
+		"/confirm": {
+			name:        "confirm",
+			description: "Respond to a pending confirmation (usage: /confirm <id> <y/n>)",
+			handler:     c.handleConfirmCommand,
+		},
+		"/pending": {
+			name:        "pending",
+			description: "List pending confirmations",
+			handler:     c.handlePendingCommand,
 		},
 	}
 }

@@ -199,10 +199,16 @@ func (e *EditExecutor) handleBatchEdit(
 
 	}
 
+	if len(chatMsg.Content) > 0 {
+		followUps = append(
+			followUps,
+			actions.NewAddMessageAction(*chatMsg).WithParent(&action),
+		)
+	}
+
 	// Commit all edits
 	followUps = append(
 		followUps,
-		actions.NewAddMessageAction(*chatMsg).WithParent(&action),
 		actions.NewCommitAction(&action, "Applied batch edits"),
 		actions.NewLogAction(&action, "Batch edits applied successfully"),
 	)

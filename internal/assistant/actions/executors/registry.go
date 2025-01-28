@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
@@ -50,6 +51,7 @@ func NewRegistryFull(
 	history *prompt.ChatHistory,
 	extractors []extractors.Extractor,
 	sendMessage Processor[actions.Action],
+	eventBus *eventbus.EventBus,
 ) *Registry {
 	registry := &Registry{
 		handlers: make([]ActionHandler, 0),
@@ -61,7 +63,7 @@ func NewRegistryFull(
 	))
 	registry.Register(NewEditExecutor(repo, validator, logger))
 	registry.Register(NewCommitExecutor(repo))
-	// registry.Register(NewUserInteractionExecutor(logger, uim))
+	registry.Register(NewUserInteractionExecutor(logger, eventBus))
 	registry.Register(NewLogExecutor())
 	registry.Register(NewAddMessageExecutor(history))
 	registry.Register(NewExtractorExecutor(logger, extractors))

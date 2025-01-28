@@ -119,7 +119,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	}
 
 	registry := executors.NewRegistryFull(opts.Logger, c.rm, validator, history, c.extractors,
-		c.SendMessage)
+		c.SendMessage, c.eventBus)
 	c.actionManager = actions.NewActionManager(opts.Logger)
 	pipeline := NewPipeline(
 		opts.Logger,

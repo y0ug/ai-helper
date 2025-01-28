@@ -42,6 +42,14 @@ func (c *Console) completer(d prompt.Document) []prompt.Suggest {
 			word = "."
 		}
 		return c.getFileManagerSuggestions(word)
+	} else if words[0] == "/confirm" {
+		// Get the word being typed
+		word := d.GetWordBeforeCursor()
+		// If word is empty, suggest current directory
+		if word == "" {
+			word = "."
+		}
+		return c.getConfirmSuggestions(word)
 	}
 
 	return suggestions
@@ -68,6 +76,39 @@ func (c *Console) getFileSuggestions(pattern string) []prompt.Suggest {
 			Description: description,
 		})
 	}
+	return suggestions
+}
+
+func (c *Console) getConfirmSuggestions(pattern string) []prompt.Suggest {
+	confirmations := c.confirmationManager.GetPendingConfirmations()
+	pattern = strings.ToLower(pattern)
+
+	suggestions := make([]prompt.Suggest, 0)
+	seen := make(map[string]bool)
+
+	for _, confirmation := range confirmations {
+		basename := confirmation.ID
+
+		// Skip if we've already seen this basename
+		if seen[basename] {
+			continue
+		}
+		seen[basename] = true
+
+		// Check if pattern matches anywhere in the basename
+		if strings.Contains(basename, pattern) {
+			suggestions = append(suggestions, prompt.Suggest{
+				Text:        basename,
+				Description: basename,
+			})
+		}
+	}
+
+	// Sort suggestions alphabetically
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].Text < suggestions[j].Text
+	})
+
 	return suggestions
 }
 

@@ -13,15 +13,17 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/y0ug/ai-helper/internal/assistant"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 )
 
 type WebServer struct {
-	assistant *assistant.AssistantOrchestrator
-	eventBus  *eventbus.EventBus
-	upgrader  websocket.Upgrader
-	clients   sync.Map     // thread-safe map for websocket clients
-	server    *http.Server // Add HTTP server reference
-	shutdown  chan struct{}
+	assistant           *assistant.AssistantOrchestrator
+	eventBus            *eventbus.EventBus
+	upgrader            websocket.Upgrader
+	clients             sync.Map     // thread-safe map for websocket clients
+	server              *http.Server // Add HTTP server reference
+	shutdown            chan struct{}
+	confirmationManager *ui.ConfirmationManager
 }
 
 func NewWebServer(assistant *assistant.AssistantOrchestrator, bus *eventbus.EventBus) *WebServer {
@@ -33,7 +35,8 @@ func NewWebServer(assistant *assistant.AssistantOrchestrator, bus *eventbus.Even
 				return true // Configure as needed
 			},
 		},
-		shutdown: make(chan struct{}),
+		shutdown:            make(chan struct{}),
+		confirmationManager: ui.NewConfirmationManager(bus),
 	}
 }
 
@@ -73,6 +76,9 @@ func (s *WebServer) Start(addr string) error {
 
 	// Chat endpoints
 	mux.HandleFunc("POST /api/chat", s.handleChat)
+
+	// User confirmation
+	mux.HandleFunc("POST /api/confirmation", s.handleConfirmation)
 
 	// File management
 	mux.HandleFunc("POST /api/files", s.handleAddFiles)
@@ -308,6 +314,23 @@ func (s *WebServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+
+	go func() {
+		// Listen for confirmation notifications
+		for confirmation := range s.confirmationManager.Notifications() {
+			msg := struct {
+				Type    string      `json:"Type"`
+				Payload interface{} `json:"Payload"`
+			}{
+				Type:    "confirmation_request",
+				Payload: confirmation,
+			}
+			fmt.Printf("sending confirmation_request %v\n", msg)
+			if data, err := json.Marshal(msg); err == nil {
+				client.send <- data
+			}
+		}
+	}()
 }
 
 func (c *WSClient) writePump() {
@@ -409,7 +432,33 @@ func (c *WSClient) readPump() {
 						Content: chatReq.Message,
 					},
 				))
+			case "user_response":
+				var response eventbus.UserResponse
+				if err := json.Unmarshal(input.Payload, &response); err != nil {
+					continue
+				}
+				c.server.eventBus.Publish(eventbus.NewEvent(
+					eventbus.EventUserResponse,
+					response,
+				))
 			}
 		}
 	}
+}
+
+func (s *WebServer) handleConfirmation(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID       string `json:"id"`
+		Approved bool   `json:"approved"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.confirmationManager.RespondToConfirmation(req.ID, req.Approved); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
