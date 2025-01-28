@@ -4,16 +4,16 @@ import (
 	"context"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/prompt"
+	conversation "github.com/y0ug/ai-helper/internal/assistant/conversion"
 )
 
 type AddMessageExecutor struct {
-	history *prompt.ChatHistory
+	conversation *conversation.ConversationManager
 }
 
-func NewAddMessageExecutor(history *prompt.ChatHistory) *AddMessageExecutor {
+func NewAddMessageExecutor(conversation *conversation.ConversationManager) *AddMessageExecutor {
 	return &AddMessageExecutor{
-		history: history,
+		conversation: conversation,
 	}
 }
 
@@ -31,6 +31,6 @@ func (e *AddMessageExecutor) Handle(
 	val := action.Payload.(actions.AddMessageAction)
 	logger.Info("AddMessageExecutor", "Role", val.Msg.Role, "Content", val.Msg.Content)
 
-	e.history.AddMessage(&val.Msg)
+	e.conversation.AddMessage(val.Msg)
 	return []actions.Action{actions.NewLLMRequestAction("foo").WithParent(&action)}, nil
 }

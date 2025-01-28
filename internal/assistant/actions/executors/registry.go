@@ -5,9 +5,9 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
+	conversation "github.com/y0ug/ai-helper/internal/assistant/conversion"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
-	"github.com/y0ug/ai-helper/internal/assistant/prompt"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
 )
@@ -48,7 +48,7 @@ func NewRegistryFull(
 	logger *slog.Logger,
 	repo repomanager.RepoManagerInterface,
 	validator validation.Validator,
-	history *prompt.ChatHistory,
+	converstation *conversation.ConversationManager,
 	extractors []extractors.Extractor,
 	sendMessage Processor[actions.Action],
 	eventBus *eventbus.EventBus,
@@ -65,9 +65,9 @@ func NewRegistryFull(
 	registry.Register(NewCommitExecutor(repo))
 	registry.Register(NewUserInteractionExecutor(logger, eventBus))
 	registry.Register(NewLogExecutor())
-	registry.Register(NewAddMessageExecutor(history))
+	registry.Register(NewAddMessageExecutor(converstation))
 	registry.Register(NewExtractorExecutor(logger, extractors))
-	registry.Register(NewLLMResponseExecutor(history))
+	registry.Register(NewLLMResponseExecutor(converstation))
 	registry.Register(NewLLMRequestExecutor(sendMessage))
 	return registry
 }

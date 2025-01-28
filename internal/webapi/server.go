@@ -316,6 +316,7 @@ func (s *WebServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	go func() {
+		fmt.Println("listening for confirmation notifications")
 		// Listen for confirmation notifications
 		for confirmation := range s.confirmationManager.Notifications() {
 			msg := struct {
@@ -330,6 +331,7 @@ func (s *WebServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				client.send <- data
 			}
 		}
+		fmt.Println("channel closed")
 	}()
 }
 

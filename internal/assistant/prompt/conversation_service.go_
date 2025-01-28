@@ -1,0 +1,111 @@
+package prompt
+
+import (
+	"context"
+	"log/slog"
+
+	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+)
+
+type ConversationService struct {
+	history    *ChatHistory
+	summarizer Summarizer
+	llmModel   *models.Model // or some other token count logic
+	tokenLimit int
+	logger     *slog.Logger
+}
+
+func NewConversationService(
+	history *ChatHistory,
+	summarizer Summarizer,
+	llmModel *models.Model,
+	tokenLimit int,
+	logger *slog.Logger,
+) *ConversationService {
+	return &ConversationService{
+		history:    history,
+		summarizer: summarizer,
+		llmModel:   llmModel,
+		tokenLimit: tokenLimit,
+		logger:     logger,
+	}
+}
+
+// HandleUserMessage appends user messages to chat, then maybe summarizes if needed.
+func (cs *ConversationService) HandleUserMessage(ctx context.Context, content string) error {
+	// 1. Add user’s new message
+	userMsg := chat.NewMessage("user", chat.NewTextContent(content))
+	cs.history.AddMessage(userMsg)
+
+	// 2. Check token usage
+	if cs.exceedsLimit() {
+		cs.logger.Info("Token limit exceeded, summarizing older messages...")
+		err := cs.summarizeOlderMessages(ctx)
+		if err != nil {
+			cs.logger.Error("Failed to summarize older messages", "error", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// Check if we exceed a certain threshold
+func (cs *ConversationService) exceedsLimit() bool {
+	totalTokens := cs.countTokens(cs.history.GetDoneMessages(), cs.history.GetCurrentMessages())
+	return totalTokens > cs.tokenLimit
+}
+
+// Summarize older messages so we have more room for new interactions
+func (cs *ConversationService) summarizeOlderMessages(ctx context.Context) error {
+	done := cs.history.GetDoneMessages()
+	if len(done) == 0 {
+		return nil // nothing to summarize
+	}
+
+	summary, err := cs.summarizer.Summarize(ctx, done)
+	if err != nil {
+		return err
+	}
+
+	// Replace all doneMessages with a single summary message
+	newDone := []*chat.ChatMessage{
+		chat.NewMessage("assistant", chat.NewTextContent(summary)),
+	}
+	// We can set doneMessages directly if ChatHistory has a method for it:
+	cs.history.SetDoneMessages(newDone)
+
+	return nil
+}
+
+// Use your LLM or an approximation to count tokens
+func (cs *ConversationService) countTokens(
+	done []*chat.ChatMessage,
+	current []*chat.ChatMessage,
+) int {
+	// If your model supports direct token counting:
+	// doneTokens := cs.llmModel.CountMessages(done)
+	// curTokens := cs.llmModel.CountMessages(current)
+	// return doneTokens + curTokens
+	// If not, you can approximate or use a library like tiktoken
+	return 100 // approximateTokenCount(append(done, current...))
+}
+
+// func (cs *ConversationService) summarizeOlderMessages(ctx context.Context) error {
+// 	done := cs.history.GetDoneMessages()
+// 	if len(done) < 2 {
+// 		return nil
+// 	}
+//
+// 	// Summaries can accumulate. Summarize the entire done array:
+// 	summary, err := cs.summarizer.Summarize(ctx, done)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	// Replace with one summary message
+// 	cs.history.SetDoneMessages([]*chat.ChatMessage{
+// 		chat.NewMessage("assistant", chat.NewTextContent(summary)),
+// 	})
+//
+// 	return nil
+// }

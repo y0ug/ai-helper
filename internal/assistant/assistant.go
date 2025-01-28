@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
+	conversation "github.com/y0ug/ai-helper/internal/assistant/conversion"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
@@ -35,42 +36,33 @@ type AssistantOptions struct {
 }
 
 type AssistantOrchestrator struct {
-	logger        *slog.Logger
-	llm           llm.ChatCompleter
-	prompts       prompts.Prompter
+	logger *slog.Logger
+	llm    llm.ChatCompleter
+	// prompts       prompts.Prompter
 	rm            repomanager.RepoManagerInterface
 	settings      *settings.CoderSettings
 	processor     *Pipeline
-	history       *prompt.ChatHistory
-	formatter     *prompt.PromptFormatter
 	extractors    []extractors.Extractor
 	metrics       llm.MetricsRecorder
-	runCtx        context.Context
-	cancelRunCtx  context.CancelFunc
 	eventBus      *eventbus.EventBus
-	lastMsgChunk  *prompt.PromptChunks
 	actionManager *actions.ActionManager
 	status        *ui.StatusManager
+	conversation  *conversation.ConversationManager
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	history := prompt.NewChatHistory()
-	formatter := prompt.NewPromptFormatter(
-		opts.Logger,
-		opts.RepoManager,
-		opts.Prompts,
-		opts.Settings,
-	)
+
 	metricsTracker := metrics.NewMetricsTracker(opts.Logger, *opts.Settings.MainModel())
 	c := &AssistantOrchestrator{
-		rm:        opts.RepoManager,
-		logger:    opts.Logger,
-		settings:  opts.Settings,
-		history:   history,
-		formatter: formatter,
-		metrics:   metricsTracker,
-		eventBus:  opts.EventBus,
-		status:    ui.NewStatusManager("ready"),
+		rm:       opts.RepoManager,
+		logger:   opts.Logger,
+		settings: opts.Settings,
+		// history:   history,
+		// formatter: formatter,
+		metrics:  metricsTracker,
+		eventBus: opts.EventBus,
+		status:   ui.NewStatusManager("ready"),
 	}
 
 	c.registerEventHandlers()
@@ -91,6 +83,12 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		)
 	}
 
+	// ConversationManager
+	cm := conversation.NewConversationManager(
+		opts.Logger, history, opts.RepoManager, 1024,
+		opts.Prompts, opts.Settings)
+	c.conversation = cm
+
 	// Generate the LLMClient wrapper
 	c.llm = llm.New(
 		opts.LlmClient,
@@ -106,7 +104,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	// Should handle this better
 	// This is loading the correct c.extractors
 	// we them to be correctly be set before loading executors.NewRegistry and NewActionExecutor
-	c.SetPrompts(opts.Prompts)
+	c.loadPrompts(opts.Prompts)
 
 	re := make([]string, 0)
 	features := make([]string, 0)
@@ -118,7 +116,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		}
 	}
 
-	registry := executors.NewRegistryFull(opts.Logger, c.rm, validator, history, c.extractors,
+	registry := executors.NewRegistryFull(opts.Logger, c.rm, validator, cm, c.extractors,
 		c.SendMessage, c.eventBus)
 	c.actionManager = actions.NewActionManager(opts.Logger)
 	pipeline := NewPipeline(
@@ -302,10 +300,10 @@ func containsError(results []string, actionID uuid.UUID) bool {
 	return false
 }
 
-func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
-	c.prompts = pts
+func (c *AssistantOrchestrator) loadPrompts(pts prompts.Prompter) {
+	// c.prompts = pts
 
-	extractorNames := strings.Split(c.getPrompts().GetEditFormat(), "\n")
+	extractorNames := strings.Split(pts.GetEditFormat(), "\n")
 	for _, name := range extractorNames {
 		extractorName := extractors.New(extractors.ExtractorType(name), c.logger)
 		if extractorName == nil {
@@ -314,53 +312,38 @@ func (c *AssistantOrchestrator) SetPrompts(pts prompts.Prompter) {
 		}
 		c.extractors = append(c.extractors, extractorName)
 	}
-
-	// c.templateHandler = prompts.NewTemplateHandler(
-	// 	c.prompts,
-	// 	c.settings,
-	// 	c.logger,
-	// )
 }
 
 func (c *AssistantOrchestrator) GetRM() repomanager.RepoManagerInterface {
 	return c.rm
 }
 
-func (c *AssistantOrchestrator) getPrompts() prompts.Prompter {
-	return c.prompts
-}
+func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error {
+	// 1. Start a new turn
+	a.conversation.StartTurn()
 
-func (c *AssistantOrchestrator) Run(ctx context.Context, message string) error {
-	// Add user message
+	// 2. Add user message
+	a.conversation.AddUserMessage(userInput)
 
-	c.logger.Info("Run: message", "stop_reason", c.history.GetLastStopReason(), "message", message)
-	if c.lastMsgChunk == nil {
-		c.lastMsgChunk = c.FormatMessages()
-	}
+	// 3. Maybe summarize older messages if we exceed token usage
+	// err := a.conversation.MaybeSummarize(ctx)
+	// if err != nil {
+	// 	a.logger.Error("Summarizing failed", "error", err)
+	// }
 
-	if c.history.GetLastStopReason() == "end_turn" {
-		c.logger.Info("Run: end_turn")
-		// end_turn we reset the last stop reason and move the current messages to done
-		// reformat the msgChunk
-		c.history.SetLastStopReason("")
-		c.history.MoveCurrentToDone("")
-		c.lastMsgChunk = c.FormatMessages()
-	}
-
-	// We add the new message and update the  lastMsgChunk.Cur slice
-	c.history.AddMessage(chat.NewMessage("user", chat.NewTextContent(message)))
-	c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
+	// 4. Build/Update prompt chunks
+	promptChunk := a.conversation.BuildPrompt()
 
 	// Build current messages to put it in the requests
-	promptText := c.lastMsgChunk.ToMarkdown("Current", c.lastMsgChunk.Cur)
+	promptText := promptChunk.ToMarkdown("Current", promptChunk.AllMessages())
 
-	fmt.Println(c.lastMsgChunk.ToMarkdown("Done", c.lastMsgChunk.Done))
-	fmt.Println(c.lastMsgChunk.ToMarkdown("Current", c.lastMsgChunk.Cur))
+	fmt.Println(promptChunk.ToMarkdown("Done", promptChunk.Done))
+	fmt.Println(promptChunk.ToMarkdown("Current", promptChunk.Cur))
 
 	// Create and register a new LLmRequestAction
 	llmReqAction := actions.NewLLMRequestAction(promptText)
 
-	c.processor.Execute(ctx, llmReqAction)
+	a.processor.Execute(ctx, llmReqAction)
 	return nil
 }
 
@@ -384,14 +367,10 @@ func (c *AssistantOrchestrator) SendMessage(
 	defer c.status.Update(ui.StatusReady)
 
 	tools := c.collectTools()
-	if c.lastMsgChunk == nil {
-		c.logger.Warn("lastMsgChunk is nil")
-		return results, fmt.Errorf("lastMsgChunk is nil")
-	}
-	c.lastMsgChunk.Cur = c.history.GetCurrentMessages()
 
-	// c.logger.Info("SendMessage: request", "test", c.lastMsgChunk.ToMarkdown("Current" c.lastMsgChunk.Cur))
-	resp, err := c.llm.SendMessages(ctx, c.lastMsgChunk.AllMessages(), tools)
+	promptChunk := c.conversation.BuildPrompt()
+
+	resp, err := c.llm.SendMessages(ctx, promptChunk.AllMessages(), tools)
 	if err != nil {
 		return results, fmt.Errorf("error sending messages: %w", err)
 	}
@@ -399,11 +378,4 @@ func (c *AssistantOrchestrator) SendMessage(
 
 	results = append(results, actions.NewLLMResponseAction(*resp).WithParent(&action))
 	return
-}
-
-// FormatMessages formats all messages for the LLM with appropriate prompts
-func (c *AssistantOrchestrator) FormatMessages() *prompt.PromptChunks {
-	chunks := c.formatter.FormatMessages(c.history)
-
-	return chunks
 }

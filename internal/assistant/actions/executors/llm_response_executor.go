@@ -5,16 +5,16 @@ import (
 	"fmt"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/prompt"
+	conversation "github.com/y0ug/ai-helper/internal/assistant/conversion"
 )
 
 type LLMResponseExecutor struct {
-	history *prompt.ChatHistory
+	conversation *conversation.ConversationManager
 }
 
-func NewLLMResponseExecutor(history *prompt.ChatHistory) *LLMResponseExecutor {
+func NewLLMResponseExecutor(conversation *conversation.ConversationManager) *LLMResponseExecutor {
 	return &LLMResponseExecutor{
-		history: history,
+		conversation: conversation,
 	}
 }
 
@@ -50,7 +50,7 @@ func (e *LLMResponseExecutor) Handle(
 	// }
 
 	// Add to curernt chat history
-	e.history.AddMessage(msg)
+	e.conversation.AddMessage(*msg)
 
 	// We are pushing to the event action to extract action
 	// from the LLM response. We alsa pass the parent action
@@ -63,19 +63,18 @@ func (e *LLMResponseExecutor) Handle(
 	// But we should maybe keep track of the current StopReason to reused it later?
 	// maybe in message history
 	if choice.StopReason == "end_turn" {
+		e.conversation.EndTurn()
 		// We do not set an messsages here, this should be done by
 		// an action at the end for example if commit succeeded
 		// e.history.MoveCurrentToDone("")
+	} else {
+		e.conversation.SetTurn(choice.StopReason)
 	}
-
-	e.history.SetLastStopReason(choice.StopReason)
 
 	logger.Info(
 		"End Processing response",
 		"stop",
 		choice.StopReason,
-		"len(currentMessages)",
-		len(e.history.GetCurrentMessages()),
 	)
 	return results, nil
 }
