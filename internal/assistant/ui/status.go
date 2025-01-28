@@ -10,6 +10,13 @@ type StatusManager struct {
 	value atomic.Value
 }
 
+const (
+	StatusReady      = "ready"
+	StatusProcessing = "processing"
+	StatusError      = "error"
+	StatusWaiting    = "waiting"
+)
+
 func NewStatusManager(initial string) *StatusManager {
 	s := &StatusManager{}
 	s.value.Store(initial)

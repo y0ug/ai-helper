@@ -128,6 +128,8 @@ func main() {
 		eventbus.GetEventBus().Publish(eventbus.NewEvent(eventbus.EventShutdown, nil))
 	}()
 
+	eventbus := eventbus.GetEventBus()
+
 	coderOpts := assistant.AssistantOptions{
 		Logger:      logger,
 		LlmClient:   llmClient,
@@ -135,10 +137,11 @@ func main() {
 		Prompts:     pts,
 		Settings:    coderSettings,
 		Stream:      true,
+		EventBus:    eventbus,
 		// Uim:          uim,
 	}
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
-	console := consolecoder.New(coder, h, nil)
+	console := consolecoder.New(coder, h, eventbus)
 	console.Run()
 }

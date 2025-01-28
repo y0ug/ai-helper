@@ -18,6 +18,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
@@ -30,7 +31,7 @@ type AssistantOptions struct {
 	Prompts     prompts.Prompter
 	Settings    *settings.CoderSettings
 	Stream      bool
-	eventBus    *eventbus.EventBus
+	EventBus    *eventbus.EventBus
 }
 
 type AssistantOrchestrator struct {
@@ -49,6 +50,7 @@ type AssistantOrchestrator struct {
 	eventBus      *eventbus.EventBus
 	lastMsgChunk  *prompt.PromptChunks
 	actionManager *actions.ActionManager
+	status        *ui.StatusManager
 }
 
 func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
@@ -67,7 +69,8 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		history:   history,
 		formatter: formatter,
 		metrics:   metricsTracker,
-		eventBus:  eventbus.GetEventBus(),
+		eventBus:  opts.EventBus,
+		status:    ui.NewStatusManager("ready"),
 	}
 
 	c.registerEventHandlers()
@@ -140,6 +143,10 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	return c
 }
 
+func (c *AssistantOrchestrator) GetStatus() *ui.StatusManager {
+	return c.status
+}
+
 func (c *AssistantOrchestrator) registerEventHandlers() {
 	sub := c.eventBus.Subscribe(100)
 
@@ -162,12 +169,6 @@ func (c *AssistantOrchestrator) handleInputEvent(ctx context.Context, event even
 		c.logger.Error("Invalid input event payload")
 		return
 	}
-
-	// c.eventBus.Publish(eventbus.NewEvent(
-	// 	eventbus.StatusManager,
-	// 	map[string]interface{}{
-	// 		"New": "processing",
-	// 	}))
 
 	// Process input through existing pipeline
 	err := c.Run(ctx, input.Content)
@@ -287,8 +288,10 @@ func (c *AssistantOrchestrator) SendMessage(
 	ctx context.Context,
 	action actions.Action,
 ) (results []actions.Action, err error) {
-	tools := c.collectTools()
+	c.status.Update(ui.StatusProcessing)
+	defer c.status.Update(ui.StatusReady)
 
+	tools := c.collectTools()
 	if c.lastMsgChunk == nil {
 		c.logger.Warn("lastMsgChunk is nil")
 		return results, fmt.Errorf("lastMsgChunk is nil")

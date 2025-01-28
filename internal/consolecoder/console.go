@@ -38,8 +38,6 @@ func New(
 	h *highlighter.Highlighter,
 	bus *eventbus.EventBus,
 ) *Console {
-	bus = eventbus.GetEventBus()
-	status := ui.NewStatusManager("ready")
 	output := ui.NewOutputHandler(h)
 	input := ui.NewInputHandler()
 
@@ -48,7 +46,7 @@ func New(
 		h:           h,
 		historyFile: getHistoryFilePath(),
 		eventBus:    bus,
-		status:      status,
+		status:      coder.GetStatus(),
 		input:       input,
 	}
 
@@ -85,7 +83,7 @@ func New(
 
 func (c *Console) UpdatePrompt() (string, bool) {
 	// status := <-c.statusChan
-	return fmt.Sprintf("[%s]  ➜ ", c.status.Current()), false
+	return fmt.Sprintf("[%s]  ➜ ", c.status.Current()), true
 }
 
 func (c *Console) Run() {
