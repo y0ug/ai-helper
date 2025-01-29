@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/y0ug/ai-helper/internal/assistant/llm/metrics"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
@@ -15,25 +16,26 @@ type Client struct {
 	client   chat.Provider
 	settings *settings.CoderSettings
 	logger   *slog.Logger
+	metrics  *metrics.MetricsBasic
 }
 
 func New(
 	client chat.Provider,
 	settings *settings.CoderSettings,
 	logger *slog.Logger,
-	metrics MetricsRecorder,
 ) ChatCompleter {
 	c := &Client{
 		client:   client,
 		settings: settings,
 		logger:   logger,
+		metrics:  metrics.NewMetricsTracker(logger, *settings.MainModel()),
 	}
 
-	return WithMiddleware(c, MetricsMiddleware(metrics))
+	return WithMiddleware(c, MetricsMiddleware(c.metrics))
 }
 
-func CombineOptions[T any](opts ...func(*T)) []func(*T) {
-	return opts
+func (c *Client) GetMetrics() *metrics.MetricsBasic {
+	return c.metrics
 }
 
 func (c *Client) SendMessages(

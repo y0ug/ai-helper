@@ -28,17 +28,16 @@ func (e *CommitExecutor) Handle(
 ) ([]actions.Action, error) {
 	logger := actions.GetLogger(ctx)
 
-	commit := action.Payload.(actions.CommitAction)
+	_ = action.Payload.(actions.CommitAction)
 	hash, msg, err := e.repo.AutoCommit(ctx)
 	logger.Debug("Committing changes", "message", msg, "hash", hash)
-	if err := e.repo.Commit(commit.Message); err != nil {
+	if err != nil {
 		logger.Error("Commit failed", "error", err)
 		return []actions.Action{
 			actions.NewLogAction(&action, fmt.Sprintf("Commit failed: %v", err)),
 		}, err
 	}
-	logger.Debug("Changes committed successfully")
 	return []actions.Action{
-		actions.NewLogAction(&action, "Changes committed successfully"),
+		actions.NewLogAction(&action, fmt.Sprintf("Changes committed successfully %q")),
 	}, nil
 }

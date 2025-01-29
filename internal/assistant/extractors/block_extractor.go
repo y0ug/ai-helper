@@ -173,7 +173,7 @@ func (c *BlockExtractor) findFilename(lines []string, current int) string {
 			continue
 		}
 
-		return line
+		return strings.Trim(line, "`'\"")
 	}
 	return ""
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/assistant"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
+	"github.com/y0ug/ai-helper/internal/assistant/llm"
 	modelinfocoder "github.com/y0ug/ai-helper/internal/assistant/llm/models"
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
@@ -102,18 +103,26 @@ func main() {
 		// options.WithMiddleware(middleware.LoggingMiddleware()),
 		// options.WithMiddleware(middleware.TimeitMiddleware(logger)),
 	}
-	llmClient, err := llmhaven.New(modelInfo.Provider, requestOpts...)
+	llmProvider, err := llmhaven.New(modelInfo.Provider, requestOpts...)
 	if err != nil {
 		logger.Error("Error creating llm client", "error", err)
 		os.Exit(1)
 	}
+
+	coderSettings := settings.NewCoderSettings(modelCoder)
+
+	llm := llm.New(
+		llmProvider,
+		coderSettings,
+		logger,
+	)
 
 	gitRepo, err := gitrepo.NewGitRepo(logger, nil, rootPath)
 	if err != nil {
 		logger.Error("Error creating git repo", "error", err)
 	}
 
-	rm := repomanager.NewRepoManager(rootPath, logger, fm, gitRepo)
+	rm := repomanager.NewRepoManager(rootPath, logger, fm, gitRepo, llm.SendMessages)
 
 	pts := prompts.New(promptName)
 	if pts == nil {
@@ -122,7 +131,6 @@ func main() {
 	}
 
 	h := highlighter.NewHighlighter(os.Stdout)
-	coderSettings := settings.NewCoderSettings(modelCoder)
 
 	// Capture Ctrl-C (SIGINT)
 	sigChan := make(chan os.Signal, 1)
@@ -134,7 +142,7 @@ func main() {
 	ui := ui.NewEventBusUI(eventBus)
 	coderOpts := assistant.AssistantOptions{
 		Logger:      logger,
-		LlmClient:   llmClient,
+		Llm:         llm,
 		RepoManager: rm,
 		Prompts:     pts,
 		Settings:    coderSettings,

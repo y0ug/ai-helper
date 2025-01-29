@@ -37,7 +37,7 @@ type Assister interface {
 type AssistantOptions struct {
 	MainModel   *models.Model
 	RepoManager repomanager.RepoManagerInterface
-	LlmClient   chat.Provider
+	Llm         llm.ChatCompleter
 	Logger      *slog.Logger
 	Prompts     prompts.Prompter
 	Settings    *settings.CoderSettings
@@ -89,6 +89,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		// formatter: formatter,
 		metrics:  metricsTracker,
 		eventBus: opts.EventBus,
+		llm:      opts.Llm,
 		status:   ui.NewStatusManager(ui.StatusReady),
 	}
 
@@ -111,13 +112,6 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	c.conversation = cm
 
 	// Generate the LLMClient wrapper
-	c.llm = llm.New(
-		opts.LlmClient,
-		opts.Settings,
-		opts.Logger,
-		metricsTracker,
-	)
-
 	validator := validation.NewValidationPipeline(c.logger)
 	// validator.AddStep(validation.NewDryRunValidator())
 
@@ -328,7 +322,7 @@ func (c *AssistantOrchestrator) GetRM() repomanager.RepoManagerInterface {
 }
 
 func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error {
-	if err := a.rm.ValidateGitState(true, a.llm.SendMessages); err != nil {
+	if err := a.rm.ValidateGitState(true); err != nil {
 		a.logger.Error("Invalid git state", "error", err)
 		// auto commit
 	}
