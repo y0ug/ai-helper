@@ -124,6 +124,9 @@ func main() {
 
 	rm := repomanager.NewRepoManager(rootPath, logger, fm, gitRepo, llm.SendMessages)
 
+	repomap := rm.GenerateRepoMap()
+	fmt.Println("rm", repomap.String())
+
 	pts := prompts.New(promptName)
 	if pts == nil {
 		logger.Error("Error creating prompts", "prompt_name", promptName)

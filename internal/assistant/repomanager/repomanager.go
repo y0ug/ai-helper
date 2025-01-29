@@ -88,10 +88,6 @@ func (c *RepoManager) GetRoot() string {
 	return c.root
 }
 
-func (c *RepoManager) GetRepoMap() string {
-	return ""
-}
-
 func (c *RepoManager) GetGit() gitrepo.GitRepoInterface {
 	return c.git
 }
@@ -495,4 +491,30 @@ func GenerateDiff(original, updated string) string {
 	dmp := diffmatchpatch.New()
 	diffs := dmp.DiffMain(original, updated, false)
 	return dmp.DiffPrettyText(diffs)
+}
+
+func (c *RepoManager) GenerateRepoMap() *RepoMap {
+	var files []string
+	var err error
+	if c.git != nil {
+		files, err = c.git.ListFiles()
+		if err != nil {
+			c.logger.Error("error listing git files", "error", err)
+			return nil
+		}
+		return NewRepoMap(files)
+	} else {
+		result := WalkDirectory(WalkOptions{
+			RootPath:    c.root,
+			IgnoreFiles: []string{".gitignore", ".aiderignore"}, // Custom ignore files
+			IncludeDirs: false,
+		})
+		files = result.Files
+	}
+	return NewRepoMap(files)
+}
+
+func (c *RepoManager) GetRepoMap() string {
+	repoMap := c.GenerateRepoMap()
+	return repoMap.String()
 }

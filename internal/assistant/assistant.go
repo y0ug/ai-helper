@@ -383,6 +383,12 @@ func (c *AssistantOrchestrator) SendMessage(
 		)
 		opts = append(opts, llm.WithStream(true), llm.WithStreamProcessor(streamProcessor))
 	}
+
+	tokens, err := c.settings.MainModel().
+		TokenCountRequest(promptChunk.AllMessages(), c.llmTools, false)
+
+	c.logger.Info("metrics calculated", "InputTokens", tokens)
+
 	resp, err := c.llm.SendMessages(ctx, promptChunk.AllMessages(), c.llmTools, opts...)
 	if err != nil {
 		return results, fmt.Errorf("error sending messages: %w", err)

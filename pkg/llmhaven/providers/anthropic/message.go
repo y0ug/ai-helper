@@ -60,6 +60,23 @@ func (svc *MessageService) NewStreaming(
 	), nil
 }
 
+func (svc *MessageService) CountTokens(
+	ctx context.Context,
+	body MessageNewParams,
+	opts ...options.RequestOption,
+) (res *MessageTokensCount, err error) {
+	opts = append(svc.Options[:], opts...)
+	path := "v1/messages/count_tokens"
+	err = config.ExecuteNewRequest(ctx, http.MethodPost, path, body, &res, svc.NewError, opts...)
+	return
+}
+
+type MessageTokensCount struct {
+	// The total number of tokens across the provided list of messages, system prompt,
+	// and tools.
+	InputTokens int64 `json:"input_tokens,required"`
+}
+
 type MessageParam struct {
 	Role    string                 `json:"role"`
 	Content []*chat.MessageContent `json:"content"`

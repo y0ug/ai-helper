@@ -7,6 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pkoukk/tiktoken-go"
+	"github.com/y0ug/ai-helper/internal/tokeniz"
+	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
 )
 
@@ -143,6 +146,51 @@ var (
 		"flash":    "gemini/gemini-2.0-flash-exp",
 	}
 )
+
+func (m *Model) TokenCount(msg ...*chat.ChatMessage) (int, error) {
+	encoding := tokeniz.GetEncodingByModelName(m.Name)
+	if encoding == "" {
+		// encoding not found for model
+		encoding = tokeniz.GetEncodingByModelName("gpt-4o")
+		if encoding == "" {
+			return 0, fmt.Errorf("encoding not found for model: %s", m.Name)
+		}
+	}
+
+	// Initialize tokenizer
+	tkm, err := tiktoken.GetEncoding(encoding)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tokenizer: %w", err)
+	}
+
+	tokens, _, _ := tokeniz.CountMessage(tkm, true, msg...)
+	return tokens, nil
+}
+
+// We applying the OpenAI algorigthm for everybody that will just get us some overview
+func (m *Model) TokenCountRequest(
+	messages []*chat.ChatMessage,
+	tools []chat.Tool,
+	countResponseTokens bool, // True if we include the response of the assistsant in the messages
+) (int, error) {
+	encoding := tokeniz.GetEncodingByModelName(m.Name)
+	if encoding == "" {
+		// encoding not found for model
+		encoding = tokeniz.GetEncodingByModelName("gpt-4o")
+		if encoding == "" {
+			return 0, fmt.Errorf("encoding not found for model: %s", m.Name)
+		}
+	}
+
+	// Initialize tokenizer
+	tkm, err := tiktoken.GetEncoding(encoding)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tokenizer: %w", err)
+	}
+
+	tokens := tokeniz.TokenCounterOpenAI(tkm, messages, tools, countResponseTokens)
+	return tokens, nil
+}
 
 // ValidateEnvironment checks if required environment variables are set
 func (m *Model) ValidateEnvironment() error {

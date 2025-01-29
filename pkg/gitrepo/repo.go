@@ -16,6 +16,8 @@ type GitRepoInterface interface {
 	// GetHeadCommit() (string, error)
 	GetHeadCommitSHA(short bool) (string, error)
 	GetHeadCommitMessage(defaultMsg string) (string, error)
+	ExecGit(args ...string) (string, error)
+	ListFiles() ([]string, error)
 }
 
 // _ GitRepoInterface = (*GitRepoExec)(nil)
