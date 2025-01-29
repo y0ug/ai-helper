@@ -190,7 +190,7 @@ func startCLI(ctx context.Context, orchestrator *assistant.AssistantOrchestrator
 			files := args[1:]
 			orchestrator.RemoveFiles(ctx, files...)
 		default:
-			orchestrator.HandleInputEvent(
+			orchestrator.InputEvent(
 				ctx,
 				eventbus.NewEvent(
 					eventbus.EventInput,

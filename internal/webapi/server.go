@@ -17,7 +17,7 @@ import (
 )
 
 type WebServer struct {
-	assistant           *assistant.AssistantOrchestrator
+	assistant           assistant.Assister
 	eventBus            *eventbus.EventBus
 	upgrader            websocket.Upgrader
 	clients             sync.Map     // thread-safe map for websocket clients
@@ -26,7 +26,7 @@ type WebServer struct {
 	confirmationManager *ui.ConfirmationManager
 }
 
-func NewWebServer(assistant *assistant.AssistantOrchestrator, bus *eventbus.EventBus) *WebServer {
+func NewWebServer(assistant assistant.Assister, bus *eventbus.EventBus) *WebServer {
 	return &WebServer{
 		assistant: assistant,
 		eventBus:  bus,
@@ -100,7 +100,7 @@ func (s *WebServer) Start(addr string) error {
 	s.eventBus.SubscribeFunc(func(event eventbus.Event) error {
 		switch event.Type {
 		case eventbus.EventShutdown:
-			s.Shutdown()
+			s.Shutdow()
 		}
 		return nil
 	})
@@ -165,7 +165,7 @@ func (s *WebServer) closeAllWebSocketConnections() {
 }
 
 // Shutdown initiates server shutdown
-func (s *WebServer) Shutdown() {
+func (s *WebServer) Shutdow() {
 	close(s.shutdown)
 }
 

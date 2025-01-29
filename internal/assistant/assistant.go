@@ -25,9 +25,13 @@ import (
 )
 
 type Assister interface {
-	InputEvent(ctx context.Context, event eventbus.Event) error
-	AddFileEvent(ctx context.Context, event eventbus.Event) error
-	RemoveFileEvent(ctx context.Context, event eventbus.Event) error
+	InputEvent(ctx context.Context, event eventbus.Event)
+	AddFileEvent(ctx context.Context, event eventbus.Event)
+	RemoveFileEvent(ctx context.Context, event eventbus.Event)
+	AddFiles(ctx context.Context, readOnly bool, filesname ...string)
+	RemoveFiles(ctx context.Context, filesname ...string)
+	GetRM() repomanager.RepoManagerInterface
+	GetStatus() *ui.StatusManager
 }
 
 type AssistantOptions struct {
@@ -177,18 +181,18 @@ func (c *AssistantOrchestrator) registerEventHandlers() {
 		for event := range sub {
 			switch event.Type {
 			case eventbus.EventInput:
-				c.HandleInputEvent(ctx, event)
+				c.InputEvent(ctx, event)
 			case eventbus.EventAddFile:
-				c.HandleAddFileEvent(ctx, event)
+				c.AddFileEvent(ctx, event)
 			case eventbus.EventRemoveFile:
-				c.HandleRemoveFileEvent(ctx, event)
+				c.RemoveFileEvent(ctx, event)
 			case eventbus.EventShutdown:
 			}
 		}
 	}()
 }
 
-func (c *AssistantOrchestrator) HandleInputEvent(ctx context.Context, event eventbus.Event) {
+func (c *AssistantOrchestrator) InputEvent(ctx context.Context, event eventbus.Event) {
 	input, ok := event.Payload.(eventbus.UserInput)
 	if !ok {
 		c.logger.Error("Invalid input event payload")
@@ -216,7 +220,7 @@ func (c *AssistantOrchestrator) HandleInputEvent(ctx context.Context, event even
 	}
 }
 
-func (c *AssistantOrchestrator) HandleAddFileEvent(ctx context.Context, event eventbus.Event) {
+func (c *AssistantOrchestrator) AddFileEvent(ctx context.Context, event eventbus.Event) {
 	payload, ok := event.Payload.(eventbus.FileOperation)
 	if !ok {
 		c.logger.Error("Invalid payload for AddFile event")
@@ -280,7 +284,7 @@ func (c *AssistantOrchestrator) AddFiles(ctx context.Context, readOnly bool, fil
 			}))
 }
 
-func (c *AssistantOrchestrator) HandleRemoveFileEvent(ctx context.Context, event eventbus.Event) {
+func (c *AssistantOrchestrator) RemoveFileEvent(ctx context.Context, event eventbus.Event) {
 	payload, ok := event.Payload.(eventbus.FileOperation)
 	if !ok {
 		c.logger.Error("Invalid payload for RemoveFile event")
