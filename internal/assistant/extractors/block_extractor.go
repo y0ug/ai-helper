@@ -89,7 +89,7 @@ func (c *BlockExtractor) getEdits(content string) []actions.Action {
 			action, newI, err := c.extractEditBlock(lines, i)
 			if err == nil {
 				batchEdits = append(batchEdits, actions.BatchEdit{
-					Edit: action.Payload.(actions.ApplyEdit),
+					Edit: action.Payload.(actions.FileEditAction),
 				})
 			}
 			i = newI

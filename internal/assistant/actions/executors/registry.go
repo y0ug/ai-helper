@@ -19,7 +19,7 @@ type Executor interface {
 
 type ActionHandler interface {
 	CanHandle(actions.Action) bool
-	Handle(context.Context, actions.Action) ([]actions.Action, error)
+	Handle(context.Context, actions.Action) (actions.Action, []actions.Action, error)
 }
 
 type Registry struct {

@@ -21,13 +21,13 @@ func NewMiddlewareChain(handler ActionHandler, middlewares ...ActionMiddleware) 
 func (c *MiddlewareChain) Process(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	// Build the chain in reverse order
 	var next ActionHandler = c.handler
 	for i := len(c.middlewares) - 1; i >= 0; i-- {
 		middleware := c.middlewares[i]
 		next = func(current ActionHandler, m ActionMiddleware) ActionHandler {
-			return func(ctx context.Context, a actions.Action) ([]actions.Action, error) {
+			return func(ctx context.Context, a actions.Action) (actions.Action, []actions.Action, error) {
 				return m.Process(ctx, a, current)
 			}
 		}(next, middleware)

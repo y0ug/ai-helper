@@ -31,7 +31,7 @@ func (s *ExtractorExecutor) CanHandle(action actions.Action) bool {
 func (s *ExtractorExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) (results []actions.Action, err error) {
+) (actionResult actions.Action, results []actions.Action, err error) {
 	a := action.Payload.(actions.ActionExtractor)
 
 	logger := actions.GetLogger(ctx)
@@ -56,5 +56,6 @@ func (s *ExtractorExecutor) Handle(
 	// 	actions.NewLogAction(&action, fmt.Sprintf("extract :\n%s", string(output))),
 	// }, err
 	//
+	actionResult = action
 	return
 }

@@ -28,7 +28,7 @@ func (m *LoggerMiddleware) Process(
 	ctx context.Context,
 	action actions.Action,
 	next ActionHandler,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	// Create contextual logger
 	logger := m.baseLogger.With(
 		"action", action,
@@ -43,7 +43,7 @@ func (m *LoggerMiddleware) Process(
 	logger.Debug("Processing action")
 
 	// Process action
-	results, err := next(ctx, action)
+	action, results, err := next(ctx, action)
 
 	// Log action completion
 	duration := time.Since(start)
@@ -53,5 +53,5 @@ func (m *LoggerMiddleware) Process(
 		logger.Debug("Action processing completed", "results", len(results), "duration", duration)
 	}
 
-	return results, err
+	return action, results, err
 }

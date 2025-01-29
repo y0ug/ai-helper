@@ -25,7 +25,7 @@ func (e *CommitExecutor) CanHandle(action actions.Action) bool {
 func (e *CommitExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	logger := actions.GetLogger(ctx)
 
 	_ = action.Payload.(actions.CommitAction)
@@ -33,11 +33,11 @@ func (e *CommitExecutor) Handle(
 	logger.Debug("Committing changes", "message", msg, "hash", hash)
 	if err != nil {
 		logger.Error("Commit failed", "error", err)
-		return []actions.Action{
+		return action, []actions.Action{
 			actions.NewLogAction(&action, fmt.Sprintf("Commit failed: %v", err)),
 		}, err
 	}
-	return []actions.Action{
+	return action, []actions.Action{
 		actions.NewLogAction(&action, fmt.Sprintf("Changes committed successfully %q")),
 	}, nil
 }

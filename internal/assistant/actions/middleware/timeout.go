@@ -24,7 +24,10 @@ func (m *TimeoutMiddleware) Process(
 	ctx context.Context,
 	action actions.Action,
 	next ActionHandler,
-) (results []actions.Action, err error) {
+) (actions.Action, []actions.Action, error) {
+	var results []actions.Action
+	var err error
+
 	logger := actions.GetLogger(ctx)
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -32,7 +35,7 @@ func (m *TimeoutMiddleware) Process(
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		results, err = next(ctx, action)
+		action, results, err = next(ctx, action)
 	}()
 
 	select {
@@ -44,5 +47,5 @@ func (m *TimeoutMiddleware) Process(
 
 	}
 
-	return
+	return action, results, err
 }

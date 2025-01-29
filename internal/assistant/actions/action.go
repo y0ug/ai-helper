@@ -13,17 +13,17 @@ import (
 type ActionType string
 
 const (
-	ActionTypeEdit         ActionType = "edit"
-	ActionTypeShellCommand ActionType = "shell_command"
-	ActionTypeUserConfirm  ActionType = "user_confirm"
-	ActionTypeUserResponse ActionType = "user_response"
-	ActionTypeCommit       ActionType = "commit"
-	ActionTypeLog          ActionType = "log"
-	ActionTypeLLMRequest   ActionType = "llm_request"
-	ActionTypeLLMResponse  ActionType = "llm_response"
-	ActionTypeAddMessage   ActionType = "add_message"
-	ActionTypeBatchEdit    ActionType = "batch_edit"
-	ActionTypeExtractor    ActionType = "extractor"
+	ActionTypeExtractor     ActionType = "extractor"
+	ActionTypeFileEdit      ActionType = "file_edit"
+	ActionTypeFileBatchEdit ActionType = "file_batch_edit"
+	ActionTypeShellCommand  ActionType = "shell_command"
+	ActionTypeUserInput     ActionType = "user_input"
+	ActionTypeUserResponse  ActionType = "user_response"
+	ActionTypeCommit        ActionType = "commit"
+	ActionTypeLog           ActionType = "log"
+	ActionTypeLLMRequest    ActionType = "llm_request"
+	ActionTypeLLMResponse   ActionType = "llm_response"
+	ActionTypeAddMessage    ActionType = "add_message"
 )
 
 type ActionContext struct {
@@ -45,10 +45,20 @@ func (a *Action) IsToolCall() bool {
 	return a.Context.ToolCallID != ""
 }
 
-type ApplyEdit struct {
+type FileEditType string
+
+var (
+	CreateFile FileEditType = "create"
+	RemoveFile FileEditType = "remove"
+	AppendFile FileEditType = "append"
+	PatchFile  FileEditType = "patch"
+)
+
+type FileEditAction struct {
 	Filename string
 	Original string
 	Updated  string
+	Type     FileEditType
 }
 
 type ShellCommandAction struct {
@@ -58,29 +68,32 @@ type ShellCommandAction struct {
 	Output       string
 	Executed     bool // Add execution state
 	Success      bool // Add success stat
+	ExitCode     int  // Add exit code
 }
 
-//	func (s *ShellCommandAction) WithConfirmed(parentAction *Action) Action {
-//		return NewActionWithParent(ActionTypeShellCommand, ShellCommandAction{
-//			Command:      s.Command,
-//			NeedsConfirm: s.NeedsConfirm,
-//			Confirmed:    true,
-//			Output:       s.Output,
-//		}, parentAction)
-//	}
 func (s ShellCommandAction) WithConfirmed(parentAction *Action) Action {
 	s.Confirmed = true
 	return NewAction(ActionTypeShellCommand, s).WithParent(parentAction)
 }
 
-type UserConfirmAction struct {
-	Question     string
+type UserInputType string
+
+var (
+	ConfirmInput UserInputType = "confirm"
+	MessageInput UserInputType = "message"
+)
+
+type UserInputAction struct {
+	Message      string
+	Type         UserInputType
 	ParentAction Action
 	Context      ActionContext
 }
 
 type UserResponseAction struct {
 	Allowed bool
+	Input   string
+	Type    UserInputType
 	Context ActionContext
 }
 
@@ -100,10 +113,10 @@ func (a Action) String() string {
 	}
 	switch v := a.Payload.(type) {
 	case BatchEditAction:
-		return fmt.Sprintf("%s BATCHEDIT: %s", status, v.String())
-	case ApplyEdit:
+		return fmt.Sprintf("%sBATCHEDIT: %s", status, v.String())
+	case FileEditAction:
 		return fmt.Sprintf("%sEDIT %s: %q → %q", status,
-			v.Filename, shorten(v.Original), shorten(v.Updated))
+			v.Filename, shorten(v.Original, DefaultShorten), shorten(v.Updated, DefaultShorten))
 	case CommitAction:
 		return fmt.Sprintf("%sCOMMIT: %s", status, v.Message)
 	case ShellCommandAction:
@@ -119,11 +132,11 @@ func (a Action) String() string {
 func (a Action) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.String("type", string(a.Type)),
-		slog.String("action_id", a.ID.String()),
-		slog.String("chain_id", a.Context.ChainID.String()),
-		slog.String("parent_id", a.Context.ParentID.String()),
-		slog.String("tool_call_id", a.Context.ToolCallID),
-		slog.String("created_at", a.Context.CreatedAt.Format(time.RFC3339)),
+		slog.String("action_id", shorten(a.ID.String(), DefaultShorten)),
+		slog.String("chain_id", shorten(a.Context.ChainID.String(), DefaultShorten)),
+		// slog.String("parent_id", a.Context.ParentID.String()),
+		// slog.String("tool_call_id", a.Context.ToolCallID),
+		// slog.String("created_at", a.Context.CreatedAt.Format(time.RFC3339)),
 	)
 }
 
@@ -147,9 +160,11 @@ func (a Action) WithParent(parent *Action) Action {
 	return a
 }
 
-func shorten(s string) string {
-	if len(s) > 20 {
-		return s[:17] + "..."
+var DefaultShorten = 20
+
+func shorten(s string, n int) string {
+	if len(s) > n {
+		return s[:n-3] + "..."
 	}
 	return s
 }
@@ -171,30 +186,8 @@ func NewAction(actionType ActionType, payload interface{}) Action {
 	}
 }
 
-func NewActionWithParent(actionType ActionType, payload interface{}, parentAction *Action) Action {
-	a := Action{
-		ID:      uuid.New(),
-		Type:    actionType,
-		Payload: payload,
-	}
-	if parentAction != nil {
-		a.Context = ActionContext{
-			ParentID:   parentAction.ID,
-			ChainID:    parentAction.Context.ChainID,
-			ToolCallID: parentAction.Context.ToolCallID,
-			CreatedAt:  time.Now(),
-		}
-	} else {
-		a.Context = ActionContext{
-			ChainID:   uuid.New(),
-			CreatedAt: time.Now(),
-		}
-	}
-	return a
-}
-
 func NewApplyEdit(filename, original, updated string) Action {
-	return NewAction(ActionTypeEdit, ApplyEdit{
+	return NewAction(ActionTypeFileEdit, FileEditAction{
 		Filename: filename,
 		Original: original,
 		Updated:  updated,
@@ -208,17 +201,33 @@ func NewShellCommand(command string, needsConfirm bool) Action {
 	})
 }
 
-func NewUserConfirmAction(parentAction Action, question string) Action {
-	return NewAction(ActionTypeUserConfirm, UserConfirmAction{
-		Question:     question,
+func NewUserInput(parentAction Action, inputType UserInputType, message string) Action {
+	return NewAction(ActionTypeUserInput, UserInputAction{
+		Message:      message,
+		Type:         inputType,
 		ParentAction: parentAction,
 		Context:      parentAction.Context,
 	})
 }
 
-func NewUserResponseAction(parentAction Action, isAllowed bool) Action {
+func NewUserResponseConfirm(parentAction Action, isAllowed bool) Action {
 	return NewAction(ActionTypeUserResponse, UserResponseAction{
 		Allowed: isAllowed,
+		Type:    ConfirmInput,
+		Context: parentAction.Context,
+	})
+}
+
+func NewUserInputResponse(
+	parentAction Action,
+	inputType UserInputType,
+	isAllowed bool,
+	input string,
+) Action {
+	return NewAction(ActionTypeUserResponse, UserResponseAction{
+		Allowed: isAllowed,
+		Input:   input,
+		Type:    inputType,
 		Context: parentAction.Context,
 	})
 }
@@ -263,12 +272,12 @@ type BatchEditAction struct {
 }
 
 type BatchEdit struct {
-	Edit       ApplyEdit
+	Edit       FileEditAction
 	ToolCallID string // Track the tool_call_id for each edit
 }
 
 func NewBatchEditAction(edits []BatchEdit) Action {
-	return NewAction(ActionTypeBatchEdit, BatchEditAction{Edits: edits})
+	return NewAction(ActionTypeFileBatchEdit, BatchEditAction{Edits: edits})
 }
 
 func (b BatchEditAction) String() string {

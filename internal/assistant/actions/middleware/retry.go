@@ -25,15 +25,15 @@ func (m *RetryMiddleware) Process(
 	ctx context.Context,
 	action actions.Action,
 	next ActionHandler,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	var lastErr error
 	for i := 0; i < m.maxAttempts; i++ {
-		results, err := next(ctx, action)
+		action, results, err := next(ctx, action)
 		if err == nil {
-			return results, nil
+			return action, results, nil
 		}
 		lastErr = err
 		time.Sleep(m.delay)
 	}
-	return nil, fmt.Errorf("after %d attempts, last error: %w", m.maxAttempts, lastErr)
+	return action, nil, fmt.Errorf("after %d attempts, last error: %w", m.maxAttempts, lastErr)
 }

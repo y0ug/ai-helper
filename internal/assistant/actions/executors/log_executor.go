@@ -20,9 +20,9 @@ func (e *LogExecutor) CanHandle(action actions.Action) bool {
 func (e *LogExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	logger := actions.GetLogger(ctx)
 	log := action.Payload.(actions.LogAction)
 	logger.Info("Log", "Message", log.Message)
-	return nil, nil
+	return action, nil, nil
 }

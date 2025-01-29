@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 )
 
@@ -45,7 +46,7 @@ func Publish(u UserInterface, event eventbus.Event) error {
 		return u.Error(event)
 	case eventbus.EventStatusUpdate:
 		return u.Status(event)
-	case eventbus.EventUserConfirm:
+	case eventbus.EventUserInputRequest:
 		// Response should be handle if they used Publish but how?
 		_, err := u.RequestConfirmation(event)
 		return err
@@ -101,12 +102,13 @@ func (u *CliUI) RequestConfirmation(event eventbus.Event) (response eventbus.Eve
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	request, ok := event.Payload.(eventbus.UserConfirmRequest)
+	request, ok := event.Payload.(eventbus.UserInputRequest)
 	if !ok {
 		return response, fmt.Errorf("invalid payload type")
 	}
 
-	fmt.Printf("Confirmation [%s]: %s (y/n): ", request.ID, request.Message)
+	action := request.Action.(actions.UserInputAction)
+	fmt.Printf("Confirmation [%s]: %s (y/n): ", request.ID, action.Message)
 	var userResponse string
 	_, err = fmt.Scanln(&userResponse)
 	if err != nil {
@@ -115,8 +117,8 @@ func (u *CliUI) RequestConfirmation(event eventbus.Event) (response eventbus.Eve
 	approved := userResponse == "y" || userResponse == "Y"
 
 	response = eventbus.NewEvent(
-		eventbus.EventUserResponse,
-		eventbus.UserResponse{
+		eventbus.EventUserInputResponse,
+		eventbus.UserInputResponse{
 			ID:       request.ID,
 			Approved: approved,
 		},

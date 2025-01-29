@@ -71,7 +71,7 @@ func (u *WebUI) Status(event eventbus.Event) (err error) {
 func (u *WebUI) RequestConfirmation(event eventbus.Event) (response eventbus.Event, err error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	request, ok := event.Payload.(eventbus.UserConfirmRequest)
+	request, ok := event.Payload.(eventbus.UserInputRequest)
 	if !ok {
 		return response, fmt.Errorf("invalid payload type")
 	}
@@ -84,8 +84,8 @@ func (u *WebUI) RequestConfirmation(event eventbus.Event) (response eventbus.Eve
 	select {
 	case approved := <-responseChan:
 		response = eventbus.NewEvent(
-			eventbus.EventUserResponse,
-			eventbus.UserResponse{
+			eventbus.EventUserInputResponse,
+			eventbus.UserInputResponse{
 				ID:       request.ID,
 				Approved: approved,
 			},

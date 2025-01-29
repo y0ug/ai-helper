@@ -50,17 +50,17 @@ func NewUserInteractionExecutor(
 }
 
 func (e *UserInteractionExecutor) CanHandle(action actions.Action) bool {
-	_, ok := action.Payload.(actions.UserConfirmAction)
+	_, ok := action.Payload.(actions.UserInputAction)
 	return ok
 }
 
 func (e *UserInteractionExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	logger := actions.GetLogger(ctx)
 
-	confirmAction := action.Payload.(actions.UserConfirmAction)
+	confirmAction := action.Payload.(actions.UserInputAction)
 
 	requestID := uuid.New().String()
 	responseChan := make(chan actions.UserResponseAction)
@@ -76,11 +76,10 @@ func (e *UserInteractionExecutor) Handle(
 	})
 
 	req := eventbus.NewEvent(
-		eventbus.EventUserConfirm,
-		eventbus.UserConfirmRequest{
+		eventbus.EventUserInputRequest,
+		eventbus.UserInputRequest{
 			ID:        requestID,
-			Message:   "please confirm the action",
-			Action:    confirmAction.ParentAction,
+			Action:    confirmAction,
 			ExpiresAt: expiresAt,
 		})
 
@@ -89,12 +88,12 @@ func (e *UserInteractionExecutor) Handle(
 		e.eventBus.Publish(req)
 	} else {
 		response, err := e.ui.RequestConfirmation(req)
-		_, ok := response.Payload.(eventbus.UserResponse)
+		_, ok := response.Payload.(eventbus.UserInputResponse)
 		if !ok {
-			return nil, fmt.Errorf("confirmation request failed wrong response %T: %w", response, err)
+			return action, nil, fmt.Errorf("confirmation request failed wrong response %T: %w", response, err)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("confirmation request failed: %w", err)
+			return action, nil, fmt.Errorf("confirmation request failed: %w", err)
 		}
 		go e.handleResponse(response)
 	}
@@ -107,26 +106,26 @@ func (e *UserInteractionExecutor) Handle(
 		case actions.ShellCommandAction:
 			if response.Allowed {
 				newConfirmedaction := originalAction.WithConfirmed(&action)
-				return []actions.Action{newConfirmedaction}, nil
+				return action, []actions.Action{newConfirmedaction}, nil
 			}
 		default:
 			logger.Error("Unsupported action type for confirmation",
 				"action_type", confirmAction.ParentAction.Type)
-			return nil, fmt.Errorf("unsupported action type for confirmation")
+			return action, nil, fmt.Errorf("unsupported action type for confirmation")
 		}
 	case <-time.After(e.timeout):
 		e.pendingRequests.Delete(requestID)
-		return nil, fmt.Errorf("confirmation timeout")
+		return action, nil, fmt.Errorf("confirmation timeout")
 	case <-ctx.Done():
 		e.pendingRequests.Delete(requestID)
-		return nil, ctx.Err()
+		return action, nil, ctx.Err()
 	}
 
-	return nil, nil
+	return action, nil, nil
 }
 
 func (e *UserInteractionExecutor) handleResponse(event eventbus.Event) {
-	response, ok := event.Payload.(eventbus.UserResponse)
+	response, ok := event.Payload.(eventbus.UserInputResponse)
 	if ok {
 		if req, ok := e.pendingRequests.Load(response.ID); ok {
 			if pendingReq, ok := req.(*PendingRequest); ok {
@@ -143,7 +142,7 @@ func (e *UserInteractionExecutor) handleResponse(event eventbus.Event) {
 
 func (e *UserInteractionExecutor) handleEvents(sub <-chan eventbus.Event) {
 	for event := range sub {
-		if event.Type == eventbus.EventUserResponse {
+		if event.Type == eventbus.EventUserInputResponse {
 			e.handleResponse(event)
 		}
 	}

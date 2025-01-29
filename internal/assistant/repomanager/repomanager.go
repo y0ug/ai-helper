@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
@@ -48,7 +49,7 @@ type RepoManagerInterface interface {
 	GetReadOnlyFilesContent() string
 	GetRepoMap() string
 
-	ApplyEdit(edits actions.ApplyEdit) error
+	ApplyEdit(edits actions.FileEditAction) error
 
 	CheckGitStatus(paths []string) (map[string]FileGitStatus, error)
 	ValidateGitState(bool) error
@@ -61,6 +62,9 @@ type RepoManagerInterface interface {
 
 	AutoCommit(ctx context.Context) (string, string, error)
 	Commit(message string) error
+
+	CreateSnapshot() map[string]string
+	GetDiffSummary(snapshot map[string]string) string
 }
 
 func NewRepoManager(
@@ -352,7 +356,7 @@ func (c *RepoManager) ValidateGitState(autoCommit bool) error {
 	return nil
 }
 
-func (c *RepoManager) ApplyEdit(edit actions.ApplyEdit) error {
+func (c *RepoManager) ApplyEdit(edit actions.FileEditAction) error {
 	content, isEditable, err := c.fm.Get(edit.Filename)
 	if err != nil {
 		c.logger.Error("error reading file ", "filename", edit.Filename, "error", err)
@@ -461,4 +465,34 @@ or line breaks.`
 	c.logger.Info("commit", "hash", commitHash)
 
 	return commitHash, msg, nil
+}
+
+func (c *RepoManager) CreateSnapshot() map[string]string {
+	snapshot := make(map[string]string)
+	files := c.fm.List(filemanager.NewFileFilters(filemanager.FilterAll))
+
+	for path, info := range files {
+		snapshot[path] = info.Content
+	}
+	return snapshot
+}
+
+func (c *RepoManager) GetDiffSummary(snapshot map[string]string) string {
+	current := c.CreateSnapshot()
+	var diffs strings.Builder
+
+	// Check for modified files
+	for path, currentContent := range current {
+		if original, exists := snapshot[path]; exists && original != currentContent {
+			diffs.WriteString(GenerateDiff(original, currentContent))
+		}
+	}
+
+	return diffs.String()
+}
+
+func GenerateDiff(original, updated string) string {
+	dmp := diffmatchpatch.New()
+	diffs := dmp.DiffMain(original, updated, false)
+	return dmp.DiffPrettyText(diffs)
 }

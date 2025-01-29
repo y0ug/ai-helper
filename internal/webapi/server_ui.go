@@ -47,7 +47,7 @@ func (u *WebServer) Status(event eventbus.Event) (err error) {
 }
 
 func (u *WebServer) RequestConfirmation(event eventbus.Event) (response eventbus.Event, err error) {
-	request, ok := event.Payload.(eventbus.UserConfirmRequest)
+	request, ok := event.Payload.(eventbus.UserInputRequest)
 	if !ok {
 		return response, fmt.Errorf("invalid payload type")
 	}
@@ -60,8 +60,8 @@ func (u *WebServer) RequestConfirmation(event eventbus.Event) (response eventbus
 	select {
 	case approved := <-responseChan:
 		response = eventbus.NewEvent(
-			eventbus.EventUserResponse,
-			eventbus.UserResponse{
+			eventbus.EventUserInputResponse,
+			eventbus.UserInputResponse{
 				ID:       request.ID,
 				Approved: approved,
 			},

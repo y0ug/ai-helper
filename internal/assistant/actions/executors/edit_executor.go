@@ -31,7 +31,7 @@ func NewEditExecutor(
 }
 
 func (e *EditExecutor) CanHandle(action actions.Action) bool {
-	_, ok := action.Payload.(actions.ApplyEdit)
+	_, ok := action.Payload.(actions.FileEditAction)
 	_, okBatch := action.Payload.(actions.BatchEditAction)
 	return ok || okBatch
 }
@@ -39,22 +39,22 @@ func (e *EditExecutor) CanHandle(action actions.Action) bool {
 func (e *EditExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	switch v := action.Payload.(type) {
-	case actions.ApplyEdit:
+	case actions.FileEditAction:
 		return e.handleSingleEdit(ctx, action, v)
 	case actions.BatchEditAction:
 		return e.handleBatchEdit(ctx, action, v)
 	default:
-		return nil, fmt.Errorf("unsupported edit type")
+		return action, nil, fmt.Errorf("unsupported edit type")
 	}
 }
 
 func (e *EditExecutor) handleSingleEdit(
 	ctx context.Context,
 	action actions.Action,
-	edit actions.ApplyEdit,
-) ([]actions.Action, error) {
+	edit actions.FileEditAction,
+) (actions.Action, []actions.Action, error) {
 	var followUps []actions.Action
 
 	validationResult := e.validator.Validate(ctx, edit.Filename, edit.Original, edit.Updated)
@@ -81,7 +81,7 @@ func (e *EditExecutor) handleSingleEdit(
 			followUps,
 			actions.NewLogAction(&action, "Edit rejected due to validation errors"),
 		)
-		return followUps, fmt.Errorf("validation failed")
+		return action, followUps, fmt.Errorf("validation failed")
 	}
 
 	if err := e.repo.ApplyEdit(edit); err != nil {
@@ -99,7 +99,7 @@ func (e *EditExecutor) handleSingleEdit(
 			followUps,
 			actions.NewLogAction(&action, fmt.Sprintf("Edit failed: %v", err)),
 		)
-		return followUps, fmt.Errorf("failed to apply edit: %w", err)
+		return action, followUps, fmt.Errorf("failed to apply edit: %w", err)
 	}
 
 	if action.IsToolCall() {
@@ -116,14 +116,14 @@ func (e *EditExecutor) handleSingleEdit(
 		actions.NewCommitAction(&action, fmt.Sprintf("Applied edit to %s", edit.Filename)),
 		actions.NewLogAction(&action, "Edit applied successfully"),
 	)
-	return followUps, nil
+	return action, followUps, nil
 }
 
 func (e *EditExecutor) handleBatchEdit(
 	ctx context.Context,
 	action actions.Action,
 	batch actions.BatchEditAction,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	var followUps []actions.Action
 
 	logger := actions.GetLogger(ctx)
@@ -165,7 +165,7 @@ func (e *EditExecutor) handleBatchEdit(
 				followUps,
 				actions.NewLogAction(&action, msg),
 			)
-			return followUps, fmt.Errorf("validation failed")
+			return action, followUps, fmt.Errorf("validation failed")
 		}
 
 		if err := e.repo.ApplyEdit(edit); err != nil {
@@ -186,7 +186,7 @@ func (e *EditExecutor) handleBatchEdit(
 				followUps,
 				actions.NewLogAction(&action, msg),
 			)
-			return followUps, fmt.Errorf("failed to apply edit: %w", err)
+			return action, followUps, fmt.Errorf("failed to apply edit: %w", err)
 		}
 
 		// Respond to the tool call
@@ -212,7 +212,7 @@ func (e *EditExecutor) handleBatchEdit(
 		actions.NewCommitAction(&action, "Applied batch edits"),
 		actions.NewLogAction(&action, "Batch edits applied successfully"),
 	)
-	return followUps, nil
+	return action, followUps, nil
 }
 
 func NewActionAddMsgToolResult(toolCallID string, content string) actions.Action {

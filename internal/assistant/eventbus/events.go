@@ -15,8 +15,8 @@ const (
 	EventAddFile
 	EventRemoveFile
 	EventShutdown
-	EventUserConfirm
-	EventUserResponse
+	EventUserInputRequest
+	EventUserInputResponse
 )
 
 type Event struct {
@@ -60,14 +60,13 @@ var (
 	FileOperationTypeRemove FileOperationType = "remove"
 )
 
-type UserConfirmRequest struct {
+type UserInputRequest struct {
 	ID        string
-	Message   string
 	Action    interface{}
 	ExpiresAt time.Time
 }
 
-type UserResponse struct {
+type UserInputResponse struct {
 	ID       string
 	Approved bool
 	Input    string

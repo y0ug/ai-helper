@@ -13,7 +13,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 )
 
-type Processor[T any] func(context.Context, T) ([]T, error)
+type Processor[T any] func(context.Context, T) (T, []T, error)
 
 type Pipeline struct {
 	eventBus      *eventbus.EventBus
@@ -50,23 +50,28 @@ func (p *Pipeline) Execute(ctx context.Context, action actions.Action) {
 func (p *Pipeline) processSingleAction(
 	ctx context.Context,
 	action actions.Action,
-) (results []actions.Action, err error) {
+) (actions.Action, []actions.Action, error) {
+	var results []actions.Action
+	var err error
+
 	p.actionManager.RegisterAction(action)
 
-	results, err = p.cb(ctx, action)
+	action, results, err = p.cb(ctx, action)
 	if err != nil {
 		p.logger.Error("Error handling action", "error", err, "context", action)
 	}
 
-	// Register results and follow-up actions
+	// Update the action results
+	p.actionManager.RegisterAction(action)
+
+	// Register follow-up actions
 	for _, result := range results {
-		result.Completed = true
 		p.actionManager.RegisterAction(result)
 	}
 
-	p.actionManager.AddResult(action.Context.ChainID,
-		fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
-	return
+	// p.actionManager.AddResult(action.Context.ChainID,
+	// 	fmt.Sprintf("ACTION: %s", action.String())) // Store action summary
+	return action, results, err
 }
 
 func (p *Pipeline) startAction(ctx context.Context, action actions.Action) {
@@ -76,7 +81,7 @@ func (p *Pipeline) startAction(ctx context.Context, action actions.Action) {
 	for !q.IsEmpty() {
 		action, _ := q.Dequeue()
 
-		results, _ := p.processSingleAction(ctx, action)
+		_, results, _ := p.processSingleAction(ctx, action)
 
 		if len(results) > 0 {
 			q.Enqueue(results...)
@@ -87,7 +92,7 @@ func (p *Pipeline) startAction(ctx context.Context, action actions.Action) {
 func (p *Pipeline) baseHandler(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	handler := p.registry.GetHandler(action)
 	if handler == nil {
 
@@ -99,7 +104,7 @@ func (p *Pipeline) baseHandler(
 		errorAction := actions.NewLogAction(&action, errMsg.Error())
 
 		// we don't return the error we handle it here
-		return []actions.Action{
+		return action, []actions.Action{
 			errorAction,
 		}, nil // fmt.Errorf("no handler for action type %s", action.Type)
 	}

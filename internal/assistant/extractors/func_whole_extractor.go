@@ -84,7 +84,7 @@ func (c *FuncWholeFileExtractor) Extract(
 			} else {
 				// Add the edit with its tool_call_id to the batch
 				batchEdits = append(batchEdits, actions.BatchEdit{
-					Edit:       action.Payload.(actions.ApplyEdit),
+					Edit:       action.Payload.(actions.FileEditAction),
 					ToolCallID: content.ID, // Preserve the tool_call_id
 				})
 				c.logger.Info("Tool call processed", "action", batchEdits)

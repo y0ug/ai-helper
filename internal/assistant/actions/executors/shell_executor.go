@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
@@ -41,27 +42,47 @@ func (s *ShellExecutor) CanHandle(action actions.Action) bool {
 func (s *ShellExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
-	cmd := action.Payload.(actions.ShellCommandAction)
+) (actions.Action, []actions.Action, error) {
+	cmdAction := action.Payload.(actions.ShellCommandAction)
 
-	if cmd.NeedsConfirm && !cmd.Confirmed {
-		return []actions.Action{
-			actions.NewUserConfirmAction(action, "Do you want to run this?").WithParent(&action),
-		}, nil
+	if !s.isCommandAllowed(cmdAction.Command) {
+		return action, []actions.Action{
+			actions.NewLogAction(
+				&action,
+				fmt.Sprintf("Blocked unsafe command: %s", cmdAction.Command),
+			),
+		}, fmt.Errorf("unsafe command")
 	}
 
-	if !s.isCommandAllowed(cmd.Command) {
-		return []actions.Action{
-			actions.NewLogAction(&action, fmt.Sprintf("Blocked unsafe command: %s", cmd.Command)),
-		}, fmt.Errorf("unsafe command")
+	if cmdAction.NeedsConfirm && !cmdAction.Confirmed {
+		return action, []actions.Action{
+			actions.NewUserInput(action,
+				actions.ConfirmInput,
+				"Do you want to run this?").
+				WithParent(&action),
+		}, nil
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, s.commandTimeout)
 	defer cancel()
 
-	output, err := exec.CommandContext(ctx, "sh", "-c", cmd.Command).CombinedOutput()
+	cmd := exec.CommandContext(ctx, "sh", "-c", cmdAction.Command)
+	output, err := cmd.CombinedOutput()
 
-	return []actions.Action{
+	// Update action state
+	cmdAction.Executed = true
+	cmdAction.Output = string(output)
+	cmdAction.ExitCode = cmd.ProcessState.ExitCode()
+	cmdAction.Success = (cmdAction.ExitCode == 0)
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+			cmdAction.ExitCode = status.ExitStatus()
+		}
+	}
+
+	action.Payload = cmdAction
+	return action, []actions.Action{
 		actions.NewLogAction(&action, fmt.Sprintf("Command output:\n%s", string(output))),
 	}, err
 }

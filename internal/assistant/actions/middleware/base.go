@@ -13,7 +13,7 @@ type BaseMiddleware struct {
 func (m *BaseMiddleware) Process(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	return m.next(ctx, action)
 }
 

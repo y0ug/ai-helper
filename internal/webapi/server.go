@@ -459,12 +459,12 @@ func (c *WSClient) readPump() {
 					},
 				))
 			case "user_response":
-				var response eventbus.UserResponse
+				var response eventbus.UserInputResponse
 				if err := json.Unmarshal(input.Payload, &response); err != nil {
 					continue
 				}
 				c.server.eventBus.Publish(eventbus.NewEvent(
-					eventbus.EventUserResponse,
+					eventbus.EventUserInputResponse,
 					response,
 				))
 			}

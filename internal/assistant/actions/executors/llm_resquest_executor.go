@@ -29,11 +29,12 @@ func (e *LLMRequestExecutor) CanHandle(action actions.Action) bool {
 func (e *LLMRequestExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) (results []actions.Action, err error) {
+) (actions.Action, []actions.Action, error) {
 	// logger := actions.GetLogger(ctx)
 
 	_ = action.Payload.(actions.LLMRequestAction)
 	// resp := val.Resp
 
-	return e.cb(ctx, action)
+	results, err := e.cb(ctx, action)
+	return action, results, err
 }

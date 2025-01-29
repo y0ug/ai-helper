@@ -26,21 +26,21 @@ func (e *LLMResponseExecutor) CanHandle(action actions.Action) bool {
 func (e *LLMResponseExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) (results []actions.Action, err error) {
+) (actionResult actions.Action, results []actions.Action, err error) {
 	logger := actions.GetLogger(ctx)
 
 	val := action.Payload.(actions.LLMResponseAction)
 	resp := val.Resp
 
 	if len(resp.Choice) == 0 {
-		return results, fmt.Errorf("no choice returned from LLM")
+		return action, results, fmt.Errorf("no choice returned from LLM")
 	}
 
 	choice := resp.Choice[0]
 	msg := resp.ToMessageParams()
 
 	if msg.Role != "assistant" {
-		return results, fmt.Errorf("last should be from assistant")
+		return action, results, fmt.Errorf("last should be from assistant")
 	}
 
 	// Create an LLMResponseAction, child of parentAction
@@ -76,5 +76,5 @@ func (e *LLMResponseExecutor) Handle(
 		"stop",
 		choice.StopReason,
 	)
-	return results, nil
+	return action, results, nil
 }

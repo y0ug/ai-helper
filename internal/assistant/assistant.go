@@ -326,6 +326,9 @@ func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error
 		a.logger.Error("Invalid git state", "error", err)
 		// auto commit
 	}
+
+	snapshot := a.rm.CreateSnapshot()
+
 	// 1. Start a new turn
 	a.conversation.StartTurn()
 
@@ -351,6 +354,16 @@ func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error
 	llmReqAction := actions.NewLLMRequestAction(promptText)
 
 	a.processor.Execute(ctx, llmReqAction)
+
+	summary := a.GenerateTurnSummary()
+	fullDiff := a.rm.GetDiffSummary(snapshot)
+
+	// Send to UI or logging
+	a.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, summary))
+
+	a.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, fullDiff))
+
+	a.logger.Info("Turn summary generated", "summary", summary)
 	return nil
 }
 
@@ -386,4 +399,70 @@ func (c *AssistantOrchestrator) SendMessage(
 
 	results = append(results, actions.NewLLMResponseAction(*resp).WithParent(&action))
 	return
+}
+
+func (a *AssistantOrchestrator) GenerateTurnSummary() string {
+	var summary strings.Builder
+	summary.WriteString("## Turn Summary\n\n")
+
+	// Get all action chains
+	chains := a.actionManager.GetAllChains()
+
+	fileEdits := make(map[string][]actions.FileEditAction)
+	var commands []actions.ShellCommandAction
+
+	// Collect relevant actions
+	for _, chain := range chains {
+		for _, action := range chain.GetActionsSorted() {
+			switch action.Type {
+			case actions.ActionTypeFileBatchEdit:
+				if batchedit, ok := action.Payload.(actions.BatchEditAction); ok {
+					for _, edit := range batchedit.Edits {
+						fileEdits[edit.Edit.Filename] = append(
+							fileEdits[edit.Edit.Filename],
+							edit.Edit,
+						)
+					}
+				}
+			case actions.ActionTypeFileEdit:
+				if edit, ok := action.Payload.(actions.FileEditAction); ok {
+					fileEdits[edit.Filename] = append(fileEdits[edit.Filename], edit)
+				}
+			case actions.ActionTypeShellCommand:
+				if cmd, ok := action.Payload.(actions.ShellCommandAction); ok {
+					commands = append(commands, cmd)
+				}
+			}
+		}
+	}
+
+	// Add file changes section
+	if len(fileEdits) > 0 {
+		summary.WriteString("### File Changes\n")
+		for filename, edits := range fileEdits {
+			summary.WriteString(fmt.Sprintf("#### %s\n", filename))
+			for _, edit := range edits {
+				diff := repomanager.GenerateDiff(edit.Original, edit.Updated)
+				summary.WriteString(fmt.Sprintf("```diff\n%s\n```\n", diff))
+			}
+		}
+	}
+
+	// Add command execution section
+	if len(commands) > 0 {
+		summary.WriteString("\n### Commands Executed\n")
+		for _, cmd := range commands {
+			if cmd.NeedsConfirm && !cmd.Confirmed {
+				continue
+			}
+			status := "✅ Success"
+			if !cmd.Success {
+				status = "❌ Failed"
+			}
+			summary.WriteString(fmt.Sprintf("**%s**\n```\n%s\n```\nOutput:\n```\n%s\n```\n\n",
+				status, cmd.Command, cmd.Output))
+		}
+	}
+
+	return summary.String()
 }

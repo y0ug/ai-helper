@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 )
 
@@ -36,9 +37,9 @@ func (cm *ConfirmationManager) registerEventHandlers() {
 	go func() {
 		for event := range sub {
 			switch event.Type {
-			case eventbus.EventUserConfirm:
+			case eventbus.EventUserInputRequest:
 				cm.handleUserConfirm(event)
-			case eventbus.EventUserResponse:
+			case eventbus.EventUserInputResponse:
 				cm.handleUserResponse(event)
 			}
 		}
@@ -46,15 +47,17 @@ func (cm *ConfirmationManager) registerEventHandlers() {
 }
 
 func (cm *ConfirmationManager) handleUserResponse(event eventbus.Event) {
-	resp := event.Payload.(eventbus.UserResponse)
+	resp := event.Payload.(eventbus.UserInputResponse)
 	cm.pendingConfirmations.Delete(resp.ID)
 }
 
 func (cm *ConfirmationManager) handleUserConfirm(event eventbus.Event) {
-	req := event.Payload.(eventbus.UserConfirmRequest)
+	req := event.Payload.(eventbus.UserInputRequest)
+	action := req.Action.(actions.UserInputAction)
+
 	confirmation := Confirmation{
 		ID:        req.ID,
-		Message:   req.Message,
+		Message:   action.Message,
 		Time:      time.Now(),
 		ExpiresAt: req.ExpiresAt,
 	}
@@ -116,8 +119,8 @@ func (cm *ConfirmationManager) RespondToConfirmation(id string, approved bool) e
 	}
 
 	cm.eventBus.Publish(eventbus.NewEvent(
-		eventbus.EventUserResponse,
-		eventbus.UserResponse{
+		eventbus.EventUserInputResponse,
+		eventbus.UserInputResponse{
 			ID:       id,
 			Approved: approved,
 		},

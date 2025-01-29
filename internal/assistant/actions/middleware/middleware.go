@@ -11,7 +11,7 @@ type ActionMiddleware interface {
 		ctx context.Context,
 		action actions.Action,
 		next ActionHandler,
-	) ([]actions.Action, error)
+	) (actions.Action, []actions.Action, error)
 }
 
-type ActionHandler func(context.Context, actions.Action) ([]actions.Action, error)
+type ActionHandler func(context.Context, actions.Action) (actions.Action, []actions.Action, error)

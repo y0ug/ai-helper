@@ -25,12 +25,12 @@ func (e *AddMessageExecutor) CanHandle(action actions.Action) bool {
 func (e *AddMessageExecutor) Handle(
 	ctx context.Context,
 	action actions.Action,
-) ([]actions.Action, error) {
+) (actions.Action, []actions.Action, error) {
 	logger := actions.GetLogger(ctx)
 
 	val := action.Payload.(actions.AddMessageAction)
 	logger.Info("AddMessageExecutor", "Role", val.Msg.Role, "Content", val.Msg.Content)
 
 	e.conversation.AddMessage(val.Msg)
-	return []actions.Action{actions.NewLLMRequestAction("foo").WithParent(&action)}, nil
+	return action, []actions.Action{actions.NewLLMRequestAction("foo").WithParent(&action)}, nil
 }
