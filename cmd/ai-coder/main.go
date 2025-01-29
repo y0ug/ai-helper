@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -19,9 +19,8 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/prompt/prompts"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
-	"github.com/y0ug/ai-helper/internal/consolecoder"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/filemanager"
-	"github.com/y0ug/ai-helper/internal/webapi"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmhaven"
@@ -118,7 +117,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	h := highlighter.NewHighlighter(os.Stdout)
+	_ = highlighter.NewHighlighter(os.Stdout)
 	coderSettings := settings.NewCoderSettings(modelCoder)
 
 	// Capture Ctrl-C (SIGINT)
@@ -126,6 +125,8 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	eventBus := eventbus.GetEventBus()
+
+	ui := ui.NewCliUI(eventBus)
 
 	coderOpts := assistant.AssistantOptions{
 		Logger:      logger,
@@ -135,28 +136,48 @@ func main() {
 		Settings:    coderSettings,
 		Stream:      true,
 		EventBus:    eventBus,
-		// Uim:          uim,
+		UI:          ui,
 	}
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
-	// Create and start web server
-	server := webapi.NewWebServer(coder, eventBus)
-
-	go func() {
-		if err := server.Start(":8080"); err != nil {
-			log.Printf("Server error: %v", err)
-			os.Exit(1)
-		}
-	}()
+	// // Create and start web server
+	// server := webapi.NewWebServer(coder, eventBus)
+	//
+	// go func() {
+	// 	if err := server.Start(":8080"); err != nil {
+	// 		log.Printf("Server error: %v", err)
+	// 		os.Exit(1)
+	// 	}
+	// }()
 
 	go func() {
 		<-sigChan
 		fmt.Println("\nReceived interrupt signal, shutting down...")
 		eventBus.Publish(eventbus.NewEvent(eventbus.EventShutdown, nil))
 		// Shut down or let it process the event?
-		server.Shutdown()
+		// server.Shutdown()
 	}()
 
-	console := consolecoder.New(coder, h, eventBus)
-	console.Run()
+	startCLI(ctx, coder)
+	// console := consolecoder.New(coder, h, eventBus)
+	// console.Run()
+}
+
+func startCLI(ctx context.Context, orchestrator *assistant.AssistantOrchestrator) {
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("> ")
+		if !scanner.Scan() {
+			break
+		}
+		input := scanner.Text()
+		orchestrator.HandleInputEvent(
+			ctx,
+			eventbus.NewEvent(
+				eventbus.EventInput,
+				eventbus.UserInput{Source: "console", Content: input},
+			),
+		)
+
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
@@ -32,6 +33,7 @@ type AssistantOptions struct {
 	Settings    *settings.CoderSettings
 	Stream      bool
 	EventBus    *eventbus.EventBus
+	UI          ui.UserInterface
 }
 
 type AssistantOrchestrator struct {
@@ -46,6 +48,8 @@ type AssistantOrchestrator struct {
 	status        *ui.StatusManager
 	conversation  *conversation.ConversationManager
 	llmTools      []chat.Tool
+	ui            ui.UserInterface
+	mu            sync.Mutex
 }
 
 func NewFromPrompts(logger *slog.Logger, pts prompts.Prompter) (results []extractors.Extractor) {
@@ -69,6 +73,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		rm:       opts.RepoManager,
 		logger:   opts.Logger,
 		settings: opts.Settings,
+		ui:       opts.UI,
 		// history:   history,
 		// formatter: formatter,
 		metrics:  metricsTracker,
@@ -81,7 +86,7 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 	outputChan := make(chan string)
 	go func() {
 		for content := range outputChan {
-			c.eventBus.Publish(eventbus.NewEvent(eventbus.EventOutput, content))
+			c.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, content))
 		}
 	}()
 
@@ -128,8 +133,8 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		}
 	}
 
-	registry := executors.NewRegistryFull(opts.Logger, c.rm, validator, cm, c.extractors,
-		c.SendMessage, c.eventBus)
+	registry := executors.NewRegistryFull(opts.Logger, c.rm, validator, cm, exts,
+		c.SendMessage, c.eventBus, c.ui)
 	c.actionManager = actions.NewActionManager(opts.Logger)
 	pipeline := NewPipeline(
 		opts.Logger,
@@ -166,18 +171,18 @@ func (c *AssistantOrchestrator) registerEventHandlers() {
 		for event := range sub {
 			switch event.Type {
 			case eventbus.EventInput:
-				c.handleInputEvent(ctx, event)
+				c.HandleInputEvent(ctx, event)
 			case eventbus.EventAddFile:
-				c.handleAddFileEvent(ctx, event)
+				c.HandleAddFileEvent(ctx, event)
 			case eventbus.EventRemoveFile:
-				c.handleRemoveFileEvent(ctx, event)
+				c.HandleRemoveFileEvent(ctx, event)
 			case eventbus.EventShutdown:
 			}
 		}
 	}()
 }
 
-func (c *AssistantOrchestrator) handleInputEvent(ctx context.Context, event eventbus.Event) {
+func (c *AssistantOrchestrator) HandleInputEvent(ctx context.Context, event eventbus.Event) {
 	input, ok := event.Payload.(eventbus.UserInput)
 	if !ok {
 		c.logger.Error("Invalid input event payload")
@@ -188,7 +193,14 @@ func (c *AssistantOrchestrator) handleInputEvent(ctx context.Context, event even
 	err := c.Run(ctx, input.Content)
 	if err != nil {
 		c.logger.Error("Error processing input", "error", err)
-		c.eventBus.Publish(eventbus.NewEvent(
+		c.ui.Publish(eventbus.NewEvent(
+			eventbus.EventError,
+			map[string]interface{}{
+				"error":   err,
+				"context": "input_processing",
+			},
+		))
+		c.ui.Error(eventbus.NewEvent(
 			eventbus.EventError,
 			map[string]interface{}{
 				"error":   err,
@@ -198,7 +210,7 @@ func (c *AssistantOrchestrator) handleInputEvent(ctx context.Context, event even
 	}
 }
 
-func (c *AssistantOrchestrator) handleAddFileEvent(ctx context.Context, event eventbus.Event) {
+func (c *AssistantOrchestrator) HandleAddFileEvent(ctx context.Context, event eventbus.Event) {
 	payload, ok := event.Payload.(eventbus.FileOperation)
 	if !ok {
 		c.logger.Error("Invalid payload for AddFile event")
@@ -214,7 +226,7 @@ func (c *AssistantOrchestrator) RemoveFiles(ctx context.Context, filesname ...st
 		err := c.rm.GetFM().Remove(file)
 		if err != nil {
 			c.logger.Error("Error adding file", "file", file, "error", err)
-			c.eventBus.Publish(eventbus.NewEvent(
+			c.ui.Error(eventbus.NewEvent(
 				eventbus.EventError,
 				map[string]interface{}{
 					"error":   err,
@@ -226,13 +238,12 @@ func (c *AssistantOrchestrator) RemoveFiles(ctx context.Context, filesname ...st
 			files = append(files, file)
 		}
 	}
-	c.eventBus.Publish(
-		eventbus.NewEvent(
-			eventbus.EventFileNotification,
-			eventbus.FileOperation{
-				Type:  eventbus.FileOperationTypeRemove,
-				Files: files,
-			}))
+	c.ui.Publish(eventbus.NewEvent(
+		eventbus.EventFileNotification,
+		eventbus.FileOperation{
+			Type:  eventbus.FileOperationTypeRemove,
+			Files: files,
+		}))
 }
 
 func (c *AssistantOrchestrator) AddFiles(ctx context.Context, readOnly bool, filesname ...string) {
@@ -241,7 +252,7 @@ func (c *AssistantOrchestrator) AddFiles(ctx context.Context, readOnly bool, fil
 		err := c.rm.GetFM().Add(file, readOnly)
 		if err != nil {
 			c.logger.Error("Error adding file", "file", file, "error", err)
-			c.eventBus.Publish(eventbus.NewEvent(
+			c.ui.Publish(eventbus.NewEvent(
 				eventbus.EventError,
 				map[string]interface{}{
 					"error":   err,
@@ -253,7 +264,7 @@ func (c *AssistantOrchestrator) AddFiles(ctx context.Context, readOnly bool, fil
 			files = append(files, file)
 		}
 	}
-	c.eventBus.Publish(
+	c.ui.Publish(
 		eventbus.NewEvent(
 			eventbus.EventFileNotification,
 			eventbus.FileOperation{
@@ -263,7 +274,7 @@ func (c *AssistantOrchestrator) AddFiles(ctx context.Context, readOnly bool, fil
 			}))
 }
 
-func (c *AssistantOrchestrator) handleRemoveFileEvent(ctx context.Context, event eventbus.Event) {
+func (c *AssistantOrchestrator) HandleRemoveFileEvent(ctx context.Context, event eventbus.Event) {
 	payload, ok := event.Payload.(eventbus.FileOperation)
 	if !ok {
 		c.logger.Error("Invalid payload for RemoveFile event")

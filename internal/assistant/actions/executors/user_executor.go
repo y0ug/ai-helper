@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 )
 
 type UserInteractionExecutor struct {
@@ -18,6 +19,7 @@ type UserInteractionExecutor struct {
 	timeout         time.Duration
 	eventBus        *eventbus.EventBus
 	responseChan    chan actions.UserResponseAction
+	ui              ui.UserInterface
 }
 
 type PendingRequest struct {
@@ -29,6 +31,7 @@ type PendingRequest struct {
 func NewUserInteractionExecutor(
 	logger *slog.Logger,
 	eventBus *eventbus.EventBus,
+	ui ui.UserInterface,
 ) *UserInteractionExecutor {
 	e := &UserInteractionExecutor{
 		logger:       logger,

@@ -9,6 +9,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
+	"github.com/y0ug/ai-helper/internal/assistant/ui"
 	"github.com/y0ug/ai-helper/internal/assistant/validation"
 )
 
@@ -52,6 +53,7 @@ func NewRegistryFull(
 	extractors []extractors.Extractor,
 	sendMessage Processor[actions.Action],
 	eventBus *eventbus.EventBus,
+	ui ui.UserInterface,
 ) *Registry {
 	registry := &Registry{
 		handlers: make([]ActionHandler, 0),
@@ -63,7 +65,7 @@ func NewRegistryFull(
 	))
 	registry.Register(NewEditExecutor(repo, validator, logger))
 	registry.Register(NewCommitExecutor(repo))
-	registry.Register(NewUserInteractionExecutor(logger, eventBus))
+	registry.Register(NewUserInteractionExecutor(logger, eventBus, ui))
 	registry.Register(NewLogExecutor())
 	registry.Register(NewAddMessageExecutor(converstation))
 	registry.Register(NewExtractorExecutor(logger, extractors))
