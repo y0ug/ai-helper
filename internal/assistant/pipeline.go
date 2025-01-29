@@ -61,6 +61,15 @@ func (p *Pipeline) processSingleAction(
 		p.logger.Error("Error handling action", "error", err, "context", action)
 	}
 
+	if action.Result == nil {
+		action.Result = &actions.ActionResult{}
+		action.Result.Success = true
+		if err != nil {
+			action.Result.Error = err
+			action.Result.Success = false
+		}
+	}
+
 	// Update the action results
 	p.actionManager.RegisterAction(action)
 

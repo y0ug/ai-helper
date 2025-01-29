@@ -136,7 +136,7 @@ func (m *ActionManager) DumpActionChainTree(chainID uuid.UUID) string {
 func (m *ActionManager) dumpNodeRec(node *ActionNode, depth int, sb *strings.Builder) {
 	indent := strings.Repeat("  ", depth)
 	status := " "
-	if node.Action.Completed {
+	if node.Action.Result != nil && node.Action.Result.Success {
 		status = "✓ "
 	}
 

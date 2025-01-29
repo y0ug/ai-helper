@@ -347,8 +347,8 @@ func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error
 	// Build current messages to put it in the requests
 	promptText := promptChunk.ToMarkdown("Current", promptChunk.AllMessages())
 
-	fmt.Println(promptChunk.ToMarkdown("Done", promptChunk.Done))
-	fmt.Println(promptChunk.ToMarkdown("Current", promptChunk.Cur))
+	// fmt.Println(promptChunk.ToMarkdown("Done", promptChunk.Done))
+	// fmt.Println(promptChunk.ToMarkdown("Current", promptChunk.Cur))
 
 	// Create and register a new LLmRequestAction
 	llmReqAction := actions.NewLLMRequestAction(promptText)
@@ -363,7 +363,6 @@ func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error
 
 	a.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, fullDiff))
 
-	a.logger.Info("Turn summary generated", "summary", summary)
 	return nil
 }
 
@@ -395,7 +394,7 @@ func (c *AssistantOrchestrator) SendMessage(
 			c.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, resp.Choice[0].Content[0].Text))
 		}
 	}
-	c.logger.Info("metrics", "total", c.metrics, "resp", resp.ToMessageParams())
+	// c.logger.Info("metrics", "total", c.metrics, "resp", resp.ToMessageParams())
 
 	results = append(results, actions.NewLLMResponseAction(*resp).WithParent(&action))
 	return

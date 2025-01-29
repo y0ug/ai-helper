@@ -33,12 +33,20 @@ type ActionContext struct {
 	CreatedAt  time.Time
 }
 
+type ActionResult struct {
+	Success  bool
+	Output   string
+	Error    error
+	Metadata map[string]interface{}
+	Payload  interface{}
+}
+
 type Action struct {
-	ID        uuid.UUID
-	Type      ActionType
-	Payload   interface{}
-	Context   ActionContext
-	Completed bool
+	ID      uuid.UUID
+	Type    ActionType
+	Payload interface{}
+	Context ActionContext
+	Result  *ActionResult
 }
 
 func (a *Action) IsToolCall() bool {
@@ -99,6 +107,7 @@ type UserResponseAction struct {
 
 type CommitAction struct {
 	Message string
+	Hash    string
 }
 
 type LogAction struct {
@@ -108,7 +117,7 @@ type LogAction struct {
 func (a Action) String() string {
 	// Add indication of completion status
 	status := ""
-	if a.Completed {
+	if a.Result != nil && a.Result.Success {
 		status = "✓ "
 	}
 	switch v := a.Payload.(type) {

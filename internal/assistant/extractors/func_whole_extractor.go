@@ -65,7 +65,6 @@ func (c *FuncWholeFileExtractor) WriteFileHandler(
 	ctx context.Context,
 	input WriteFileInput,
 ) (actions.Action, error) {
-	c.logger.Debug("WriteFileHandler", "Explanation", input.Explanation)
 	action := actions.NewApplyEdit(input.Filename, "", input.Content)
 	return action, nil
 }
@@ -87,7 +86,6 @@ func (c *FuncWholeFileExtractor) Extract(
 					Edit:       action.Payload.(actions.FileEditAction),
 					ToolCallID: content.ID, // Preserve the tool_call_id
 				})
-				c.logger.Info("Tool call processed", "action", batchEdits)
 			}
 		}
 	}
@@ -123,9 +121,6 @@ func (tp *FuncWholeFileExtractor) processToolCall(
 
 	action, err := tool.ExecuteTyped(ctx, content.Input)
 	if err != nil {
-		logger.Error("Error executing tool",
-			"error", err,
-			"name", content.Name)
 		return null, fmt.Errorf("error executing tool: %w", err)
 	}
 

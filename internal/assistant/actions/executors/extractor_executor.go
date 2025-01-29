@@ -34,11 +34,9 @@ func (s *ExtractorExecutor) Handle(
 ) (actionResult actions.Action, results []actions.Action, err error) {
 	a := action.Payload.(actions.ActionExtractor)
 
-	logger := actions.GetLogger(ctx)
-	logger.Info("Extracting", "action", a)
+	// logger := actions.GetLogger(ctx)
 
 	for _, e := range s.extractors {
-		logger.Info("Extracting", "extractor", e.Name())
 		// TODO: We should pass the CTX
 		r, err2 := e.Extract(&a.Msg)
 		if err2 != nil {

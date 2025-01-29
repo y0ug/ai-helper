@@ -71,7 +71,7 @@ func (e *LLMResponseExecutor) Handle(
 		e.conversation.SetTurn(choice.StopReason)
 	}
 
-	logger.Info(
+	logger.Debug(
 		"End Processing response",
 		"stop",
 		choice.StopReason,

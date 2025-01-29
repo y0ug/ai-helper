@@ -108,20 +108,5 @@ func (c *Client) processResponse(resp *chat.ChatResponse) (*chat.ChatResponse, e
 		return nil, fmt.Errorf("error converting response to message params, no choice")
 	}
 
-	c.logger.Debug("msg", "role", msgParams.Role, "content", msgParams.Content)
-
-	c.logger.Info(
-		"usage",
-		"input_tokens",
-		resp.Usage.InputTokens,
-		"output_tokens",
-		resp.Usage.OutputTokens,
-		"input_cached_tokens",
-		resp.Usage.InputCachedTokens,
-		"input_cache_creation_tokens",
-		resp.Usage.InputCacheCreationTokens,
-		"output_reasoning_tokens",
-		resp.Usage.OutputReasoningTokens,
-	)
 	return resp, nil
 }

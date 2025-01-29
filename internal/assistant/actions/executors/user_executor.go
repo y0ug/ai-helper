@@ -157,7 +157,7 @@ func (e *UserInteractionExecutor) cleanupRoutine() {
 			req := value.(*PendingRequest)
 			if time.Since(req.ReceivedAt) > e.timeout {
 				e.pendingRequests.Delete(key)
-				e.logger.Warn("Cleaned up expired request",
+				e.logger.Debug("Cleaned up expired request",
 					"age", time.Since(req.ReceivedAt),
 					"action_id", req.OriginalAction.ID,
 				)
