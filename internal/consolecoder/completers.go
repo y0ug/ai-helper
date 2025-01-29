@@ -113,7 +113,7 @@ func (c *Console) getConfirmSuggestions(pattern string) []prompt.Suggest {
 }
 
 func (c *Console) getFileManagerSuggestions(pattern string) []prompt.Suggest {
-	filesInCtx := c.coder.GetRM().GetFM().List(0)
+	filesInCtx := c.coder.GetRM().ListFiles(0)
 	pattern = strings.ToLower(pattern)
 
 	suggestions := make([]prompt.Suggest, 0)

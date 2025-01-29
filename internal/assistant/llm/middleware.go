@@ -15,6 +15,7 @@ type ChatCompleter interface {
 		ctx context.Context,
 		messages []*chat.ChatMessage,
 		tools []chat.Tool,
+		opts ...func(*Params),
 	) (*chat.ChatResponse, error)
 }
 
@@ -26,8 +27,9 @@ func (w *wrappedChatCompleter) SendMessages(
 	ctx context.Context,
 	messages []*chat.ChatMessage,
 	tools []chat.Tool,
+	opts ...func(*Params),
 ) (*chat.ChatResponse, error) {
-	return w.next.SendMessages(ctx, messages, tools)
+	return w.next.SendMessages(ctx, messages, tools, opts...)
 }
 
 func WithMiddleware(client ChatCompleter, middlewares ...Middleware) ChatCompleter {
@@ -62,8 +64,9 @@ func (d *debugChatCompleter) SendMessages(
 	ctx context.Context,
 	messages []*chat.ChatMessage,
 	tools []chat.Tool,
+	opts ...func(*Params),
 ) (*chat.ChatResponse, error) {
-	resp, err := d.next.SendMessages(ctx, messages, tools)
+	resp, err := d.next.SendMessages(ctx, messages, tools, opts...)
 
 	if resp != nil {
 		for _, msg := range messages {
@@ -98,10 +101,11 @@ func (m *metricsChatCompleter) SendMessages(
 	ctx context.Context,
 	messages []*chat.ChatMessage,
 	tools []chat.Tool,
+	opts ...func(*Params),
 ) (*chat.ChatResponse, error) {
 	start := time.Now()
 
-	resp, err := m.next.SendMessages(ctx, messages, tools)
+	resp, err := m.next.SendMessages(ctx, messages, tools, opts...)
 	if resp != nil {
 		m.recorder.RecordRequest(ctx, resp, time.Since(start))
 	}
@@ -129,11 +133,12 @@ func (m *loggingChatCompleter) SendMessages(
 	ctx context.Context,
 	messages []*chat.ChatMessage,
 	tools []chat.Tool,
+	opts ...func(*Params),
 ) (*chat.ChatResponse, error) {
 	start := time.Now()
 
 	m.logger.Debug("request", "messages", len(messages), "tools", len(tools))
-	resp, err := m.next.SendMessages(ctx, messages, tools)
+	resp, err := m.next.SendMessages(ctx, messages, tools, opts...)
 
 	logger := m.logger.With("duration", time.Since(start))
 	logAttrs := []slog.Attr{}

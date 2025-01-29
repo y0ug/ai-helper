@@ -3,7 +3,6 @@ package settings
 import (
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
 	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
-	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 )
 
 type CoderSettings struct {
@@ -23,6 +22,7 @@ type CoderSettings struct {
 	isGit          bool
 	fence          extractors.Fence
 	rootPath       string
+	stream         bool
 }
 
 func NewCoderSettings(mainModel *models.Model) *CoderSettings {
@@ -34,6 +34,7 @@ func NewCoderSettings(mainModel *models.Model) *CoderSettings {
 		maxOutputToken:       4096,
 		lintCommands:         map[string]string{},
 		suggestShellCommands: true,
+		stream:               true,
 	}
 }
 
@@ -47,6 +48,10 @@ func (s *CoderSettings) SetMaxOutputToken(val int) {
 			}
 		}
 	}
+}
+
+func (s *CoderSettings) Stream() bool {
+	return s.stream
 }
 
 func (s *CoderSettings) MainModel() *models.Model {
@@ -88,9 +93,6 @@ func (c *CoderSettings) GetTemplateData() map[string]interface{} {
 	}
 }
 
-func (s *CoderSettings) Update(rm repomanager.RepoManagerInterface) {
-	s.isGit = rm.GetGit() != nil
-	s.rootPath = rm.GetRoot()
+func (s *CoderSettings) Update(isGit bool, root string, fence [2]string) {
 	s.platformInfo = s.getPlatformInfo()
-	s.fence = rm.GetFence()
 }

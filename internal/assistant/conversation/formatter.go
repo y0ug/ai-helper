@@ -21,7 +21,8 @@ type PromptFormatter struct {
 
 func (mf *PromptFormatter) FormatMessages(history *ChatHistory) *PromptChunks {
 	mf.rm.ChooseFence()
-	mf.settings.Update(mf.rm)
+
+	mf.settings.Update(mf.rm.GetGit() != nil, mf.rm.GetRoot(), mf.rm.GetFence())
 	chunks := &PromptChunks{}
 
 	// Add system messages
@@ -156,7 +157,7 @@ func (mf *PromptFormatter) GetReadOnlyFilesMessages() []*chat.ChatMessage {
 }
 
 func (mf *PromptFormatter) GetChatFilesMessages() []*chat.ChatMessage {
-	if len(mf.rm.GetFM().List(0)) == 0 {
+	if len(mf.rm.ListFiles(0)) == 0 {
 		if mf.rm.GetRepoMap() != "" && mf.prompts.GetFilesNoFullFilesWithRepoMap() != "" {
 			return []*chat.ChatMessage{
 				chat.NewMessage(

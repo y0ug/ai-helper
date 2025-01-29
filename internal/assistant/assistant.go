@@ -60,6 +60,7 @@ type AssistantOrchestrator struct {
 	llmTools      []chat.Tool
 	ui            ui.UserInterface
 	mu            sync.Mutex
+	outputChan    chan string
 }
 
 func NewFromPrompts(logger *slog.Logger, pts prompts.Prompter) (results []extractors.Extractor) {
@@ -93,20 +94,14 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 
 	c.registerEventHandlers()
 
-	outputChan := make(chan string)
-	go func() {
-		for content := range outputChan {
-			c.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, content))
-		}
-	}()
-
-	// Stream processor for the LLMClient wrapper
-	var streamProcessor *llm.StreamProcessor
-	if opts.Stream {
-		streamProcessor = llm.NewStreamProcessor(
-			outputChan,
-			opts.Logger,
-		)
+	if c.settings.Stream() {
+		c.outputChan = make(chan string)
+		// TODO: closed it on shutdown
+		go func() {
+			for content := range c.outputChan {
+				c.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, content))
+			}
+		}()
 	}
 
 	// ConversationManager
@@ -120,7 +115,6 @@ func NewAssistantOrchestrator(opts AssistantOptions) *AssistantOrchestrator {
 		opts.LlmClient,
 		opts.Settings,
 		opts.Logger,
-		streamProcessor,
 		metricsTracker,
 	)
 
@@ -233,7 +227,7 @@ func (c *AssistantOrchestrator) AddFileEvent(ctx context.Context, event eventbus
 func (c *AssistantOrchestrator) RemoveFiles(ctx context.Context, filesname ...string) {
 	files := make([]string, 0)
 	for _, file := range filesname {
-		err := c.rm.GetFM().Remove(file)
+		err := c.rm.RemoveFiles(file)
 		if err != nil {
 			c.logger.Error("Error adding file", "file", file, "error", err)
 			c.ui.Error(eventbus.NewEvent(
@@ -257,29 +251,25 @@ func (c *AssistantOrchestrator) RemoveFiles(ctx context.Context, filesname ...st
 }
 
 func (c *AssistantOrchestrator) AddFiles(ctx context.Context, readOnly bool, filesname ...string) {
-	files := make([]string, 0)
-	for _, file := range filesname {
-		err := c.rm.GetFM().Add(file, readOnly)
-		if err != nil {
-			c.logger.Error("Error adding file", "file", file, "error", err)
-			c.ui.Publish(eventbus.NewEvent(
-				eventbus.EventError,
-				map[string]interface{}{
-					"error":   err,
-					"context": "add_file",
-					"file":    file,
-				},
-			))
-		} else {
-			files = append(files, file)
-		}
+	err := c.rm.AddFiles(readOnly, filesname...)
+	if err != nil {
+		c.logger.Error("Error adding files", "files", filesname, "error", err)
+		c.ui.Publish(eventbus.NewEvent(
+			eventbus.EventError,
+			map[string]interface{}{
+				"error":   err,
+				"context": "add_file",
+				"file":    filesname,
+			},
+		))
+		return
 	}
 	c.ui.Publish(
 		eventbus.NewEvent(
 			eventbus.EventFileNotification,
 			eventbus.FileOperation{
 				Type:     eventbus.FileOperationTypeAdd,
-				Files:    files,
+				Files:    filesname,
 				ReadOnly: readOnly,
 			}))
 }
@@ -338,6 +328,10 @@ func (c *AssistantOrchestrator) GetRM() repomanager.RepoManagerInterface {
 }
 
 func (a *AssistantOrchestrator) Run(ctx context.Context, userInput string) error {
+	if err := a.rm.ValidateGitState(true, a.llm.SendMessages); err != nil {
+		a.logger.Error("Invalid git state", "error", err)
+		// auto commit
+	}
 	// 1. Start a new turn
 	a.conversation.StartTurn()
 
@@ -375,9 +369,24 @@ func (c *AssistantOrchestrator) SendMessage(
 
 	promptChunk := c.conversation.BuildPrompt()
 
-	resp, err := c.llm.SendMessages(ctx, promptChunk.AllMessages(), c.llmTools)
+	opts := []func(*llm.Params){}
+	if c.settings.Stream() {
+		streamProcessor := llm.NewStreamProcessor(
+			c.outputChan,
+			c.logger,
+		)
+		opts = append(opts, llm.WithStream(true), llm.WithStreamProcessor(streamProcessor))
+	}
+	resp, err := c.llm.SendMessages(ctx, promptChunk.AllMessages(), c.llmTools, opts...)
 	if err != nil {
 		return results, fmt.Errorf("error sending messages: %w", err)
+	}
+
+	if !c.settings.Stream() {
+		if len(resp.Choice) > 0 && len(resp.Choice[0].Content) > 0 &&
+			resp.Choice[0].Content[0].Type == chat.ContentTypeText {
+			c.ui.Publish(eventbus.NewEvent(eventbus.EventOutput, resp.Choice[0].Content[0].Text))
+		}
 	}
 	c.logger.Info("metrics", "total", c.metrics, "resp", resp.ToMessageParams())
 

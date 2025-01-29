@@ -273,7 +273,7 @@ func (s *WebServer) handleRemoveFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *WebServer) handleListFiles(w http.ResponseWriter, r *http.Request) {
-	files := s.assistant.GetRM().GetFM().List(0)
+	files := s.assistant.GetRM().ListFiles(0)
 	json.NewEncoder(w).Encode(files)
 }
 

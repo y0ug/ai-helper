@@ -1,5 +1,20 @@
 package chat
 
+// NewChatParams
+func NewChatParams(
+	opts ...func(*ChatParams),
+) *ChatParams {
+	p := &ChatParams{}
+	p.Update(opts...)
+	return p
+}
+
+func (p *ChatParams) Update(opts ...func(*ChatParams)) {
+	for _, opt := range opts {
+		opt(p)
+	}
+}
+
 // WithModel sets the model for BaseChatMessageNewParams
 func WithModel(model string) func(*ChatParams) {
 	return func(p *ChatParams) {
@@ -50,15 +65,4 @@ func NewSystemMessage(text string) *ChatMessage {
 
 func NewUserMessage(text string) *ChatMessage {
 	return NewMessage("user", NewTextContent(text))
-}
-
-// NewChatParams creates a new BaseChatMessageNewParams with the given options
-func NewChatParams(
-	opts ...func(*ChatParams),
-) *ChatParams {
-	params := &ChatParams{}
-	for _, opt := range opts {
-		opt(params)
-	}
-	return params
 }

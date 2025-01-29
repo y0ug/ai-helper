@@ -9,48 +9,58 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
+type Completion func(ctx context.Context, messages []*chat.ChatMessage, tools []chat.Tool) (*chat.ChatResponse, error)
+
 type Client struct {
-	client    chat.Provider
-	settings  *settings.CoderSettings
-	logger    *slog.Logger
-	processor *StreamProcessor
+	client   chat.Provider
+	settings *settings.CoderSettings
+	logger   *slog.Logger
 }
 
 func New(
 	client chat.Provider,
 	settings *settings.CoderSettings,
 	logger *slog.Logger,
-	processor *StreamProcessor,
 	metrics MetricsRecorder,
 ) ChatCompleter {
 	c := &Client{
-		client:    client,
-		settings:  settings,
-		logger:    logger,
-		processor: processor,
+		client:   client,
+		settings: settings,
+		logger:   logger,
 	}
 
 	return WithMiddleware(c, MetricsMiddleware(metrics))
+}
+
+func CombineOptions[T any](opts ...func(*T)) []func(*T) {
+	return opts
 }
 
 func (c *Client) SendMessages(
 	ctx context.Context,
 	messages []*chat.ChatMessage,
 	tools []chat.Tool,
+	opts ...func(*Params),
 ) (*chat.ChatResponse, error) {
-	chatParams := chat.NewChatParams(
+	chatOpts := WithChatParams(
 		chat.WithMaxTokens(c.settings.GetMaxOutputToken()),
 		chat.WithModel(c.settings.GetModelName()),
 		chat.WithMessages(messages...),
 		chat.WithTools(tools...))
 
+	// Opts can overide the default one
+	params := NewParams(append([]func(*Params){
+		chatOpts,
+		WithStream(false),
+	}, opts...)...)
+
 	fn := c.handleNonStreamingResponse
 
-	if c.processor != nil && c.processor.HasWriter() {
+	if params.Stream && params.StreamProcessor != nil && params.StreamProcessor.HasWriter() {
 		fn = c.handleStreamingResponse
 	}
 
-	resp, err := fn(ctx, chatParams)
+	resp, err := fn(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -60,9 +70,9 @@ func (c *Client) SendMessages(
 
 func (c *Client) handleNonStreamingResponse(
 	ctx context.Context,
-	chatParams *chat.ChatParams,
+	params *Params,
 ) (*chat.ChatResponse, error) {
-	resp, err := c.client.Send(ctx, *chatParams)
+	resp, err := c.client.Send(ctx, *params.ChatParams)
 	if err != nil {
 		return nil, fmt.Errorf("error chatting: %w", err)
 	}
@@ -72,14 +82,14 @@ func (c *Client) handleNonStreamingResponse(
 
 func (c *Client) handleStreamingResponse(
 	ctx context.Context,
-	chatParams *chat.ChatParams,
+	params *Params,
 ) (*chat.ChatResponse, error) {
-	respChan, err := c.client.Stream(ctx, *chatParams)
+	respChan, err := c.client.Stream(ctx, *params.ChatParams)
 	if err != nil {
 		return nil, fmt.Errorf("error streaming response: %w", err)
 	}
 
-	resp, err := c.processor.ProcessStream(ctx, respChan)
+	resp, err := params.StreamProcessor.ProcessStream(ctx, respChan)
 	if err != nil {
 		return nil, fmt.Errorf("error processing stream: %w", err)
 	}

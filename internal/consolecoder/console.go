@@ -243,7 +243,7 @@ func (c *Console) handleRemoveFile(args []string) {
 }
 
 func (c *Console) handleListFiles(args []string) {
-	files := c.coder.GetRM().GetFM().List(0)
+	files := c.coder.GetRM().ListFiles(0)
 	if len(files) == 0 {
 		fmt.Println("No files currently attached")
 		return

@@ -1,6 +1,7 @@
 package repomanager
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -8,10 +9,15 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/assistant/actions"
 	"github.com/y0ug/ai-helper/internal/assistant/extractors"
+	"github.com/y0ug/ai-helper/internal/assistant/llm"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
+
+type Completion func(ctx context.Context,
+	messages []*chat.ChatMessage, tools []chat.Tool,
+	opts ...func(*llm.Params)) (*chat.ChatResponse, error)
 
 // Fence represents a pair of opening and closing delimiters for code blocks
 
@@ -22,12 +28,18 @@ type RepoManager struct {
 	fm               filemanager.FileManager
 	git              gitrepo.GitRepoInterface
 	absRootPathCache map[string]string
+	completion       Completion
+}
+type FileGitStatus struct {
+	InGit    bool
+	IsDirty  bool
+	IsStaged bool
 }
 
 var _ RepoManagerInterface = &RepoManager{}
 
 type RepoManagerInterface interface {
-	GetFM() filemanager.FileManager
+	// GetFM() filemanager.FileManager
 	GetGit() gitrepo.GitRepoInterface
 	GetFence() [2]string
 	GetRoot() string
@@ -35,22 +47,28 @@ type RepoManagerInterface interface {
 	GetFilesContent() string
 	GetReadOnlyFilesContent() string
 	GetRepoMap() string
-	Process(*chat.ChatMessage) (ProcessType, []chat.MessageContent, error)
-	ApplyEdit(edits actions.ApplyEdit) error
-}
-type ProcessType string
 
-var (
-	ProcessTypeEdit       ProcessType = "edit"
-	ProcessTypeFuncResult ProcessType = "func-result"
-	ProcessTypeNone       ProcessType = "none"
-)
+	ApplyEdit(edits actions.ApplyEdit) error
+
+	CheckGitStatus(paths []string) (map[string]FileGitStatus, error)
+	ValidateGitState(bool) error
+
+	AddFiles(readOnly bool, filename ...string) error
+	RemoveFiles(file ...string) error
+	WriteFile(path string, newContent string) error
+	GetFile(path string) (string, bool, error)
+	ListFiles(filters filemanager.FileFilters) map[string]*filemanager.FileInfo
+
+	AutoCommit(ctx context.Context) (string, string, error)
+	Commit(message string) error
+}
 
 func NewRepoManager(
 	root string,
 	logger *slog.Logger,
 	fm filemanager.FileManager,
 	git gitrepo.GitRepoInterface,
+	completion Completion,
 ) *RepoManager {
 	return &RepoManager{
 		root:             root,
@@ -58,45 +76,12 @@ func NewRepoManager(
 		fm:               fm,
 		git:              git,
 		absRootPathCache: make(map[string]string),
+		completion:       completion,
 	}
 }
 
 func (c *RepoManager) GetRoot() string {
 	return c.root
-}
-
-func (c *RepoManager) Process(msg *chat.ChatMessage) (ProcessType, []chat.MessageContent, error) {
-	// if c.editSvc == nil {
-	return ProcessTypeNone, nil, nil
-	// }
-
-	// // TODO: set it here or when we ChooseFence
-	// c.editSvc.SetFence(c.fence)
-	//
-	// results, msgs := c.editSvc.Extract(msg)
-	// // if len(msgs) > 0 {
-	// // 	return ProcessTypeEdit, msgs, nil
-	// // }
-	// // if len(results) == 0 {
-	// // 	return ProcessTypeNone, nil, nil
-	// // }
-	// var edits []responseextractor.Edit
-	// for _, result := range results {
-	// 	if result.Edit != nil {
-	// 		edits = append(edits, *result.Edit)
-	// 	}
-	// }
-	//
-	// // err := c.editSvc.ApplyEdits(c.fm, edits, true)
-	// // if err != nil {
-	// // 	return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits dry run %w", err)
-	// // }
-	// err := c.editSvc.ApplyEdits(c.fm, edits, false)
-	// if err != nil {
-	// 	return ProcessTypeNone, nil, fmt.Errorf("failed to apply edits %w", err)
-	// }
-	//
-	// return ProcessTypeNone, msgs, nil
 }
 
 func (c *RepoManager) GetRepoMap() string {
@@ -107,9 +92,9 @@ func (c *RepoManager) GetGit() gitrepo.GitRepoInterface {
 	return c.git
 }
 
-func (c *RepoManager) GetFM() filemanager.FileManager {
-	return c.fm
-}
+// func (c *RepoManager) GetFM() filemanager.FileManager {
+// 	return c.fm
+// }
 
 func (c *RepoManager) GetFence() [2]string {
 	return c.fence
@@ -228,6 +213,145 @@ func (c *RepoManager) GetReadOnlyFilesContent() string {
 	return content
 }
 
+func (gfm *RepoManager) CheckGitStatus(
+	paths []string,
+) (map[string]FileGitStatus, error) {
+	result := make(map[string]FileGitStatus)
+
+	for _, path := range paths {
+		status := FileGitStatus{}
+
+		// Check if file is in git
+		status.InGit = gfm.git.PathInRepo(path)
+
+		// Check if file is dirty
+		status.IsDirty = gfm.git.IsFileDirty(path)
+
+		// Check if file is staged
+		// We can get this from git status porcelain output
+		status.IsStaged = false // TODO: implement proper staging check
+
+		result[path] = status
+	}
+
+	return result, nil
+}
+
+func (c *RepoManager) AddFiles(readOnly bool, files ...string) error {
+	// First check Git status of all files
+	statuses, err := c.CheckGitStatus(files)
+	if err != nil {
+		return fmt.Errorf("failed to check git status: %w", err)
+	}
+
+	// Check if any files need attention
+	var dirtyFiles []string
+	var unversionedFiles []string
+
+	for file, status := range statuses {
+		if !status.InGit {
+			unversionedFiles = append(unversionedFiles, file)
+		}
+		if status.IsDirty || status.IsStaged {
+			dirtyFiles = append(dirtyFiles, file)
+		}
+	}
+
+	// Handle unversioned files
+	if len(unversionedFiles) > 0 {
+		err = fmt.Errorf("files not in git repository: %v", unversionedFiles)
+		c.logger.Warn("AddFiles", "error", err)
+	}
+
+	// Handle dirty/staged files
+	if len(dirtyFiles) > 0 {
+		err = fmt.Errorf("files have uncommitted changes: %v", dirtyFiles)
+		c.logger.Warn("AddFiles", "error", err)
+	}
+
+	// Now we can safely add files to our manager
+	for _, file := range files {
+		if err := c.fm.Add(file, readOnly); err != nil {
+			return fmt.Errorf("failed to add file %s: %w", file, err)
+		}
+	}
+
+	return nil
+}
+
+func (c *RepoManager) RemoveFiles(files ...string) error {
+	for _, file := range files {
+		err := c.fm.Remove(file)
+		if err != nil {
+			c.logger.Warn("error removing file", "filename", file, "error", err)
+		}
+	}
+	return nil
+}
+
+func (c *RepoManager) ListFiles(filters filemanager.FileFilters) map[string]*filemanager.FileInfo {
+	return c.fm.List(filters)
+}
+
+func (c *RepoManager) GetFile(path string) (string, bool, error) {
+	return c.fm.Get(path)
+}
+
+func (c *RepoManager) WriteFile(path string, newContent string) error {
+	return c.fm.Write(path, newContent)
+}
+
+func (c *RepoManager) ValidateGitState(autoCommit bool) error {
+	// Get all files in current conversation scope
+	files := c.fm.List(filemanager.NewFileFilters(filemanager.FilterEditable))
+
+	// Check if we have uncommitted changes
+	needsCommit := false
+	var notInRepo []string
+	var dirtyFiles []string
+
+	for path := range files {
+		// Check if file is in repo
+		if !c.git.PathInRepo(path) {
+			notInRepo = append(notInRepo, path)
+			continue
+		}
+
+		// Check if file has uncommitted changes
+		if c.git.IsFileDirty(path) {
+			dirtyFiles = append(dirtyFiles, path)
+			needsCommit = true
+		}
+	}
+
+	if len(notInRepo) > 0 {
+		return fmt.Errorf("files not in git repository: %v", notInRepo)
+	}
+
+	if needsCommit {
+		// Option 1: Return error asking user to commit
+		// return fmt.Errorf(
+		// 	"uncommitted changes in files: %v. Please commit changes before proceeding",
+		// 	dirtyFiles,
+		// )
+		c.logger.Info(
+			"uncommitted changes in files: %v. Please auto-commit",
+			"dirtyFiles",
+			dirtyFiles,
+		)
+		c.AutoCommit(context.Background())
+		// Option 2: Auto-commit changes
+		/*
+		   commitMsg := "Auto-commit before LLM request"
+		   if _, _, err := a.rm.GetRepo().Commit(dirtyFiles, "", commitMsg, false); err != nil {
+		       return fmt.Errorf("failed to auto-commit changes: %w", err)
+		   }
+		*/
+	}
+
+	return nil
+}
+
 func (c *RepoManager) ApplyEdit(edit actions.ApplyEdit) error {
 	content, isEditable, err := c.fm.Get(edit.Filename)
 	if err != nil {
@@ -266,4 +390,75 @@ func (c *RepoManager) ApplyEdit(edit actions.ApplyEdit) error {
 	}
 
 	return nil
+}
+
+func (c *RepoManager) Commit(message string) error {
+	files := c.fm.List(filemanager.NewFileFilters(filemanager.FilterNew))
+	var paths []string
+	for path := range files {
+		paths = append(paths, path)
+	}
+
+	c.logger.Info("committing changes", "files", paths, "message", message)
+	_, _, err := c.git.Commit(paths, "", message, false)
+	if err != nil {
+		return fmt.Errorf("failed to commit changes: %w", err)
+	}
+
+	return nil
+}
+
+func (c *RepoManager) AutoCommit(ctx context.Context) (string, string, error) {
+	files := c.fm.List(filemanager.NewFileFilters(filemanager.FilterNew))
+	var paths []string
+	for path := range files {
+		paths = append(paths, path)
+	}
+
+	// Sending LLM request to get a commit message
+	diffs, err := c.git.GetDiffs(paths)
+	if err != nil {
+		return "", "", fmt.Errorf("getting diffs: %w", err)
+	}
+	commitPrompt := `You are an expert software engineer that generates concise, \
+one-line Git commit messages based on the provided diffs.
+Review the provided context and diffs which are about to be committed to a git repo.
+Review the diffs carefully.
+Generate a one-line commit message for those changes.
+The commit message should be structured as follows: <type>: <description>
+Use these for <type>: fix, feat, build, chore, ci, docs, style, refactor, perf, test
+
+Ensure the commit message:
+- Starts with the appropriate prefix.
+- Is in the imperative mood (e.g., \"Add feature\" not \"Added feature\" or \"Adding feature\").
+- Does not exceed 72 characters.
+
+Reply only with the one-line commit message, without any additional text, explanations, \
+or line breaks.`
+
+	chatMsg := []*chat.ChatMessage{
+		chat.NewMessage("system", chat.NewTextContent(commitPrompt)),
+		chat.NewMessage("user", chat.NewTextContent(diffs)),
+	}
+
+	c.logger.Debug("commit", "diffs", diffs)
+	resp, err := c.completion(ctx, chatMsg, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("error getting response from completion: %w", err)
+	}
+
+	if len(resp.Choice) == 0 {
+		return "", "", fmt.Errorf("no response from completion")
+	}
+
+	commitMsg := resp.Choice[0].Content[0].Text
+
+	c.logger.Info("committing changes", "files", paths, "message", commitMsg)
+	commitHash, msg, err := c.git.Commit(paths, "", commitMsg, true)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to commit changes: %w", err)
+	}
+	c.logger.Info("commit", "hash", commitHash)
+
+	return commitHash, msg, nil
 }

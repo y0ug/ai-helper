@@ -29,9 +29,9 @@ func (e *CommitExecutor) Handle(
 	logger := actions.GetLogger(ctx)
 
 	commit := action.Payload.(actions.CommitAction)
-	logger.Debug("Committing changes", "message", commit.Message)
-
-	if err := e.repo.GetFM().Commit(commit.Message); err != nil {
+	hash, msg, err := e.repo.AutoCommit(ctx)
+	logger.Debug("Committing changes", "message", msg, "hash", hash)
+	if err := e.repo.Commit(commit.Message); err != nil {
 		logger.Error("Commit failed", "error", err)
 		return []actions.Action{
 			actions.NewLogAction(&action, fmt.Sprintf("Commit failed: %v", err)),
