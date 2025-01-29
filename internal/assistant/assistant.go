@@ -24,6 +24,12 @@ import (
 	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
 )
 
+type Assister interface {
+	InputEvent(ctx context.Context, event eventbus.Event) error
+	AddFileEvent(ctx context.Context, event eventbus.Event) error
+	RemoveFileEvent(ctx context.Context, event eventbus.Event) error
+}
+
 type AssistantOptions struct {
 	MainModel   *models.Model
 	RepoManager repomanager.RepoManagerInterface

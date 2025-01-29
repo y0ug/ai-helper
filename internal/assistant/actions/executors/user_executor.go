@@ -38,12 +38,13 @@ func NewUserInteractionExecutor(
 		timeout:      5 * time.Minute,
 		eventBus:     eventBus,
 		responseChan: make(chan actions.UserResponseAction),
+		ui:           ui,
 	}
 
-	sub := eventBus.Subscribe(100)
-	go e.handleEvents(sub)
-
-	// go e.processResponses()
+	if eventBus != nil {
+		sub := eventBus.Subscribe(100)
+		go e.handleEvents(sub)
+	}
 	go e.cleanupRoutine()
 	return e
 }
@@ -74,16 +75,29 @@ func (e *UserInteractionExecutor) Handle(
 		ResponseChan:   responseChan,
 	})
 
-	// Publish confirmation request event
-	e.eventBus.Publish(eventbus.NewEvent(
+	req := eventbus.NewEvent(
 		eventbus.EventUserConfirm,
 		eventbus.UserConfirmRequest{
 			ID:        requestID,
 			Message:   "please confirm the action",
 			Action:    confirmAction.ParentAction,
 			ExpiresAt: expiresAt,
-		},
-	))
+		})
+
+	// Publish confirmation request event
+	if e.eventBus != nil {
+		e.eventBus.Publish(req)
+	} else {
+		response, err := e.ui.RequestConfirmation(req)
+		_, ok := response.Payload.(eventbus.UserResponse)
+		if !ok {
+			return nil, fmt.Errorf("confirmation request failed wrong response %T: %w", response, err)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("confirmation request failed: %w", err)
+		}
+		go e.handleResponse(response)
+	}
 
 	// Wait for response with timeout
 	select {
@@ -111,19 +125,26 @@ func (e *UserInteractionExecutor) Handle(
 	return nil, nil
 }
 
-func (e *UserInteractionExecutor) handleEvents(sub <-chan eventbus.Event) {
-	for event := range sub {
-		if event.Type == eventbus.EventUserResponse {
-			response := event.Payload.(eventbus.UserResponse)
-			if req, ok := e.pendingRequests.Load(response.ID); ok {
-				pendingReq := req.(*PendingRequest)
+func (e *UserInteractionExecutor) handleResponse(event eventbus.Event) {
+	response, ok := event.Payload.(eventbus.UserResponse)
+	if ok {
+		if req, ok := e.pendingRequests.Load(response.ID); ok {
+			if pendingReq, ok := req.(*PendingRequest); ok {
 				// Send response to the waiting Handle function
 				pendingReq.ResponseChan <- actions.UserResponseAction{
 					Allowed: response.Approved,
 					// Input:   response.Input,
 				}
-				e.pendingRequests.Delete(response.ID)
 			}
+			e.pendingRequests.Delete(response.ID)
+		}
+	}
+}
+
+func (e *UserInteractionExecutor) handleEvents(sub <-chan eventbus.Event) {
+	for event := range sub {
+		if event.Type == eventbus.EventUserResponse {
+			e.handleResponse(event)
 		}
 	}
 }

@@ -279,9 +279,11 @@ func (s *WebServer) handleListFiles(w http.ResponseWriter, r *http.Request) {
 
 // WebSocket handling
 type WSClient struct {
-	conn   *websocket.Conn
-	server *WebServer
-	send   chan []byte
+	conn      *websocket.Conn
+	server    *WebServer
+	send      chan []byte
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func (s *WebServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -291,9 +293,11 @@ func (s *WebServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &WSClient{
-		conn:   conn,
-		server: s,
-		send:   make(chan []byte, 256),
+		conn:      conn,
+		server:    s,
+		send:      make(chan []byte, 256),
+		done:      make(chan struct{}),
+		closeOnce: sync.Once{},
 	}
 
 	// Store client
@@ -308,30 +312,44 @@ func (s *WebServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer s.eventBus.Unsubscribe(sub)
 		for event := range sub {
-			// Convert event to JSON and send to client
-			if data, err := json.Marshal(event); err == nil {
-				client.send <- data
+			select {
+			case <-client.done:
+				return
+			default:
+				// Convert event to JSON and send to client
+				if data, err := json.Marshal(event); err == nil {
+					client.send <- data
+				}
 			}
 		}
 	}()
 
 	go func() {
-		fmt.Println("listening for confirmation notifications")
 		// Listen for confirmation notifications
-		for confirmation := range s.confirmationManager.Notifications() {
-			msg := struct {
-				Type    string      `json:"Type"`
-				Payload interface{} `json:"Payload"`
-			}{
-				Type:    "confirmation_request",
-				Payload: confirmation,
-			}
-			fmt.Printf("sending confirmation_request %v\n", msg)
-			if data, err := json.Marshal(msg); err == nil {
-				client.send <- data
+		for {
+			select {
+			case <-client.done:
+				return
+			case confirmation, ok := <-s.confirmationManager.Notifications():
+				if !ok {
+					return
+				}
+				msg := struct {
+					Type    string      `json:"Type"`
+					Payload interface{} `json:"Payload"`
+				}{
+					Type:    "confirmation_request",
+					Payload: confirmation,
+				}
+				if data, err := json.Marshal(msg); err == nil {
+					select {
+					case <-client.done:
+						return
+					case client.send <- data:
+					}
+				}
 			}
 		}
-		fmt.Println("channel closed")
 	}()
 }
 
@@ -339,6 +357,9 @@ func (c *WSClient) writePump() {
 	ticker := time.NewTicker(54 * time.Second)
 	defer func() {
 		ticker.Stop()
+		c.closeOnce.Do(func() {
+			close(c.done)
+		})
 		c.conn.Close()
 		c.server.clients.Delete(c)
 	}()
@@ -377,6 +398,9 @@ func (c *WSClient) writePump() {
 func (c *WSClient) readPump() {
 	defer func() {
 		c.conn.Close()
+		c.closeOnce.Do(func() {
+			close(c.done)
+		})
 		c.server.clients.Delete(c)
 	}()
 

@@ -211,15 +211,15 @@ document.addEventListener('alpine:init', () => {
     async handleModalResponse(approved) {
       if (!this.currentConfirmation) return;
 
+      const response = {
+        type: "user_response",
+        payload: {
+          id: this.currentConfirmation.ID,
+          approved
+        }
+      };
+
       // User response over WS 
-      // const response = {
-      //   type: "user_response",
-      //   payload: {
-      //     id: this.currentConfirmation.ID,
-      //     approved
-      //   }
-      // };
-      //
       // this.ws.send(JSON.stringify(response));
 
 
@@ -231,6 +231,7 @@ document.addEventListener('alpine:init', () => {
           body: JSON.stringify(response.payload),
         });
       } catch (error) {
+        cpnsole.error('Error sending confirmation response:', error);
         this.logEvent(`Error sending confirmation response: ${error}`, 'error');
       }
 

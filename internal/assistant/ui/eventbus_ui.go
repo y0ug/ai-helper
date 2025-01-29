@@ -22,30 +22,30 @@ func (u *EventBusUI) Publish(event eventbus.Event) error {
 
 func (u *EventBusUI) Output(event eventbus.Event) (err error) {
 	u.bus.Publish(event)
-	return nil
+	return
 }
 
 func (u *EventBusUI) Error(event eventbus.Event) (err error) {
 	u.bus.Publish(event)
-	return nil
+	return
 }
 
 func (u *EventBusUI) Status(event eventbus.Event) (err error) {
 	u.bus.Publish(event)
-	return nil
+	return
 }
 
-func (u *EventBusUI) RequestConfirmation(event eventbus.Event) (bool, error) {
+func (u *EventBusUI) RequestConfirmation(event eventbus.Event) (result eventbus.Event, err error) {
 	u.bus.Publish(event)
-	return false, nil
+	return
 }
 
 func (u *EventBusUI) FileNotification(event eventbus.Event) (err error) {
 	u.bus.Publish(event)
-	return nil
+	return
 }
 
 func (u *EventBusUI) Shutdown(event eventbus.Event) (err error) {
 	u.bus.Publish(event)
-	return nil
+	return
 }

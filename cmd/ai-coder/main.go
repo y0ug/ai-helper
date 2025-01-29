@@ -5,10 +5,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,7 +22,9 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/repomanager"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
 	"github.com/y0ug/ai-helper/internal/assistant/ui"
+	"github.com/y0ug/ai-helper/internal/consolecoder"
 	"github.com/y0ug/ai-helper/internal/filemanager"
+	"github.com/y0ug/ai-helper/internal/webapi"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/ai-helper/pkg/llmhaven"
@@ -117,7 +121,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	_ = highlighter.NewHighlighter(os.Stdout)
+	h := highlighter.NewHighlighter(os.Stdout)
 	coderSettings := settings.NewCoderSettings(modelCoder)
 
 	// Capture Ctrl-C (SIGINT)
@@ -126,8 +130,8 @@ func main() {
 
 	eventBus := eventbus.GetEventBus()
 
-	ui := ui.NewCliUI(eventBus)
-
+	// ui := ui.NewCliUI(eventBus)
+	ui := ui.NewEventBusUI(eventBus)
 	coderOpts := assistant.AssistantOptions{
 		Logger:      logger,
 		LlmClient:   llmClient,
@@ -141,14 +145,14 @@ func main() {
 	coder := assistant.NewAssistantOrchestrator(coderOpts)
 
 	// // Create and start web server
-	// server := webapi.NewWebServer(coder, eventBus)
-	//
-	// go func() {
-	// 	if err := server.Start(":8080"); err != nil {
-	// 		log.Printf("Server error: %v", err)
-	// 		os.Exit(1)
-	// 	}
-	// }()
+	server := webapi.NewWebServer(coder, eventBus)
+
+	go func() {
+		if err := server.Start(":8080"); err != nil {
+			log.Printf("Server error: %v", err)
+			os.Exit(1)
+		}
+	}()
 
 	go func() {
 		<-sigChan
@@ -158,9 +162,9 @@ func main() {
 		// server.Shutdown()
 	}()
 
-	startCLI(ctx, coder)
-	// console := consolecoder.New(coder, h, eventBus)
-	// console.Run()
+	// startCLI(ctx, coder)
+	console := consolecoder.New(coder, h, eventBus)
+	console.Run()
 }
 
 func startCLI(ctx context.Context, orchestrator *assistant.AssistantOrchestrator) {
@@ -171,13 +175,28 @@ func startCLI(ctx context.Context, orchestrator *assistant.AssistantOrchestrator
 			break
 		}
 		input := scanner.Text()
-		orchestrator.HandleInputEvent(
-			ctx,
-			eventbus.NewEvent(
-				eventbus.EventInput,
-				eventbus.UserInput{Source: "console", Content: input},
-			),
-		)
-
+		input = strings.Trim(input, " \r\n\t")
+		if input == "" {
+			continue
+		}
+		args := strings.Split(input, " ")
+		switch args[0] {
+		case "/dump":
+			fmt.Println(orchestrator.DumpActionChain())
+		case "/add":
+			files := args[1:]
+			orchestrator.AddFiles(ctx, false, files...)
+		case "/remove":
+			files := args[1:]
+			orchestrator.RemoveFiles(ctx, files...)
+		default:
+			orchestrator.HandleInputEvent(
+				ctx,
+				eventbus.NewEvent(
+					eventbus.EventInput,
+					eventbus.UserInput{Source: "console", Content: input},
+				),
+			)
+		}
 	}
 }

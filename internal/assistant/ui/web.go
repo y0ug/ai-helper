@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/y0ug/ai-helper/internal/assistant/eventbus"
@@ -66,16 +68,34 @@ func (u *WebUI) Status(event eventbus.Event) (err error) {
 	return nil
 }
 
-func (u *WebUI) RequestConfirmation(event eventbus.Event) (bool, error) {
+func (u *WebUI) RequestConfirmation(event eventbus.Event) (response eventbus.Event, err error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	_, ok := event.Payload.(eventbus.UserConfirmRequest)
+	request, ok := event.Payload.(eventbus.UserConfirmRequest)
 	if !ok {
-		return false, fmt.Errorf("invalid payload type")
+		return response, fmt.Errorf("invalid payload type")
 	}
 
 	u.broadcast(event)
-	return false, nil
+
+	responseChan := make(chan bool)
+	defer close(responseChan)
+
+	select {
+	case approved := <-responseChan:
+		response = eventbus.NewEvent(
+			eventbus.EventUserResponse,
+			eventbus.UserResponse{
+				ID:       request.ID,
+				Approved: approved,
+			},
+		)
+		return response, nil
+	case <-time.After(2 * time.Minute):
+		return response, errors.New("confirmation timeout")
+	}
+
+	return
 }
 
 func (u *WebUI) FileNotification(event eventbus.Event) (err error) {
