@@ -163,7 +163,8 @@ func (m *Model) TokenCount(msg ...*chat.ChatMessage) (int, error) {
 		return 0, fmt.Errorf("failed to get tokenizer: %w", err)
 	}
 
-	tokens, _, _ := tokeniz.CountMessage(tkm, true, msg...)
+	counter := tokeniz.TiktokenCounter(tkm)
+	tokens, _, _ := tokeniz.CountMessage(counter, true, msg...)
 	return tokens, nil
 }
 
@@ -188,7 +189,8 @@ func (m *Model) TokenCountRequest(
 		return 0, fmt.Errorf("failed to get tokenizer: %w", err)
 	}
 
-	tokens := tokeniz.TokenCounterOpenAI(tkm, messages, tools, countResponseTokens)
+	counter := tokeniz.TiktokenCounter(tkm)
+	tokens := tokeniz.TokenCounterOpenAI(counter, messages, tools, countResponseTokens)
 	return tokens, nil
 }
 
