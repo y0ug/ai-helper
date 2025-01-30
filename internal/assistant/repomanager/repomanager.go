@@ -13,7 +13,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/assistant/llm"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	"github.com/y0ug/ai-helper/pkg/gitrepo"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 type Completion func(ctx context.Context,

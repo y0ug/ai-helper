@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/y0ug/ai-helper/internal/assistant/llm/models"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 type MetricsBasic struct {

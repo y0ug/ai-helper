@@ -7,7 +7,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/pkoukk/tiktoken-go"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 func TiktokenCounter(tk *tiktoken.Tiktoken) Counter {
@@ -91,15 +91,18 @@ func TokenCounter(
 	tools []chat.Tool,
 	countResponseTokens bool,
 ) (numTokens int) {
-	buf := strings.Builder{}
+	parts := make([]string, 0)
+
 	for _, msg := range messages {
-		buf.WriteString(msg.Role)
+		// if msg.Role != "system" {
+		parts = append(parts, msg.Role)
+		// }
 		for _, content := range msg.Content {
 			switch content.Type {
 			case chat.ContentTypeText:
-				buf.WriteString(content.Text)
+				parts = append(parts, content.Text)
 			case chat.ContentTypeToolResult:
-				buf.WriteString(content.Content)
+				parts = append(parts, content.Content)
 			case chat.ContentTypeToolUse:
 				toolUse := struct {
 					Name      string `json:"name"`
@@ -109,16 +112,18 @@ func TokenCounter(
 					Arguments: string(content.Input),
 				}
 				input, _ := json.Marshal(toolUse)
-				buf.WriteString(string(input))
-				// hasFunctionUse = true
+				parts = append(parts, string(input))
 			}
 		}
 	}
-	for _, tool := range tools {
-		input, _ := json.Marshal(tool)
-		buf.WriteString(string(input))
-	}
-	numTokens = counter(buf.String())
+
+	// for _, tool := range tools {
+	// 	input, _ := json.Marshal(tool)
+	// 	parts = append(parts, string(input))
+	// }
+
+	joined := strings.Join(parts, " ")
+	numTokens = counter(joined) //+ (len(messages) * 2)
 	return
 }
 

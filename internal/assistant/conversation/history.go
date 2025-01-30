@@ -3,7 +3,7 @@ package conversation
 import (
 	"sync"
 
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 type ChatHistory struct {

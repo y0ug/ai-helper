@@ -11,7 +11,7 @@ import (
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/filemanager"
 	ctmg "github.com/y0ug/ai-helper/pkg/conversation/context"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 // ConversationManager handles multi-turn conversations

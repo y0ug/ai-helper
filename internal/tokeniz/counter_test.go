@@ -10,9 +10,10 @@ import (
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/sugarme/tokenizer/pretrained"
 	"github.com/y0ug/ai-helper/internal/middleware"
-	"github.com/y0ug/ai-helper/pkg/llmhaven"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
+	"github.com/y0ug/llmhaven"
+	"github.com/y0ug/llmhaven/chat"
+	"github.com/y0ug/llmhaven/http/options"
+	"github.com/y0ug/llmhaven/providers/anthropic"
 )
 
 type GetCoordinatesInput struct {
@@ -201,6 +202,87 @@ func TestNumTokensFromMessagesAnthropic(t *testing.T) {
 	runTokenTest(t, "anthropic", testCases, TokenCounter)
 }
 
+func TestAnthropicApiCountToken(t *testing.T) {
+	testCases := []struct {
+		name        string
+		model       string
+		messages    []*chat.ChatMessage
+		tools       []chat.Tool
+		description string
+	}{
+		{
+			name:  "SimpleUserMessageSonnet",
+			model: "claude-3-5-sonnet-20241022",
+			messages: []*chat.ChatMessage{
+				// chat.NewSystemMessage("You're a weather expert."),
+				chat.NewUserMessage(
+					"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut finibus, quam sit amet eleifend vehicula, enim mi interdum arcu, at vehicula nulla risus eu neque. Morbi in volutpat metus. Interdum et malesuada fames ac ante ipsum primis in faucibus. In et commodo elit. Cras a fermentum ex. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Maecenas quis aliquam nisl, nec finibus urna. Nam metus nisi, consectetur non finibus ullamcorper, auctor non tortor.",
+				),
+				// chat.NewMessage("assistant", chat.NewTextContent("It's currently sunny in Paris.")),
+				// chat.NewUserMessage("What about tomorrow?"),
+			},
+			tools:       nil,
+			description: "Claude - Simple user message without tools",
+		},
+		{
+			name:  "WithToolsSonnet",
+			model: "claude-3-5-sonnet-20241022",
+			messages: []*chat.ChatMessage{
+				chat.NewUserMessage(
+					"What's the coordinates of 13 calade st come? What the weather in Paris?",
+				),
+			},
+			tools:       genTools(),
+			description: "Claude - With tools",
+		},
+		{
+			name:  "MultiTurnConversationSonnet",
+			model: "claude-3-5-sonnet-20241022",
+			messages: []*chat.ChatMessage{
+				chat.NewSystemMessage("You're a weather expert."),
+				chat.NewUserMessage("What's the weather like in Paris?"),
+				chat.NewMessage("assistant", chat.NewTextContent("It's currently sunny in Paris.")),
+				chat.NewUserMessage("What about tomorrow?"),
+			},
+			tools:       genTools(),
+			description: "Claude - Multi-turn conversation with tools",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := "anthropic"
+			var counter Counter
+			configFile := "anthropic_tokenizer.json"
+			tk, err := pretrained.FromFile(configFile)
+			if err != nil {
+				t.Skipf(
+					"Skipping %s: failed to load Anthropic tokenizer: %v",
+					tc.description,
+					err,
+				)
+				return
+			}
+			counter = TokenizerCounter(tk)
+			localInputTokens := TokenCounter(counter, tc.messages, tc.tools, false)
+
+			apiInputTokens, err := ApiCountToken(
+				context.Background(),
+				provider,
+				tc.model,
+				tc.messages,
+				tc.tools,
+			)
+
+			t.Logf("Local vs API Input Tokens: %d vs %d", localInputTokens, apiInputTokens)
+
+			if err != nil {
+				t.Fatalf("API call failed: %v", err)
+			}
+		})
+	}
+}
+
 // Helper function to run the token tests
 func runTokenTest(t *testing.T, provider string, testCases []struct {
 	name        string
@@ -353,4 +435,42 @@ func ChatCompletion(
 	}
 
 	return resp, nil
+}
+
+func ApiCountToken(
+	ctx context.Context,
+	provider string,
+	model string,
+	msgs []*chat.ChatMessage,
+	tools []chat.Tool,
+) (int64, error) {
+	ctxRequest, cancelFn := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelFn()
+
+	requestOpts := []options.RequestOption{
+		// options.WithMiddleware(middleware.LoggingMiddleware()),
+		// options.WithMiddleware(middleware.TimeitMiddleware(nil)),
+	}
+
+	// modelInfoProvider, _ := modelinfo.New("")
+
+	llm, err := llmhaven.New(provider, requestOpts...)
+	if err != nil {
+		return 0, fmt.Errorf("Failed to create provider: %v", err)
+	}
+
+	params := chat.NewChatParams(
+		chat.WithModel(model),
+		chat.WithMessages(msgs...),
+		chat.WithTools(tools...))
+
+	if llm, ok := llm.(*anthropic.Provider); ok {
+		tokens, err := llm.CountTokens(ctxRequest, *params)
+		if err != nil {
+			return 0, fmt.Errorf("Failed to count tokens: %v", err)
+		}
+		return tokens, nil
+	}
+
+	return 0, fmt.Errorf("Provider not supported")
 }

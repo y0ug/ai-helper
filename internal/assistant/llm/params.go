@@ -1,6 +1,6 @@
 package llm
 
-import "github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+import "github.com/y0ug/llmhaven/chat"
 
 type Params struct {
 	ChatParams      *chat.ChatParams

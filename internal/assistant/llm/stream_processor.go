@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/http/streaming"
+	"github.com/y0ug/llmhaven/chat"
+	"github.com/y0ug/llmhaven/http/streaming"
 )
 
 type StreamProcessor struct {

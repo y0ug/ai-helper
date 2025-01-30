@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/y0ug/ai-helper/internal/config"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 	"github.com/y0ug/ai-helper/pkg/mcpclient"
 )
 

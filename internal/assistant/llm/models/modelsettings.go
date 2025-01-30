@@ -9,8 +9,8 @@ import (
 
 	"github.com/pkoukk/tiktoken-go"
 	"github.com/y0ug/ai-helper/internal/tokeniz"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
+	"github.com/y0ug/llmhaven/chat"
+	"github.com/y0ug/llmhaven/modelinfo"
 )
 
 // Constants

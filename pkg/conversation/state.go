@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 // DefaultStateTransitioner provides basic state transition logic

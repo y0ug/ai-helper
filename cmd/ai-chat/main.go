@@ -16,8 +16,8 @@ import (
 	"github.com/y0ug/ai-helper/internal/console"
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/llmagent"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
+	"github.com/y0ug/llmhaven/chat"
+	"github.com/y0ug/llmhaven/modelinfo"
 )
 
 func generateSessionID() string {

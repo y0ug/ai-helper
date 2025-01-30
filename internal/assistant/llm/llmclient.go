@@ -7,7 +7,7 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/assistant/llm/metrics"
 	"github.com/y0ug/ai-helper/internal/assistant/settings"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 type Completion func(ctx context.Context, messages []*chat.ChatMessage, tools []chat.Tool) (*chat.ChatResponse, error)

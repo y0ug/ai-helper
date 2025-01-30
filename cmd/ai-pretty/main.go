@@ -11,9 +11,9 @@ import (
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/internal/middleware"
 	"github.com/y0ug/ai-helper/pkg/highlighter"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
+	"github.com/y0ug/llmhaven/chat"
+	"github.com/y0ug/llmhaven/http/options"
+	"github.com/y0ug/llmhaven/modelinfo"
 )
 
 var mcpConfig = `

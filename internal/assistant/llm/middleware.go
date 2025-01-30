@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
+	"github.com/y0ug/llmhaven/chat"
 )
 
 type Middleware func(next ChatCompleter) ChatCompleter

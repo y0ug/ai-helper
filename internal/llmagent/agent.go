@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/y0ug/ai-helper/pkg/llmhaven"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/http/options"
-	"github.com/y0ug/ai-helper/pkg/llmhaven/modelinfo"
+	"github.com/y0ug/llmhaven"
+	"github.com/y0ug/llmhaven/chat"
+	"github.com/y0ug/llmhaven/http/options"
+	"github.com/y0ug/llmhaven/modelinfo"
 )
 
 // NOP go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=llmagent .  Agenter
