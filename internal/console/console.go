@@ -10,10 +10,8 @@ import (
 	"strings"
 
 	"github.com/c-bata/go-prompt"
-	"github.com/y0ug/ai-helper/internal/assistant/actions"
-	"github.com/y0ug/ai-helper/internal/assistant/actions/executors"
+	"github.com/y0ug/ai-helper/internal/highlighter"
 	"github.com/y0ug/ai-helper/internal/llmagent"
-	"github.com/y0ug/ai-helper/pkg/highlighter"
 )
 
 type Console struct {
@@ -39,15 +37,10 @@ type Command struct {
 	handler     func(args []string)
 }
 
-func New(agent *llmagent.TemplateAgent) *Console {
+func New(agent *llmagent.TemplateAgent, h *highlighter.Highlighter) *Console {
 	c := &Console{
-		coder:        coder,
-		h:            h,
-		historyFile:  getHistoryFilePath(),
-		statusChan:   make(chan string),
-		inputChan:    make(chan string),
-		confirmChan:  make(chan actions.Action),
-		responseChan: make(chan executors.UserResponse),
+		h:           h,
+		historyFile: getHistoryFilePath(),
 	}
 
 	c.setCommands()

@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 
 	"github.com/y0ug/ai-helper/internal/config"
+	"github.com/y0ug/ai-helper/internal/highlighter"
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/ai-helper/internal/middleware"
-	"github.com/y0ug/ai-helper/pkg/highlighter"
 	"github.com/y0ug/llmhaven/chat"
 	"github.com/y0ug/llmhaven/http/options"
 	"github.com/y0ug/llmhaven/modelinfo"

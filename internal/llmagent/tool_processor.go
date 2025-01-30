@@ -8,7 +8,7 @@ import (
 
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/mcpclient"
+	"github.com/y0ug/mcpkit"
 )
 
 // go:generate go run go.uber.org/mock/mockgen@latest -destination=mock.go -package=llmagent . ToolProcessor
@@ -23,7 +23,7 @@ type ToolProcessor interface {
 // MCPToolService handles the execution of tools requested by the LLM
 type MCPToolService struct {
 	handlers map[string]ToolHandler
-	clients  map[string]mcpclient.MCPClientInterface
+	clients  map[string]mcpkit.Client
 	tools    []chat.Tool
 	cancel   context.CancelFunc
 	logger   *slog.Logger
@@ -33,7 +33,7 @@ type MCPToolService struct {
 func NewToolProcessor(logger *slog.Logger) *MCPToolService {
 	return &MCPToolService{
 		handlers: make(map[string]ToolHandler),
-		clients:  make(map[string]mcpclient.MCPClientInterface),
+		clients:  make(map[string]mcpkit.Client),
 		tools:    make([]chat.Tool, 0),
 		logger:   logger,
 	}
@@ -133,7 +133,7 @@ func (a *MCPToolService) Start(ctx context.Context, config *config.MCPServers) e
 		}
 
 		// Create new MCP client
-		client, err := mcpclient.NewMCPClient(ctx, a.logger, config.Command, config.Args...)
+		client, err := mcpkit.NewClient(ctx, a.logger, config.Command, config.Args...)
 		if err != nil {
 			return fmt.Errorf("failed to create MCP client: %w", err)
 		}
@@ -151,7 +151,7 @@ func (a *MCPToolService) Start(ctx context.Context, config *config.MCPServers) e
 
 func (a *MCPToolService) setTools() error {
 	for _, v := range a.clients {
-		tools, err := mcpclient.FetchAll(context.Background(), v.ListTools)
+		tools, err := mcpkit.FetchAll(context.Background(), v.ListTools)
 		if err != nil {
 			// a.logger.Warn("fetchTools", "name", k)
 			continue

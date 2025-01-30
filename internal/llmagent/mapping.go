@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/y0ug/llmhaven/chat"
-	"github.com/y0ug/ai-helper/pkg/mcpclient"
+	"github.com/y0ug/mcpkit"
 )
 
 type ToolHandler func(ctx context.Context, input map[string]interface{}) ([]interface{}, error)
 
-func GetToolHandler(c mcpclient.MCPClientInterface, name string) ToolHandler {
+func GetToolHandler(c mcpkit.Client, name string) ToolHandler {
 	return func(ctx context.Context, input map[string]interface{}) ([]interface{}, error) {
 		result, err := c.CallTool(ctx, name, input)
 		if err != nil {
@@ -19,7 +19,7 @@ func GetToolHandler(c mcpclient.MCPClientInterface, name string) ToolHandler {
 	}
 }
 
-func MCPClientToolToTool(tools ...mcpclient.Tool) []chat.Tool {
+func MCPClientToolToTool(tools ...mcpkit.Tool) []chat.Tool {
 	result := make([]chat.Tool, 0)
 	for _, tool := range tools {
 		result = append(result, chat.Tool{

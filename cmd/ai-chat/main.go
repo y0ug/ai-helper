@@ -14,6 +14,7 @@ import (
 	"github.com/lmittmann/tint"
 	"github.com/y0ug/ai-helper/internal/config"
 	"github.com/y0ug/ai-helper/internal/console"
+	"github.com/y0ug/ai-helper/internal/highlighter"
 	"github.com/y0ug/ai-helper/internal/io"
 	"github.com/y0ug/ai-helper/internal/llmagent"
 	"github.com/y0ug/llmhaven/chat"
@@ -137,7 +138,8 @@ func main() {
 		}
 	}
 
-	console := console.New(agent)
+	h := highlighter.NewHighlighter(os.Stdout)
+	console := console.New(agent, h)
 	console.Run()
 	// // Execute the command
 	// h := highlighter.NewHighlighter(os.Stdout)
